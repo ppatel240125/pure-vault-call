@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Secure Voice Node</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; touch-action: none; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
+        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 16px; letter-spacing: 1px; }
+        p { font-size: 11px; color: #9ca3af; margin-bottom: 25px; }
+        .status { font-size: 14px; margin: 20px 0; color: #ffb74d; font-weight: bold; }
+        
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; outline: none; }
+        .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
+        
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
+        .end-btn:hover { background: #991b1b; }
+    </style>
+</head>
+<body>
+    <div class="box">
+        <h3>SECURE_VOICE_NODE</h3>
+        <p>Encrypted 2G Low-Data Channel</p>
+        <div id="call-status" class="status">Connecting to secure stream...</div>
+        
+        <audio id="remote-audio" autoplay playsinline webkit-playsinline></audio>
+
+        <div class="controls-grid">
+            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+        </div>
+
+        <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
+    </div>
+
+    <!-- PeerJS CDN for WebRTC Voice Streaming -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        const role = urlParams.get('role'); // 'caller' or 'receiver'
+
+        let localStream = null;
+        let remoteAudioEl = document.getElementById('remote-audio');
+        let isMuted = false;
+        let isSpeakerOn = false;
+        let currentPeer = null;
+        let wakeLock = null;
+
+        document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+        document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                }
+            } catch (err) {}
+        }
+
+        document.addEventListener('visibilitychange', async () => {
+            if (wakeLock !== null && document.visibilityState === 'visible') {
+                await requestWakeLock();
+            }
+        });
+
+        if (!roomId) {
+            document.getElementById('call-status').innerText = "Error: Invalid Room ID";
+        } else {
+            initAudioCall();
+            requestWakeLock();
+        }
+
+        function initAudioCall() {
+            navigator.mediaDevices.getUserMedia({ 
+                audio: { 
+                    echoCancellation: true, 
+                    noiseSuppression: true, 
+                    autoGainControl: true 
+                }, 
+                video: false 
+            })
+            .then(stream => {
+                localStream = stream;
+                const peerId = `vault_${roomId}_${role === 'caller' ? 'p1' : 'p2'}`;
+                const targetPeerId = `vault_${roomId}_${role === 'caller' ? 'p2' : 'p1'}`;
+
+                currentPeer = new Peer(peerId, { host: '0.peerjs.com', port: 443, path: '/' });
+
+                currentPeer.on('open', () => {
+                    document.getElementById('call-status').innerText = "Ringing... waiting for peer";
+                    if (role === 'caller') {
+                        setTimeout(() => {
+                            const call = currentPeer.call(targetPeerId, localStream);
+                            handleCallStream(call);
+                        }, 1200);
+                    }
+                });
+
+                currentPeer.on('call', (call) => {
+                    document.getElementById('call-status').innerText = "Connected 🎙️ (Earpiece)";
+                    call.answer(localStream);
+                    handleCallStream(call);
+                });
+
+                currentPeer.on('error', (err) => {
+                    document.getElementById('call-status').innerText = "Connection lost. Reconnecting...";
+                });
+            })
+            .catch(err => {
+                document.getElementById('call-status').innerText = "Microphone access denied!";
+            });
+        }
+
+        function handleCallStream(call) {
+            call.on('stream', (remoteStream) => {
+                document.getElementById('call-status').innerText = "Active Call 🟢 (Earpiece)";
+                remoteAudioEl.srcObject = remoteStream;
+                remoteAudioEl.volume = 0.8; // Default earpiece level
+                remoteAudioEl.play().catch(() => {});
+            });
+        }
+
+        /* MUTE / UNMUTE MICROPHONE */
+        function toggleMute() {
+            if (!localStream) return;
+            isMuted = !isMuted;
+            localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            
+            const muteBtn = document.getElementById('mute-btn');
+            if (isMuted) {
+                muteBtn.classList.add('active');
+                muteBtn.innerText = "🔇 Unmute";
+            } else {
+                muteBtn.classList.remove('active');
+                muteBtn.innerText = "🎙️ Mute";
+            }
+        }
+
+        /* SPEAKER TOGGLE */
+        function toggleSpeaker() {
+            isSpeakerOn = !isSpeakerOn;
+            const speakerBtn = document.getElementById('speaker-btn');
+            const statusEl = document.getElementById('call-status');
+            
+            if (isSpeakerOn) {
+                speakerBtn.classList.add('active');
+                speakerBtn.innerText = "🔊 Speaker ON";
+                statusEl.innerText = "Active Call 🔊 (Speaker)";
+                remoteAudioEl.volume = 1.0;
+            } else {
+                speakerBtn.classList.remove('active');
+                speakerBtn.innerText = "🔊 Speaker";
+                statusEl.innerText = "Active Call 🟢 (Earpiece)";
+                remoteAudioEl.volume = 0.8;
+            }
+        }
+
+        function endCallAndClose() {
+            if (wakeLock !== null) { wakeLock.release().catch(() => {}); }
+            if (localStream) { localStream.getTracks().forEach(track => track.stop()); }
+            if (currentPeer) { currentPeer.destroy(); }
+            window.close();
+        }
+    </script>
+</body>
+</html>
