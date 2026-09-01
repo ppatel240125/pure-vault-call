@@ -36,7 +36,6 @@
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
-    <!-- PeerJS CDN with Robust STUN Fallbacks -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -49,93 +48,78 @@
         let isSpeakerOn = false;
         let currentPeer = null;
         let wakeLock = null;
-        let reconnectAttempts = 0;
+        let outgoingRingTimer = null;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
         async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                }
-            } catch (err) {}
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
-
-        document.addEventListener('visibilitychange', async () => {
-            if (wakeLock !== null && document.visibilityState === 'visible') {
-                await requestWakeLock();
-            }
-        });
 
         if (!roomId) {
             document.getElementById('call-status').innerText = "Error: Invalid Room ID";
         } else {
             initAudioCall();
             requestWakeLock();
+            if (role === 'caller') playOutgoingRingtone();
+        }
+
+        // Outgoing Ringing Beep Sound (ટ્રૂ... ટ્રૂ... અવાજ)
+        function playOutgoingRingtone() {
+            const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            outgoingRingTimer = setInterval(() => {
+                if (!localStream || document.getElementById('call-status').innerText.includes("Active")) {
+                    clearInterval(outgoingRingTimer);
+                    return;
+                }
+                try {
+                    const osc = audioCtx.createOscillator();
+                    const gain = audioCtx.createGain();
+                    osc.type = 'sine';
+                    osc.frequency.setValueAtTime(440, audioCtx.currentTime); // Standard ring frequency
+                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                    osc.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    osc.start();
+                    osc.stop(audioCtx.currentTime + 0.8);
+                } catch(e){}
+            }, 3000);
         }
 
         function initAudioCall() {
             navigator.mediaDevices.getUserMedia({ 
-                audio: { 
-                    echoCancellation: true, 
-                    noiseSuppression: true, 
-                    autoGainControl: true,
-                    googEchoCancellation: true
-                }, 
+                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
                 video: false 
             })
             .then(stream => {
                 localStream = stream;
-                // Unique deterministic peer IDs to prevent mismatch
-                const peerId = `vault_v2_${roomId}_${role}`;
+                const peerId = `vault_v3_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `vault_v2_${roomId}_${targetRole}`;
+                const targetPeerId = `vault_v3_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
-                    host: '0.peerjs.com',
-                    port: 443,
-                    path: '/',
-                    secure: true,
-                    config: {
-                        'iceServers': [
-                            { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' },
-                            { urls: 'stun:stun1.l.google.com:19302' }
-                        ]
-                    }
+                    host: '0.peerjs.com', port: 443, path: '/', secure: true,
+                    config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
                 });
 
-                currentPeer.on('open', (id) => {
-                    document.getElementById('call-status').innerText = "Ringing... connecting nodes";
-                    reconnectAttempts = 0;
-                    
-                    // Both caller and receiver can attempt connection to guarantee handshake
-                    setTimeout(() => {
-                        tryConnect(targetPeerId);
-                    }, 1000);
+                currentPeer.on('open', () => {
+                    document.getElementById('call-status').innerText = "Ringing... earpiece active";
+                    setTimeout(() => tryConnect(targetPeerId), 800);
                 });
 
                 currentPeer.on('call', (call) => {
-                    document.getElementById('call-status').innerText = "Connected 🎙️ (Secure Earpiece)";
+                    if(outgoingRingTimer) clearInterval(outgoingRingTimer);
+                    document.getElementById('call-status').innerText = "Connected 🎙️ (Earpiece)";
                     call.answer(localStream);
                     handleCallStream(call);
                 });
 
-                currentPeer.on('error', (err) => {
-                    console.error("Peer error:", err);
-                    if (reconnectAttempts < 5) {
-                        reconnectAttempts++;
-                        document.getElementById('call-status').innerText = `Reconnecting (${reconnectAttempts}/5)...`;
-                        setTimeout(() => {
-                            if (currentPeer) currentPeer.reconnect();
-                        }, 2000);
-                    } else {
-                        document.getElementById('call-status').innerText = "Connection failed. Check network.";
-                    }
+                currentPeer.on('error', () => {
+                    document.getElementById('call-status').innerText = "Connecting...";
                 });
             })
-            .catch(err => {
+            .catch(() => {
                 document.getElementById('call-status').innerText = "Microphone access denied!";
             });
         }
@@ -143,22 +127,20 @@
         function tryConnect(targetPeerId) {
             if (!currentPeer || currentPeer.destroyed) return;
             const call = currentPeer.call(targetPeerId, localStream);
-            if (call) {
-                handleCallStream(call);
-            } else {
-                setTimeout(() => tryConnect(targetPeerId), 2000);
-            }
+            if (call) handleCallStream(call);
+            else setTimeout(() => tryConnect(targetPeerId), 2000);
         }
 
         function handleCallStream(call) {
+            if(outgoingRingTimer) clearInterval(outgoingRingTimer);
             call.on('stream', (remoteStream) => {
-                document.getElementById('call-status').innerText = "Active Secure Call 🟢";
+                document.getElementById('call-status').innerText = "Active Call 🟢 (Earpiece)";
                 remoteAudioEl.srcObject = remoteStream;
-                remoteAudioEl.volume = 0.8; // Default Earpiece level
+                remoteAudioEl.volume = 0.7; // Forced comfortable earpiece level
                 remoteAudioEl.play().catch(() => {});
             });
             call.on('close', () => {
-                document.getElementById('call-status').innerText = "Call Ended";
+                window.close();
             });
         }
 
@@ -166,15 +148,9 @@
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
-            
             const muteBtn = document.getElementById('mute-btn');
-            if (isMuted) {
-                muteBtn.classList.add('active');
-                muteBtn.innerText = "🔇 Unmute";
-            } else {
-                muteBtn.classList.remove('active');
-                muteBtn.innerText = "🎙️ Mute";
-            }
+            muteBtn.classList.toggle('active', isMuted);
+            muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
         }
 
         function toggleSpeaker() {
@@ -185,20 +161,21 @@
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
-                statusEl.innerText = "Active Call 🔊 (Speaker)";
-                remoteAudioEl.volume = 1.0;
+                statusEl.innerText = "Active Call 🔊 (Loudspeaker)";
+                remoteAudioEl.volume = 1.0; // Max volume for loudspeaker
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🔊 Speaker";
                 statusEl.innerText = "Active Call 🟢 (Earpiece)";
-                remoteAudioEl.volume = 0.8;
+                remoteAudioEl.volume = 0.7; // Earpiece level
             }
         }
 
         function endCallAndClose() {
-            if (wakeLock !== null) { wakeLock.release().catch(() => {}); }
-            if (localStream) { localStream.getTracks().forEach(track => track.stop()); }
-            if (currentPeer) { currentPeer.destroy(); }
+            if(outgoingRingTimer) clearInterval(outgoingRingTimer);
+            if (wakeLock !== null) wakeLock.release().catch(() => {});
+            if (localStream) localStream.getTracks().forEach(track => track.stop());
+            if (currentPeer) currentPeer.destroy();
             window.close();
         }
     </script>
