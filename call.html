@@ -36,7 +36,7 @@
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
-    <!-- PeerJS CDN with fallback STUN configuration -->
+    <!-- PeerJS CDN with Robust STUN Fallbacks -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -49,6 +49,7 @@
         let isSpeakerOn = false;
         let currentPeer = null;
         let wakeLock = null;
+        let reconnectAttempts = 0;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
@@ -79,16 +80,18 @@
                 audio: { 
                     echoCancellation: true, 
                     noiseSuppression: true, 
-                    autoGainControl: true 
+                    autoGainControl: true,
+                    googEchoCancellation: true
                 }, 
                 video: false 
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `vault_${roomId}_${role === 'caller' ? 'p1' : 'p2'}`;
-                const targetPeerId = `vault_${roomId}_${role === 'caller' ? 'p2' : 'p1'}`;
+                // Unique deterministic peer IDs to prevent mismatch
+                const peerId = `vault_v2_${roomId}_${role}`;
+                const targetRole = role === 'caller' ? 'receiver' : 'caller';
+                const targetPeerId = `vault_v2_${roomId}_${targetRole}`;
 
-                // Stable PeerJS configuration with public stun servers
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com',
                     port: 443,
@@ -97,35 +100,39 @@
                     config: {
                         'iceServers': [
                             { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:global.stun.twilio.com:3478' }
+                            { urls: 'stun:global.stun.twilio.com:3478' },
+                            { urls: 'stun:stun1.l.google.com:19302' }
                         ]
                     }
                 });
 
-                currentPeer.on('open', () => {
-                    document.getElementById('call-status').innerText = "Ringing... waiting for peer";
-                    if (role === 'caller') {
-                        setTimeout(() => {
-                            const call = currentPeer.call(targetPeerId, localStream);
-                            handleCallStream(call);
-                        }, 800);
-                    }
+                currentPeer.on('open', (id) => {
+                    document.getElementById('call-status').innerText = "Ringing... connecting nodes";
+                    reconnectAttempts = 0;
+                    
+                    // Both caller and receiver can attempt connection to guarantee handshake
+                    setTimeout(() => {
+                        tryConnect(targetPeerId);
+                    }, 1000);
                 });
 
                 currentPeer.on('call', (call) => {
-                    document.getElementById('call-status').innerText = "Connected 🎙️ (Earpiece)";
+                    document.getElementById('call-status').innerText = "Connected 🎙️ (Secure Earpiece)";
                     call.answer(localStream);
                     handleCallStream(call);
                 });
 
                 currentPeer.on('error', (err) => {
-                    console.error(err);
-                    document.getElementById('call-status').innerText = "Retrying connection...";
-                    setTimeout(() => {
-                        if(currentPeer && currentPeer.destroyed) {
-                            initAudioCall();
-                        }
-                    }, 2000);
+                    console.error("Peer error:", err);
+                    if (reconnectAttempts < 5) {
+                        reconnectAttempts++;
+                        document.getElementById('call-status').innerText = `Reconnecting (${reconnectAttempts}/5)...`;
+                        setTimeout(() => {
+                            if (currentPeer) currentPeer.reconnect();
+                        }, 2000);
+                    } else {
+                        document.getElementById('call-status').innerText = "Connection failed. Check network.";
+                    }
                 });
             })
             .catch(err => {
@@ -133,12 +140,25 @@
             });
         }
 
+        function tryConnect(targetPeerId) {
+            if (!currentPeer || currentPeer.destroyed) return;
+            const call = currentPeer.call(targetPeerId, localStream);
+            if (call) {
+                handleCallStream(call);
+            } else {
+                setTimeout(() => tryConnect(targetPeerId), 2000);
+            }
+        }
+
         function handleCallStream(call) {
             call.on('stream', (remoteStream) => {
-                document.getElementById('call-status').innerText = "Active Call 🟢 (Earpiece)";
+                document.getElementById('call-status').innerText = "Active Secure Call 🟢";
                 remoteAudioEl.srcObject = remoteStream;
-                remoteAudioEl.volume = 0.8;
+                remoteAudioEl.volume = 0.8; // Default Earpiece level
                 remoteAudioEl.play().catch(() => {});
+            });
+            call.on('close', () => {
+                document.getElementById('call-status').innerText = "Call Ended";
             });
         }
 
