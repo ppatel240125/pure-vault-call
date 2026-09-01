@@ -36,7 +36,7 @@
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
-    <!-- PeerJS CDN for WebRTC Voice Streaming -->
+    <!-- PeerJS CDN with fallback STUN configuration -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
         const urlParams = new URLSearchParams(window.location.search);
@@ -88,7 +88,19 @@
                 const peerId = `vault_${roomId}_${role === 'caller' ? 'p1' : 'p2'}`;
                 const targetPeerId = `vault_${roomId}_${role === 'caller' ? 'p2' : 'p1'}`;
 
-                currentPeer = new Peer(peerId, { host: '0.peerjs.com', port: 443, path: '/' });
+                // Stable PeerJS configuration with public stun servers
+                currentPeer = new Peer(peerId, {
+                    host: '0.peerjs.com',
+                    port: 443,
+                    path: '/',
+                    secure: true,
+                    config: {
+                        'iceServers': [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:global.stun.twilio.com:3478' }
+                        ]
+                    }
+                });
 
                 currentPeer.on('open', () => {
                     document.getElementById('call-status').innerText = "Ringing... waiting for peer";
@@ -96,7 +108,7 @@
                         setTimeout(() => {
                             const call = currentPeer.call(targetPeerId, localStream);
                             handleCallStream(call);
-                        }, 1200);
+                        }, 800);
                     }
                 });
 
@@ -107,7 +119,13 @@
                 });
 
                 currentPeer.on('error', (err) => {
-                    document.getElementById('call-status').innerText = "Connection lost. Reconnecting...";
+                    console.error(err);
+                    document.getElementById('call-status').innerText = "Retrying connection...";
+                    setTimeout(() => {
+                        if(currentPeer && currentPeer.destroyed) {
+                            initAudioCall();
+                        }
+                    }, 2000);
                 });
             })
             .catch(err => {
@@ -119,12 +137,11 @@
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Active Call 🟢 (Earpiece)";
                 remoteAudioEl.srcObject = remoteStream;
-                remoteAudioEl.volume = 0.8; // Default earpiece level
+                remoteAudioEl.volume = 0.8;
                 remoteAudioEl.play().catch(() => {});
             });
         }
 
-        /* MUTE / UNMUTE MICROPHONE */
         function toggleMute() {
             if (!localStream) return;
             isMuted = !isMuted;
@@ -140,7 +157,6 @@
             }
         }
 
-        /* SPEAKER TOGGLE */
         function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
