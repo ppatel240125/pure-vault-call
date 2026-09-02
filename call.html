@@ -6,8 +6,8 @@
     <title>Secure Voice Node - HD</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; touch-action: none; }
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
         h3 { color: #3b82f6; margin-bottom: 5px; font-size: 16px; letter-spacing: 1px; }
         p { font-size: 11px; color: #9ca3af; margin-bottom: 15px; }
         .status { font-size: 13px; margin: 15px 0; color: #ffb74d; font-weight: bold; }
@@ -17,10 +17,15 @@
         .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px 6px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
+        .lock-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 8px; outline: none; }
+        .lock-btn.locked { background: #713f12; color: #fde047; }
+
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 5px; }
         .end-btn:hover { background: #991b1b; }
-        
-        #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 999; display: none; background: rgba(0,0,0,0.05); }
+
+        /* Touch Protection Shield Overlay */
+        #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.01); }
+        #touch-shield.active { display: block; z-index: 99; }
     </style>
 </head>
 <body>
@@ -32,6 +37,8 @@
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
         <audio id="remote-audio" autoplay playsinline></audio>
+
+        <button id="lock-screen-btn" class="lock-btn" onclick="toggleTouchLock()" style="display:none;">🔒 Lock Screen (Touch Protection)</button>
 
         <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -55,6 +62,7 @@
         let isMuted = false;
         let isSpeakerOn = false;
         let isHDActive = false;
+        let isTouchLocked = false;
         let currentPeer = null;
         let dataConnection = null;
         let wakeLock = null;
@@ -68,10 +76,6 @@
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
-
-        function setTouchProtection(enable) {
-            document.getElementById('touch-shield').style.display = enable ? 'block' : 'none';
-        }
 
         async function requestWakeLock() {
             try { 
@@ -89,20 +93,34 @@
             requestWakeLock();
         }
 
+        // Toggle Touch Protection Lock
+        function toggleTouchLock() {
+            isTouchLocked = !isTouchLocked;
+            const shield = document.getElementById('touch-shield');
+            const lockBtn = document.getElementById('lock-screen-btn');
+
+            if (isTouchLocked) {
+                shield.classList.add('active');
+                lockBtn.classList.add('locked');
+                lockBtn.innerText = "🔓 Unlock Screen (Touch Protected)";
+            } else {
+                shield.classList.remove('active');
+                lockBtn.classList.remove('locked');
+                lockBtn.innerText = "🔒 Lock Screen (Touch Protection)";
+            }
+        }
+
         function startDeviceAlerts() {
             if (isMobileDevice) {
-                // Mobile: Only continuous vibration alert
                 if ('vibrate' in navigator) {
                     vibrateInterval = setInterval(() => {
                         try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
                     }, 2000);
                 }
             } else {
-                // PC: Beep-beep ringing alert
                 try {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     playBeepRingtone();
-                    // Unlock audio on any PC click if browser blocked it initially
                     window.addEventListener('click', () => {
                         if (audioCtx && audioCtx.state === 'suspended') {
                             audioCtx.resume();
@@ -142,15 +160,15 @@
                     echoCancellation: true, 
                     noiseSuppression: true, 
                     autoGainControl: true,
-                    sampleRate: 16000 // Data saver base
+                    sampleRate: 16000 
                 }, 
                 video: false 
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v7_${roomId}_${role}`;
+                const peerId = `secure_v9_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v7_${roomId}_${targetRole}`;
+                const targetPeerId = `secure_v9_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -216,11 +234,11 @@
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
                 document.getElementById('call-timer').style.display = 'block';
-                setTouchProtection(true);
+                document.getElementById('lock-screen-btn').style.display = 'block'; // Show lock button on active call
                 startCallTimer();
 
                 remoteAudioEl.srcObject = remoteStream;
-                remoteAudioEl.volume = 0.7; // Comfortable default earpiece volume level
+                remoteAudioEl.volume = 0.7; 
                 remoteAudioEl.play().catch(() => {});
             });
 
@@ -309,7 +327,6 @@
         function executeCleanupAndExit() {
             stopAlerts();
             if (callTimerInterval) clearInterval(callTimerInterval);
-            setTouchProtection(false);
             if (wakeLock !== null) wakeLock.release().catch(() => {});
             if (localStream) localStream.getTracks().forEach(track => track.stop());
             if (currentPeer) currentPeer.destroy();
