@@ -96,27 +96,21 @@
             const btn = document.getElementById('fs-lock-btn');
 
             if (isCombinedLocked) {
-                // Enter Fullscreen
                 const elem = document.documentElement;
                 if (elem.requestFullscreen) {
                     elem.requestFullscreen().catch(() => {});
                 } else if (elem.webkitRequestFullscreen) {
                     elem.webkitRequestFullscreen();
                 }
-
-                // Activate Touch Shield Lock
                 shield.classList.add('active');
                 btn.classList.add('active');
                 btn.innerText = "🔓 Unlock Screen";
             } else {
-                // Exit Fullscreen
                 if (document.exitFullscreen) {
                     document.exitFullscreen().catch(() => {});
                 } else if (document.webkitExitFullscreen) {
                     document.webkitExitFullscreen();
                 }
-
-                // Remove Touch Shield Lock
                 shield.classList.remove('active');
                 btn.classList.remove('active');
                 btn.innerText = "⛶ Fullscreen & Lock";
@@ -260,7 +254,7 @@
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
                 document.getElementById('call-timer').style.display = 'block';
-                document.getElementById('fs-lock-btn').style.display = 'block'; // Show combined button on active call
+                document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
 
                 remoteAudioEl.srcObject = remoteStream;
