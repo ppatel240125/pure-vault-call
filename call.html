@@ -39,7 +39,6 @@
         
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <!-- Single Combined Manual Button for Fullscreen + Touch Lock -->
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
         <div class="controls-grid">
@@ -56,7 +55,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         const role = urlParams.get('role');
-        const redirectUrl = urlParams.get('back') || './';
+        const redirectUrl = urlParams.get('back'); // ચેટ વિન્ડોની બેક લિંક (જો હોય તો)
 
         let localStream = null;
         let activeCall = null;
@@ -89,7 +88,6 @@
             } catch (err) {}
         }
 
-        // Combined Manual Fullscreen + Touch Lock Toggle
         function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
             const shield = document.getElementById('touch-shield');
@@ -117,7 +115,6 @@
             }
         }
 
-        // Double tap on shield to unlock both
         function handleShieldClick() {
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
@@ -362,7 +359,13 @@
             } catch(e) {}
 
             setTimeout(() => {
-                window.location.replace(redirectUrl);
+                if (redirectUrl) {
+                    window.location.replace(redirectUrl);
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.close();
+                }
             }, 300);
         }
     </script>
