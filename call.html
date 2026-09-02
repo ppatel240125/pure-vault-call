@@ -23,13 +23,14 @@
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 5px; }
         .end-btn:hover { background: #991b1b; }
 
-        /* Touch Protection Shield Overlay */
-        #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.01); }
-        #touch-shield.active { display: block; z-index: 99; }
+        /* Touch Protection Shield Overlay with Double-Tap Info */
+        #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
+        #touch-shield.active { display: flex; z-index: 99; }
     </style>
 </head>
 <body>
-    <div id="touch-shield"></div>
+    <div id="touch-shield" onclick="handleShieldClick()">🔒 Screen Locked<br><span style="font-size:10px; color:#9ca3af; font-weight:normal;">(Double tap anywhere to unlock)</span></div>
+    
     <div class="box">
         <h3>SECURE_VOICE_NODE</h3>
         <p id="mode-text">Data Saver Mode (2G Optimized)</p>
@@ -71,6 +72,7 @@
         let callTimerInterval = null;
         let callSeconds = 0;
         let audioCtx = null;
+        let lastTapTime = 0;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
@@ -83,6 +85,17 @@
                     wakeLock = await navigator.wakeLock.request('screen'); 
                 }
             } catch (err) {}
+        }
+
+        // Enable Fullscreen Mode to hide browser address/navigation bars
+        function enterFullscreen() {
+            try {
+                if (document.documentElement.requestFullscreen) {
+                    document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) {
+                    document.documentElement.webkitRequestFullscreen();
+                }
+            } catch (e) {}
         }
 
         if (!roomId || !role) {
@@ -102,12 +115,23 @@
             if (isTouchLocked) {
                 shield.classList.add('active');
                 lockBtn.classList.add('locked');
-                lockBtn.innerText = "🔓 Unlock Screen (Touch Protected)";
+                lockBtn.innerText = "🔓 Unlock Screen";
             } else {
                 shield.classList.remove('active');
                 lockBtn.classList.remove('locked');
                 lockBtn.innerText = "🔒 Lock Screen (Touch Protection)";
             }
+        }
+
+        // Double tap handler on shield to easily unlock
+        function handleShieldClick() {
+            const currentTime = new Date().getTime();
+            const tapLength = currentTime - lastTapTime;
+            if (tapLength < 300 && tapLength > 0) {
+                // Double tap detected! Unlock screen
+                toggleTouchLock();
+            }
+            lastTapTime = currentTime;
         }
 
         function startDeviceAlerts() {
@@ -166,9 +190,9 @@
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v9_${roomId}_${role}`;
+                const peerId = `secure_v10_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v9_${roomId}_${targetRole}`;
+                const targetPeerId = `secure_v10_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -230,11 +254,12 @@
 
         function handleCallStream(call) {
             stopAlerts();
+            enterFullscreen(); // Automatically trigger full-screen mode on active call
             
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
                 document.getElementById('call-timer').style.display = 'block';
-                document.getElementById('lock-screen-btn').style.display = 'block'; // Show lock button on active call
+                document.getElementById('lock-screen-btn').style.display = 'block';
                 startCallTimer();
 
                 remoteAudioEl.srcObject = remoteStream;
