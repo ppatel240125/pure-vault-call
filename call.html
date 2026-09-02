@@ -23,18 +23,29 @@
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 5px; }
         .end-btn:hover { background: #991b1b; }
 
-        /* Touch Protection Shield Overlay with Double-Tap Info */
+        /* Fullscreen prompt overlay for browser restriction bypass */
+        #fs-prompt { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 9999; background: rgba(7,9,14,0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; color: #fff; padding: 20px; text-align: center; }
+        #fs-prompt button { background: #3b82f6; color: white; border: none; padding: 15px 30px; border-radius: 12px; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 20px; }
+
+        /* Touch Protection Shield Overlay */
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.6); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
 </head>
 <body>
+    <!-- Fullscreen Enforcement Prompt (Browser Policy Bypass) -->
+    <div id="fs-prompt">
+        <h3>SECURE CALL READY</h3>
+        <p style="color: #9ca3af; margin-top: 10px;">Tap below to enter Fullscreen & Start Call safely</p>
+        <button onclick="startCallWithFullscreen()">📞 Enter Call & Fullscreen</button>
+    </div>
+
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Screen Locked<br><span style="font-size:10px; color:#9ca3af; font-weight:normal;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
         <h3>SECURE_VOICE_NODE</h3>
         <p id="mode-text">Data Saver Mode (2G Optimized)</p>
-        <div id="call-status" class="status">Initializing channel...</div>
+        <div id="call-status" class="status">Waiting to start...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
         <audio id="remote-audio" autoplay playsinline></audio>
@@ -55,7 +66,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         const role = urlParams.get('role');
-        const redirectUrl = urlParams.get('back') || '/';
+        const redirectUrl = urlParams.get('back') || './';
 
         let localStream = null;
         let activeCall = null;
@@ -87,26 +98,28 @@
             } catch (err) {}
         }
 
-        // Enable Fullscreen Mode to hide browser address/navigation bars
-        function enterFullscreen() {
-            try {
-                if (document.documentElement.requestFullscreen) {
-                    document.documentElement.requestFullscreen();
-                } else if (document.documentElement.webkitRequestFullscreen) {
-                    document.documentElement.webkitRequestFullscreen();
-                }
-            } catch (e) {}
+        // Trigger Fullscreen and start app flow on user click
+        function startCallWithFullscreen() {
+            const elem = document.documentElement;
+            if (elem.requestFullscreen) {
+                elem.requestFullscreen().catch(() => {});
+            } else if (elem.webkitRequestFullscreen) {
+                elem.webkitRequestFullscreen();
+            }
+
+            // Hide prompt overlay
+            document.getElementById('fs-prompt').style.display = 'none';
+
+            // Initialize call & permissions
+            if (!roomId || !role) {
+                document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
+            } else {
+                startDeviceAlerts();
+                initAudioCall();
+                requestWakeLock();
+            }
         }
 
-        if (!roomId || !role) {
-            document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
-        } else {
-            startDeviceAlerts();
-            initAudioCall();
-            requestWakeLock();
-        }
-
-        // Toggle Touch Protection Lock
         function toggleTouchLock() {
             isTouchLocked = !isTouchLocked;
             const shield = document.getElementById('touch-shield');
@@ -123,12 +136,10 @@
             }
         }
 
-        // Double tap handler on shield to easily unlock
         function handleShieldClick() {
             const currentTime = new Date().getTime();
             const tapLength = currentTime - lastTapTime;
             if (tapLength < 300 && tapLength > 0) {
-                // Double tap detected! Unlock screen
                 toggleTouchLock();
             }
             lastTapTime = currentTime;
@@ -145,11 +156,6 @@
                 try {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                     playBeepRingtone();
-                    window.addEventListener('click', () => {
-                        if (audioCtx && audioCtx.state === 'suspended') {
-                            audioCtx.resume();
-                        }
-                    }, { once: true });
                 } catch(e) {}
             }
         }
@@ -190,9 +196,9 @@
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v10_${roomId}_${role}`;
+                const peerId = `secure_v11_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v10_${roomId}_${targetRole}`;
+                const targetPeerId = `secure_v11_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -254,7 +260,6 @@
 
         function handleCallStream(call) {
             stopAlerts();
-            enterFullscreen(); // Automatically trigger full-screen mode on active call
             
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
@@ -358,9 +363,15 @@
 
             document.getElementById('call-status').innerText = "Call Terminated. Returning...";
             
+            // Exit fullscreen if active
+            try {
+                if (document.exitFullscreen) document.exitFullscreen();
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } catch(e) {}
+
             setTimeout(() => {
                 window.location.href = redirectUrl;
-            }, 600);
+            }, 400);
         }
     </script>
 </body>
