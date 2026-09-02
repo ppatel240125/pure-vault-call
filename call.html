@@ -29,23 +29,24 @@ body {
 
 body {
     background: #07090e;
-    color: #00ff66;
+    color: #ffffff;
     font-family: monospace;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
     overflow: hidden;
     touch-action: manipulation;
 }
 
 .box {
-    position: relative;
     width: 92%;
     max-width: 360px;
     background: #0b0e14;
     border: 1px solid #1f293d;
     border-radius: 16px;
     padding: 26px;
+    text-align: center;
+    position: relative;
     box-shadow: 0 10px 30px rgba(0,0,0,.8);
 }
 
@@ -53,41 +54,38 @@ body {
     position: absolute;
     top: 14px;
     right: 14px;
-    background: rgba(21,128,61,.2);
+    padding: 4px 8px;
+    border-radius: 6px;
+    font-size: 10px;
     color: #4ade80;
     border: 1px solid #166534;
-    border-radius: 6px;
-    padding: 4px 8px;
-    font-size: 10px;
-    font-weight: bold;
+    background: rgba(21,128,61,.2);
 }
 
 h3 {
     color: #3b82f6;
-    margin: 10px 0 5px;
     font-size: 16px;
-    letter-spacing: 1px;
+    margin: 10px 0 5px;
 }
 
 p {
     color: #9ca3af;
     font-size: 11px;
-    margin-bottom: 15px;
 }
 
 #call-timer {
     display: none;
-    color: white;
     font-size: 26px;
     font-weight: bold;
-    margin: 10px 0;
+    margin: 12px 0;
+    color: white;
 }
 
 .status {
-    min-height: 44px;
+    min-height: 48px;
     display: flex;
-    align-items: center;
     justify-content: center;
+    align-items: center;
     color: #ffb74d;
     font-size: 13px;
     font-weight: bold;
@@ -102,12 +100,11 @@ p {
 }
 
 .ctrl-btn {
-    background: #1f293d;
-    color: #d1d5db;
     border: none;
     border-radius: 10px;
     padding: 14px;
-    font-size: 13px;
+    background: #1f293d;
+    color: #d1d5db;
     font-weight: bold;
     cursor: pointer;
 }
@@ -136,14 +133,12 @@ p {
 }
 
 .start-audio-btn {
-    width: 100%;
-    padding: 12px;
     border: none;
     border-radius: 10px;
+    padding: 12px;
     background: #2563eb;
     color: white;
     font-weight: bold;
-    cursor: pointer;
 }
 
 </style>
@@ -152,62 +147,81 @@ p {
 
 <body>
 
-<div class="box" id="main-box">
+<div
+    class="box"
+    id="main-box"
+>
 
-```
-<div class="e2e-badge">🔒 P2P</div>
+<div class="e2e-badge">
+🔒 P2P
+</div>
 
-<h3>SECURE VOICE NODE</h3>
+<h3>
+SECURE VOICE NODE
+</h3>
 
-<p>Fast P2P Voice Channel</p>
+<p>
+Fast P2P Voice Channel
+</p>
 
-<div id="call-timer">00:00</div>
+<div
+    id="call-timer"
+>
+00:00
+</div>
 
-<div id="call-status" class="status">
-    Preparing microphone...
+<div
+    id="call-status"
+    class="status"
+>
+Preparing microphone...
 </div>
 
 <audio
-    id="remote-audio"
-    autoplay
-    playsinline
-></audio>
+id="remote-audio"
+autoplay
+playsinline
+
+> </audio>
 
 <div class="controls-grid">
 
-    <button
-        id="mute-btn"
-        class="ctrl-btn"
-        onclick="toggleMute()"
-    >
-        🎙️ Mute
-    </button>
+<button
+id="mute-btn"
+class="ctrl-btn"
+onclick="toggleMute()"
 
-    <button
-        id="speaker-btn"
-        class="ctrl-btn"
-        onclick="toggleSpeaker()"
-    >
-        🔊 Speaker
-    </button>
+>
 
-    <button
-        id="quality-btn"
-        class="ctrl-btn full-width-btn"
-        onclick="toggleQuality()"
-    >
-        📶 Data Saver
-    </button>
+🎙️ Mute </button>
+
+<button
+id="speaker-btn"
+class="ctrl-btn"
+onclick="toggleSpeaker()"
+
+>
+
+🔊 Speaker </button>
+
+<button
+id="quality-btn"
+class="ctrl-btn full-width-btn"
+onclick="toggleQuality()"
+
+>
+
+📶 Data Saver </button>
 
 </div>
 
 <button
-    class="end-btn"
-    onclick="endCallAndClose()"
+class="end-btn"
+onclick="endCallAndClose()"
+
 >
-    🔴 END CALL
-</button>
-```
+
+🔴 END CALL </button>
 
 </div>
 
@@ -215,12 +229,14 @@ p {
 
 <script>
 
-/* =========================================
+/* =====================================
    URL PARAMETERS
-========================================= */
+===================================== */
 
 const params =
-    new URLSearchParams(window.location.search);
+    new URLSearchParams(
+        window.location.search
+    );
 
 const roomId =
     params.get("room");
@@ -229,12 +245,33 @@ const role =
     params.get("role");
 
 
-/* =========================================
-   PEER IDs
-========================================= */
+/* =====================================
+   VALIDATION
+===================================== */
+
+if (
+    !roomId ||
+    !role ||
+    (
+        role !== "caller" &&
+        role !== "receiver"
+    )
+) {
+
+    document
+        .getElementById("call-status")
+        .innerText =
+        "Invalid call information.";
+
+}
+
+
+/* =====================================
+   PEER IDS
+===================================== */
 
 const myPeerId =
-    "vault_fast_" +
+    "voice_fast_" +
     roomId +
     "_" +
     role;
@@ -247,15 +284,15 @@ const targetRole =
 
 
 const targetPeerId =
-    "vault_fast_" +
+    "voice_fast_" +
     roomId +
     "_" +
     targetRole;
 
 
-/* =========================================
-   GLOBAL VARIABLES
-========================================= */
+/* =====================================
+   VARIABLES
+===================================== */
 
 let peer = null;
 
@@ -263,14 +300,12 @@ let localStream = null;
 
 let currentCall = null;
 
-let signalConnection = null;
+let controlConnection = null;
 
 let remoteAudio =
-    document.getElementById("remote-audio");
-
-let peerReady = false;
-
-let remoteReady = false;
+    document.getElementById(
+        "remote-audio"
+    );
 
 let callStarted = false;
 
@@ -278,74 +313,66 @@ let callConnected = false;
 
 let endingCall = false;
 
+let remoteEnded = false;
+
+let retryTimer = null;
+
+let callTimer = null;
+
+let callStartTime = null;
+
+let wakeLock = null;
+
 let isMuted = false;
 
 let isSpeakerOn = false;
 
 let isHighQuality = false;
 
-let retryTimer = null;
 
-let timerInterval = null;
-
-let callStartTime = null;
-
-let wakeLock = null;
-
-
-/* =========================================
+/* =====================================
    STATUS
-========================================= */
+===================================== */
 
-function setStatus(text) {
+function setStatus(message) {
 
     document
-        .getElementById("call-status")
-        .innerText = text;
+        .getElementById(
+            "call-status"
+        )
+        .innerText =
+        message;
 
 }
 
 
-/* =========================================
-   VALIDATE URL
-========================================= */
+/* =====================================
+   START
+===================================== */
 
-if (!roomId || !role) {
-
-    setStatus(
-        "Invalid call information."
-    );
-
-}
-
-else if (
-    role !== "caller" &&
-    role !== "receiver"
+if (
+    roomId &&
+    (
+        role === "caller" ||
+        role === "receiver"
+    )
 ) {
-
-    setStatus(
-        "Invalid call role."
-    );
-
-}
-
-else {
 
     startSystem();
 
 }
 
 
-/* =========================================
+/* =====================================
    START SYSTEM
-========================================= */
+===================================== */
 
 async function startSystem() {
 
     try {
 
         setStatus(
-            "Requesting microphone..."
+            "Starting microphone..."
         );
 
 
@@ -354,29 +381,28 @@ async function startSystem() {
 
 
         setStatus(
-            "Microphone ready..."
+            "Connecting..."
         );
-
-
-        await requestWakeLock();
 
 
         createPeer();
 
     }
 
-    catch (error) {
+    catch(error) {
 
-        showMicrophoneError(error);
+        showMicrophoneError(
+            error
+        );
 
     }
 
 }
 
 
-/* =========================================
-   GET MICROPHONE
-========================================= */
+/* =====================================
+   MICROPHONE
+===================================== */
 
 async function getMicrophone() {
 
@@ -386,73 +412,71 @@ async function getMicrophone() {
     ) {
 
         throw {
-            name: "SecurityError"
+            name:
+            "SecurityError"
         };
 
     }
 
 
-    /*
-       Android-friendly request
-    */
-
     try {
 
         return await
-            navigator.mediaDevices
-                .getUserMedia({
+        navigator.mediaDevices
+        .getUserMedia({
 
-                    audio: {
+            audio: {
 
-                        echoCancellation: true,
+                echoCancellation:
+                true,
 
-                        noiseSuppression: true,
+                noiseSuppression:
+                true,
 
-                        autoGainControl: true
+                autoGainControl:
+                true
 
-                    },
+            },
 
-                    video: false
+            video:
+            false
 
-                });
+        });
 
     }
 
-    catch (firstError) {
-
-        /*
-           Basic fallback
-        */
+    catch(error) {
 
         return await
-            navigator.mediaDevices
-                .getUserMedia({
+        navigator.mediaDevices
+        .getUserMedia({
 
-                    audio: true,
+            audio:
+            true,
 
-                    video: false
+            video:
+            false
 
-                });
+        });
 
     }
 
 }
 
 
-/* =========================================
+/* =====================================
    MICROPHONE ERROR
-========================================= */
+===================================== */
 
 function showMicrophoneError(error) {
 
     console.error(
-        "Microphone error:",
         error
     );
 
 
     let message =
-        "Microphone error.";
+        "Microphone Error";
 
 
     if (
@@ -461,7 +485,7 @@ function showMicrophoneError(error) {
     ) {
 
         message =
-            "Microphone permission denied. Browser Settings માં Allow કરો.";
+        "Microphone permission denied.";
 
     }
 
@@ -471,7 +495,7 @@ function showMicrophoneError(error) {
     ) {
 
         message =
-            "Microphone મળ્યો નથી.";
+        "Microphone not found.";
 
     }
 
@@ -481,7 +505,7 @@ function showMicrophoneError(error) {
     ) {
 
         message =
-            "Microphone હાલમાં બીજા App દ્વારા ઉપયોગમાં છે.";
+        "Microphone is being used by another app.";
 
     }
 
@@ -491,82 +515,75 @@ function showMicrophoneError(error) {
     ) {
 
         message =
-            "HTTPS secure page જરૂરી છે.";
-
-    }
-
-    else if (
-        error.name
-    ) {
-
-        message =
-            "Microphone Error: " +
-            error.name;
+        "HTTPS secure page required.";
 
     }
 
 
-    setStatus(message);
+    setStatus(
+        message
+    );
 
 }
 
 
-/* =========================================
+/* =====================================
    CREATE PEER
-========================================= */
+===================================== */
 
 function createPeer() {
 
     peer =
-        new Peer(
-            myPeerId,
-            {
+    new Peer(
 
-                host:
-                    "0.peerjs.com",
+        myPeerId,
 
-                port:
-                    443,
+        {
 
-                path:
-                    "/",
+            host:
+            "0.peerjs.com",
 
-                secure:
-                    true,
+            port:
+            443,
 
-                config: {
+            path:
+            "/",
 
-                    iceServers: [
+            secure:
+            true,
 
-                        {
-                            urls:
-                                "stun:stun.l.google.com:19302"
-                        },
+            config: {
 
-                        {
-                            urls:
-                                "stun:global.stun.twilio.com:3478"
-                        }
+                iceServers: [
 
-                    ]
+                    {
 
-                }
+                        urls:
+                        "stun:stun.l.google.com:19302"
+
+                    },
+
+                    {
+
+                        urls:
+                        "stun:global.stun.twilio.com:3478"
+
+                    }
+
+                ]
 
             }
-        );
+
+        }
+
+    );
 
 
-    /*
-       PEER READY
-    */
+    /* PEER READY */
 
     peer.on(
         "open",
         function() {
-
-            peerReady =
-                true;
-
 
             if (
                 role ===
@@ -582,11 +599,11 @@ function createPeer() {
             else {
 
                 setStatus(
-                    "Looking for receiver..."
+                    "Calling..."
                 );
 
 
-                startFastHandshake();
+                connectControl();
 
             }
 
@@ -594,15 +611,13 @@ function createPeer() {
     );
 
 
-    /*
-       SIGNAL CONNECTION
-    */
+    /* CONTROL CONNECTION */
 
     peer.on(
         "connection",
         function(connection) {
 
-            handleSignalConnection(
+            setupControlConnection(
                 connection
             );
 
@@ -610,9 +625,7 @@ function createPeer() {
     );
 
 
-    /*
-       INCOMING VOICE CALL
-    */
+    /* VOICE CALL */
 
     peer.on(
         "call",
@@ -623,8 +636,11 @@ function createPeer() {
             ) {
 
                 try {
+
                     call.close();
+
                 }
+
                 catch(e) {}
 
                 return;
@@ -632,13 +648,21 @@ function createPeer() {
             }
 
 
+            /*
+               Duplicate call protection
+            */
+
             if (
-                currentCall
+                currentCall &&
+                !currentCall.closed
             ) {
 
                 try {
+
                     call.close();
+
                 }
+
                 catch(e) {}
 
                 return;
@@ -651,33 +675,42 @@ function createPeer() {
 
 
             setStatus(
-                "Connecting..."
+                "Connecting call..."
             );
 
 
-            call.answer(
-                localStream
-            );
+            try {
 
+                call.answer(
+                    localStream
+                );
 
-            handleVoiceCall(
-                call
-            );
+                setupVoiceCall(
+                    call
+                );
+
+            }
+
+            catch(error) {
+
+                console.error(
+                    error
+                );
+
+            }
 
         }
     );
 
 
-    /*
-       PEER ERROR
-    */
+    /* PEER ERROR */
 
     peer.on(
         "error",
         function(error) {
 
             console.error(
-                "Peer error:",
+                "Peer Error:",
                 error
             );
 
@@ -688,39 +721,13 @@ function createPeer() {
 
 
             if (
-                error.type ===
-                "peer-unavailable"
-            ) {
-
-                remoteReady =
-                    false;
-
-            }
-
-
-            if (
                 role ===
                 "caller"
             ) {
 
-                scheduleFastRetry();
+                scheduleRetry();
 
             }
-
-        }
-    );
-
-
-    /*
-       PEER DISCONNECTED
-    */
-
-    peer.on(
-        "disconnected",
-        function() {
-
-            peerReady =
-                false;
 
         }
     );
@@ -728,11 +735,11 @@ function createPeer() {
 }
 
 
-/* =========================================
-   FAST HANDSHAKE
-========================================= */
+/* =====================================
+   CONTROL CONNECT
+===================================== */
 
-function startFastHandshake() {
+function connectControl() {
 
     if (
         endingCall ||
@@ -741,26 +748,9 @@ function startFastHandshake() {
 
 
     if (
-        !peer ||
-        peer.destroyed
-    ) return;
-
-
-    /*
-       Already have an open signal
-    */
-
-    if (
-        signalConnection &&
-        signalConnection.open
+        controlConnection &&
+        controlConnection.open
     ) {
-
-        signalConnection.send({
-
-            type:
-                "READY_CHECK"
-
-        });
 
         return;
 
@@ -774,16 +764,17 @@ function startFastHandshake() {
                 targetPeerId,
                 {
 
-                    reliable: true,
+                    reliable:
+                    true,
 
                     serialization:
-                        "json"
+                    "json"
 
                 }
             );
 
 
-        handleSignalConnection(
+        setupControlConnection(
             connection
         );
 
@@ -791,25 +782,25 @@ function startFastHandshake() {
 
     catch(error) {
 
-        scheduleFastRetry();
+        scheduleRetry();
 
     }
 
 }
 
 
-/* =========================================
-   HANDLE SIGNAL CONNECTION
-========================================= */
+/* =====================================
+   CONTROL CONNECTION
+===================================== */
 
-function handleSignalConnection(
+function setupControlConnection(
     connection
 ) {
 
     if (!connection) return;
 
 
-    signalConnection =
+    controlConnection =
         connection;
 
 
@@ -822,52 +813,18 @@ function handleSignalConnection(
             ) return;
 
 
-            /*
-               Tell the other phone:
-               I am ready
-            */
-
             try {
 
                 connection.send({
 
                     type:
-                        "READY",
-
-                    role:
-                        role
+                    "READY"
 
                 });
 
             }
 
             catch(e) {}
-
-
-            /*
-               Caller waits for
-               receiver READY
-            */
-
-            if (
-                role ===
-                "caller"
-            ) {
-
-                try {
-
-                    connection.send({
-
-                        type:
-                            "READY_CHECK"
-
-                    });
-
-                }
-
-                catch(e) {}
-
-            }
 
         }
     );
@@ -878,81 +835,48 @@ function handleSignalConnection(
         function(data) {
 
             if (
+                !data ||
                 endingCall
             ) return;
 
 
-            if (!data) return;
-
-
-            /*
-               READY MESSAGE
-            */
+            /* READY */
 
             if (
                 data.type ===
                 "READY"
             ) {
 
-                remoteReady =
-                    true;
-
-
                 /*
-                   Receiver is ready:
-                   caller immediately calls
+                   ONLY CALLER STARTS CALL
                 */
 
                 if (
                     role ===
-                    "caller"
+                    "caller" &&
+                    !callStarted &&
+                    !callConnected
                 ) {
 
-                    startVoiceCallImmediately();
+                    startVoiceCall();
 
                 }
 
             }
 
 
-            /*
-               READY CHECK
-            */
+            /* END */
 
             if (
                 data.type ===
-                "READY_CHECK"
+                "END"
             ) {
 
-                try {
-
-                    connection.send({
-
-                        type:
-                            "READY",
-
-                        role:
-                            role
-
-                    });
-
-                }
-
-                catch(e) {}
-
-            }
+                remoteEnded =
+                    true;
 
 
-            /*
-               END CALL MESSAGE
-            */
-
-            if (
-                data.type ===
-                "END_CALL"
-            ) {
-
-                remoteEndedCall();
+                endFromRemote();
 
             }
 
@@ -965,23 +889,24 @@ function handleSignalConnection(
         function() {
 
             if (
-                signalConnection ===
+                controlConnection ===
                 connection
             ) {
 
-                signalConnection =
+                controlConnection =
                     null;
 
             }
 
 
             if (
+                !endingCall &&
                 !callConnected &&
-                role === "caller" &&
-                !endingCall
+                role ===
+                "caller"
             ) {
 
-                scheduleFastRetry();
+                scheduleRetry();
 
             }
 
@@ -994,12 +919,12 @@ function handleSignalConnection(
         function() {
 
             if (
-                !callConnected &&
-                role === "caller" &&
-                !endingCall
+                !endingCall &&
+                role ===
+                "caller"
             ) {
 
-                scheduleFastRetry();
+                scheduleRetry();
 
             }
 
@@ -1009,22 +934,16 @@ function handleSignalConnection(
 }
 
 
-/* =========================================
-   START VOICE CALL IMMEDIATELY
-========================================= */
+/* =====================================
+   START VOICE CALL
+===================================== */
 
-function startVoiceCallImmediately() {
+function startVoiceCall() {
 
     if (
         endingCall ||
         callStarted ||
         callConnected
-    ) return;
-
-
-    if (
-        !peer ||
-        !localStream
     ) return;
 
 
@@ -1051,7 +970,7 @@ function startVoiceCallImmediately() {
             callStarted =
                 false;
 
-            scheduleFastRetry();
+            scheduleRetry();
 
             return;
 
@@ -1062,7 +981,7 @@ function startVoiceCallImmediately() {
             call;
 
 
-        handleVoiceCall(
+        setupVoiceCall(
             call
         );
 
@@ -1070,75 +989,22 @@ function startVoiceCallImmediately() {
 
     catch(error) {
 
-        console.error(
-            "Voice call error:",
-            error
-        );
-
-
         callStarted =
             false;
 
 
-        scheduleFastRetry();
+        scheduleRetry();
 
     }
 
 }
 
 
-/* =========================================
-   FAST RETRY
-========================================= */
+/* =====================================
+   VOICE CALL
+===================================== */
 
-function scheduleFastRetry() {
-
-    if (
-        endingCall ||
-        callConnected ||
-        role !== "caller"
-    ) return;
-
-
-    if (retryTimer) {
-
-        clearTimeout(
-            retryTimer
-        );
-
-    }
-
-
-    retryTimer =
-        setTimeout(
-            function() {
-
-                retryTimer =
-                    null;
-
-
-                callStarted =
-                    false;
-
-
-                startFastHandshake();
-
-            },
-
-            500
-        );
-
-}
-
-
-/* =========================================
-   HANDLE VOICE CALL
-========================================= */
-
-function handleVoiceCall(call) {
-
-    if (!call) return;
-
+function setupVoiceCall(call) {
 
     call.on(
         "stream",
@@ -1157,16 +1023,7 @@ function handleVoiceCall(call) {
                 true;
 
 
-            if (retryTimer) {
-
-                clearTimeout(
-                    retryTimer
-                );
-
-                retryTimer =
-                    null;
-
-            }
+            clearRetry();
 
 
             setStatus(
@@ -1174,7 +1031,7 @@ function handleVoiceCall(call) {
             );
 
 
-            startCallTimer();
+            startTimer();
 
 
             requestWakeLock();
@@ -1187,21 +1044,15 @@ function handleVoiceCall(call) {
                 remoteStream;
 
 
-            remoteAudio.volume =
-                isSpeakerOn
-                ? 1
-                : 0.8;
-
-
             remoteAudio
-                .play()
-                .catch(
-                    function() {
+            .play()
+            .catch(
+                function() {
 
-                        showStartAudioButton();
+                    showAudioButton();
 
-                    }
-                );
+                }
+            );
 
         }
     );
@@ -1211,12 +1062,19 @@ function handleVoiceCall(call) {
         "close",
         function() {
 
+            /*
+               If local user
+               did not already end,
+               remote side disconnected
+            */
+
             if (
-                endingCall
-            ) return;
+                !endingCall
+            ) {
 
+                endFromRemote();
 
-            handleCallDisconnected();
+            }
 
         }
     );
@@ -1224,20 +1082,15 @@ function handleVoiceCall(call) {
 
     call.on(
         "error",
-        function(error) {
-
-            console.error(
-                "Call error:",
-                error
-            );
-
+        function() {
 
             if (
-                endingCall
-            ) return;
+                !endingCall
+            ) {
 
+                endFromRemote();
 
-            handleCallDisconnected();
+            }
 
         }
     );
@@ -1245,625 +1098,34 @@ function handleVoiceCall(call) {
 }
 
 
-/* =========================================
-   CALL DISCONNECTED
-========================================= */
+/* =====================================
+   REMOTE END
+===================================== */
 
-function handleCallDisconnected() {
-
-    callConnected =
-        false;
-
-
-    callStarted =
-        false;
-
-
-    currentCall =
-        null;
-
-
-    stopCallTimer();
-
+function endFromRemote() {
 
     if (
         endingCall
     ) return;
 
 
-    if (
-        role ===
-        "caller"
-    ) {
-
-        setStatus(
-            "Reconnecting..."
-        );
-
-
-        scheduleFastRetry();
-
-    }
-
-    else {
-
-        setStatus(
-            "Call ended."
-        );
-
-    }
-
-}
-
-
-/* =========================================
-   AUDIO AUTOPLAY BUTTON
-========================================= */
-
-function showStartAudioButton() {
-
-    const status =
-        document.getElementById(
-            "call-status"
-        );
-
-
-    status.innerHTML =
-        '<button class="start-audio-btn" onclick="startRemoteAudio()">🔊 Tap to Start Audio</button>';
-
-}
-
-
-window.startRemoteAudio =
-function() {
-
-    remoteAudio
-        .play()
-        .then(
-            function() {
-
-                setStatus(
-                    "Active Call 🟢"
-                );
-
-            }
-        )
-        .catch(
-            function() {
-
-                showStartAudioButton();
-
-            }
-        );
-
-};
-
-
-/* =========================================
-   CALL TIMER
-========================================= */
-
-function startCallTimer() {
-
-    if (timerInterval) return;
-
-
-    callStartTime =
-        Date.now();
-
-
-    document
-        .getElementById(
-            "call-timer"
-        )
-        .style.display =
-        "block";
-
-
-    timerInterval =
-        setInterval(
-            function() {
-
-                const seconds =
-                    Math.floor(
-                        (
-                            Date.now() -
-                            callStartTime
-                        ) / 1000
-                    );
-
-
-                const hours =
-                    Math.floor(
-                        seconds / 3600
-                    );
-
-
-                const minutes =
-                    Math.floor(
-                        (
-                            seconds % 3600
-                        ) / 60
-                    );
-
-
-                const secs =
-                    seconds % 60;
-
-
-                let result = "";
-
-
-                if (
-                    hours > 0
-                ) {
-
-                    result +=
-                        String(hours)
-                        .padStart(2,"0") +
-                        ":";
-
-                }
-
-
-                result +=
-                    String(minutes)
-                    .padStart(2,"0") +
-                    ":" +
-                    String(secs)
-                    .padStart(2,"0");
-
-
-                document
-                    .getElementById(
-                        "call-timer"
-                    )
-                    .innerText =
-                    result;
-
-            },
-
-            1000
-        );
-
-}
-
-
-function stopCallTimer() {
-
-    if (timerInterval) {
-
-        clearInterval(
-            timerInterval
-        );
-
-        timerInterval =
-            null;
-
-    }
-
-}
-
-
-/* =========================================
-   WAKE LOCK
-========================================= */
-
-async function requestWakeLock() {
-
-    try {
-
-        if (
-            "wakeLock" in navigator &&
-            document.visibilityState ===
-            "visible"
-        ) {
-
-            wakeLock =
-                await navigator
-                    .wakeLock
-                    .request(
-                        "screen"
-                    );
-
-        }
-
-    }
-
-    catch(e) {}
-
-}
-
-
-document.addEventListener(
-    "visibilitychange",
-    function() {
-
-        if (
-            document.visibilityState ===
-            "visible" &&
-            callConnected
-        ) {
-
-            requestWakeLock();
-
-        }
-
-    }
-);
-
-
-/* =========================================
-   MEDIA SESSION
-========================================= */
-
-function setupMediaSession() {
-
-    if (
-        !("mediaSession" in navigator)
-    ) return;
-
-
-    try {
-
-        navigator
-            .mediaSession
-            .metadata =
-            new MediaMetadata({
-
-                title:
-                    "Active Voice Call",
-
-                artist:
-                    "Secure Voice Node"
-
-            });
-
-
-        navigator
-            .mediaSession
-            .setActionHandler(
-                "stop",
-                function() {
-
-                    endCallAndClose();
-
-                }
-            );
-
-    }
-
-    catch(e) {}
-
-}
-
-
-/* =========================================
-   MUTE
-========================================= */
-
-function toggleMute() {
-
-    if (!localStream) return;
-
-
-    isMuted =
-        !isMuted;
-
-
-    localStream
-        .getAudioTracks()
-        .forEach(
-            function(track) {
-
-                track.enabled =
-                    !isMuted;
-
-            }
-        );
-
-
-    const button =
-        document.getElementById(
-            "mute-btn"
-        );
-
-
-    if (isMuted) {
-
-        button
-            .classList
-            .add(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "🔇 Unmute";
-
-    }
-
-    else {
-
-        button
-            .classList
-            .remove(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "🎙️ Mute";
-
-    }
-
-}
-
-
-/* =========================================
-   SPEAKER
-========================================= */
-
-async function toggleSpeaker() {
-
-    isSpeakerOn =
-        !isSpeakerOn;
-
-
-    const button =
-        document.getElementById(
-            "speaker-btn"
-        );
-
-
-    remoteAudio.volume =
-        isSpeakerOn
-        ? 1
-        : 0.8;
-
-
-    /*
-       setSinkId works only
-       on supported browsers
-    */
-
-    if (
-        typeof remoteAudio.setSinkId !==
-        "undefined"
-    ) {
-
-        try {
-
-            const devices =
-                await navigator
-                    .mediaDevices
-                    .enumerateDevices();
-
-
-            const outputs =
-                devices.filter(
-                    device =>
-                    device.kind ===
-                    "audiooutput"
-                );
-
-
-            let device = null;
-
-
-            if (isSpeakerOn) {
-
-                device =
-                    outputs.find(
-                        d =>
-                        (
-                            d.label ||
-                            ""
-                        )
-                        .toLowerCase()
-                        .includes(
-                            "speaker"
-                        )
-                    );
-
-            }
-
-            else {
-
-                device =
-                    outputs.find(
-                        d => {
-
-                            const label =
-                                (
-                                    d.label ||
-                                    ""
-                                )
-                                .toLowerCase();
-
-
-                            return (
-                                label.includes(
-                                    "earpiece"
-                                ) ||
-                                label.includes(
-                                    "handset"
-                                )
-                            );
-
-                        }
-                    );
-
-            }
-
-
-            if (device) {
-
-                await remoteAudio
-                    .setSinkId(
-                        device.deviceId
-                    );
-
-            }
-
-        }
-
-        catch(e) {}
-
-    }
-
-
-    if (isSpeakerOn) {
-
-        button
-            .classList
-            .add(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "🔊 Speaker";
-
-    }
-
-    else {
-
-        button
-            .classList
-            .remove(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "📞 Earpiece";
-
-    }
-
-}
-
-
-/* =========================================
-   QUALITY
-========================================= */
-
-function toggleQuality() {
-
-    if (!localStream) return;
-
-
-    isHighQuality =
-        !isHighQuality;
-
-
-    const button =
-        document.getElementById(
-            "quality-btn"
-        );
-
-
-    localStream
-        .getAudioTracks()
-        .forEach(
-            function(track) {
-
-                if (
-                    !track.applyConstraints
-                ) return;
-
-
-                if (isHighQuality) {
-
-                    track
-                        .applyConstraints({
-
-                            sampleRate: {
-                                ideal: 48000
-                            },
-
-                            channelCount: {
-                                ideal: 1
-                            }
-
-                        })
-                        .catch(
-                            function() {}
-                        );
-
-                }
-
-                else {
-
-                    track
-                        .applyConstraints({
-
-                            sampleRate: {
-                                ideal: 16000
-                            },
-
-                            channelCount: {
-                                ideal: 1
-                            }
-
-                        })
-                        .catch(
-                            function() {}
-                        );
-
-                }
-
-            }
-        );
-
-
-    if (isHighQuality) {
-
-        button
-            .classList
-            .add(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "📶 Smart HD";
-
-    }
-
-    else {
-
-        button
-            .classList
-            .remove(
-                "active"
-            );
-
-
-        button.innerHTML =
-            "📶 Data Saver";
-
-    }
-
-}
-
-
-/* =========================================
-   REMOTE END CALL
-========================================= */
-
-function remoteEndedCall() {
-
-    if (endingCall) return;
-
-
     endingCall =
         true;
 
 
-    stopEverything(
-        false
-    );
+    clearRetry();
+
+
+    stopTimer();
+
+
+    stopLocalMedia();
+
+
+    releaseWakeLock();
+
+
+    closeConnections();
 
 
     setStatus(
@@ -1872,92 +1134,21 @@ function remoteEndedCall() {
 
 
     document
-        .getElementById(
-            "main-box"
-        )
-        .style.opacity =
-        "0.5";
-
-}
-
-
-/* =========================================
-   END CALL
-========================================= */
-
-function endCallAndClose() {
-
-    if (endingCall) return;
-
-
-    endingCall =
-        true;
+    .getElementById(
+        "main-box"
+    )
+    .style.opacity =
+    "0.45";
 
 
     /*
-       Inform other phone first
+       Return to main page
     */
-
-    try {
-
-        if (
-            signalConnection &&
-            signalConnection.open
-        ) {
-
-            signalConnection.send({
-
-                type:
-                    "END_CALL"
-
-            });
-
-        }
-
-    }
-
-    catch(e) {}
-
-
-    stopEverything(
-        true
-    );
-
-
-    setStatus(
-        "Call Ended."
-    );
-
-
-    document
-        .getElementById(
-            "main-box"
-        )
-        .style.opacity =
-        "0.5";
-
 
     setTimeout(
         function() {
 
-            window.close();
-
-
-            if (
-                window.history.length > 1
-            ) {
-
-                setTimeout(
-                    function() {
-
-                        window.history.back();
-
-                    },
-
-                    300
-                );
-
-            }
+            goBack();
 
         },
 
@@ -1967,108 +1158,163 @@ function endCallAndClose() {
 }
 
 
-/* =========================================
-   STOP EVERYTHING
-========================================= */
+/* =====================================
+   END BUTTON
+===================================== */
 
-function stopEverything(
-    destroyPeer
-) {
+function endCallAndClose() {
 
-    callConnected =
-        false;
-
-
-    callStarted =
-        false;
+    if (
+        endingCall
+    ) return;
 
 
-    remoteReady =
-        false;
+    endingCall =
+        true;
 
 
-    stopCallTimer();
+    /*
+       SEND END FIRST
+    */
 
-
-    if (retryTimer) {
-
-        clearTimeout(
-            retryTimer
-        );
-
-        retryTimer =
-            null;
-
-    }
-
-
-    if (wakeLock) {
-
-        wakeLock
-            .release()
-            .catch(
-                function() {}
-            );
-
-        wakeLock =
-            null;
-
-    }
-
-
-    if (localStream) {
-
-        localStream
-            .getTracks()
-            .forEach(
-                function(track) {
-
-                    track.stop();
-
-                }
-            );
-
-    }
-
-
-    if (currentCall) {
+    if (
+        controlConnection &&
+        controlConnection.open
+    ) {
 
         try {
 
-            currentCall.close();
+            controlConnection.send({
+
+                type:
+                "END"
+
+            });
 
         }
 
         catch(e) {}
 
-
-        currentCall =
-            null;
-
     }
 
 
-    if (signalConnection) {
+    setStatus(
+        "Ending call..."
+    );
+
+
+    /*
+       Small delay so END packet
+       gets sent before connection closes
+    */
+
+    setTimeout(
+        function() {
+
+            finishLocalEnd();
+
+        },
+
+        250
+    );
+
+}
+
+
+/* =====================================
+   FINISH LOCAL END
+===================================== */
+
+function finishLocalEnd() {
+
+    clearRetry();
+
+
+    stopTimer();
+
+
+    stopLocalMedia();
+
+
+    releaseWakeLock();
+
+
+    closeConnections();
+
+
+    setStatus(
+        "Call Ended."
+    );
+
+
+    document
+    .getElementById(
+        "main-box"
+    )
+    .style.opacity =
+    "0.45";
+
+
+    setTimeout(
+        function() {
+
+            goBack();
+
+        },
+
+        500
+    );
+
+}
+
+
+/* =====================================
+   CLOSE CONNECTIONS
+===================================== */
+
+function closeConnections() {
+
+    const call =
+        currentCall;
+
+
+    currentCall =
+        null;
+
+
+    if (call) {
 
         try {
 
-            signalConnection.close();
+            call.close();
 
         }
 
         catch(e) {}
-
-
-        signalConnection =
-            null;
 
     }
 
 
     if (
-        destroyPeer &&
-        peer
+        controlConnection
     ) {
+
+        try {
+
+            controlConnection.close();
+
+        }
+
+        catch(e) {}
+
+
+        controlConnection =
+            null;
+
+    }
+
+
+    if (peer) {
 
         try {
 
@@ -2083,9 +1329,664 @@ function stopEverything(
 }
 
 
-/* =========================================
-   END
-========================================= */
+/* =====================================
+   RETRY
+===================================== */
+
+function scheduleRetry() {
+
+    if (
+        endingCall ||
+        callConnected ||
+        role !==
+        "caller"
+    ) return;
+
+
+    clearRetry();
+
+
+    retryTimer =
+    setTimeout(
+        function() {
+
+            retryTimer =
+                null;
+
+
+            callStarted =
+                false;
+
+
+            connectControl();
+
+        },
+
+        600
+    );
+
+}
+
+
+function clearRetry() {
+
+    if (
+        retryTimer
+    ) {
+
+        clearTimeout(
+            retryTimer
+        );
+
+        retryTimer =
+            null;
+
+    }
+
+}
+
+
+/* =====================================
+   TIMER
+===================================== */
+
+function startTimer() {
+
+    if (
+        callTimer
+    ) return;
+
+
+    callStartTime =
+        Date.now();
+
+
+    document
+    .getElementById(
+        "call-timer"
+    )
+    .style.display =
+    "block";
+
+
+    callTimer =
+    setInterval(
+        function() {
+
+            const diff =
+            Math.floor(
+                (
+                    Date.now() -
+                    callStartTime
+                ) / 1000
+            );
+
+
+            const hours =
+            Math.floor(
+                diff / 3600
+            );
+
+
+            const minutes =
+            Math.floor(
+                (
+                    diff % 3600
+                ) / 60
+            );
+
+
+            const seconds =
+            diff % 60;
+
+
+            let text =
+                "";
+
+
+            if (
+                hours > 0
+            ) {
+
+                text +=
+                String(hours)
+                .padStart(
+                    2,
+                    "0"
+                )
+                +
+                ":";
+
+            }
+
+
+            text +=
+            String(minutes)
+            .padStart(
+                2,
+                "0"
+            )
+            +
+            ":"
+            +
+            String(seconds)
+            .padStart(
+                2,
+                "0"
+            );
+
+
+            document
+            .getElementById(
+                "call-timer"
+            )
+            .innerText =
+            text;
+
+        },
+
+        1000
+    );
+
+}
+
+
+function stopTimer() {
+
+    if (
+        callTimer
+    ) {
+
+        clearInterval(
+            callTimer
+        );
+
+        callTimer =
+            null;
+
+    }
+
+}
+
+
+/* =====================================
+   LOCAL MEDIA
+===================================== */
+
+function stopLocalMedia() {
+
+    if (
+        localStream
+    ) {
+
+        localStream
+        .getTracks()
+        .forEach(
+            function(track) {
+
+                track.stop();
+
+            }
+        );
+
+    }
+
+}
+
+
+/* =====================================
+   WAKE LOCK
+===================================== */
+
+async function requestWakeLock() {
+
+    try {
+
+        if (
+            "wakeLock" in navigator
+        ) {
+
+            wakeLock =
+            await navigator
+            .wakeLock
+            .request(
+                "screen"
+            );
+
+        }
+
+    }
+
+    catch(e) {}
+
+}
+
+
+function releaseWakeLock() {
+
+    if (
+        wakeLock
+    ) {
+
+        wakeLock
+        .release()
+        .catch(
+            function() {}
+        );
+
+
+        wakeLock =
+            null;
+
+    }
+
+}
+
+
+/* =====================================
+   MEDIA SESSION
+===================================== */
+
+function setupMediaSession() {
+
+    if (
+        !(
+            "mediaSession" in
+            navigator
+        )
+    ) return;
+
+
+    try {
+
+        navigator
+        .mediaSession
+        .metadata =
+        new MediaMetadata({
+
+            title:
+            "Active Voice Call",
+
+            artist:
+            "Secure Voice Node"
+
+        });
+
+
+        navigator
+        .mediaSession
+        .setActionHandler(
+            "stop",
+            function() {
+
+                endCallAndClose();
+
+            }
+        );
+
+    }
+
+    catch(e) {}
+
+}
+
+
+/* =====================================
+   MUTE
+===================================== */
+
+function toggleMute() {
+
+    if (
+        !localStream
+    ) return;
+
+
+    isMuted =
+        !isMuted;
+
+
+    localStream
+    .getAudioTracks()
+    .forEach(
+        function(track) {
+
+            track.enabled =
+            !isMuted;
+
+        }
+    );
+
+
+    const button =
+    document.getElementById(
+        "mute-btn"
+    );
+
+
+    if (
+        isMuted
+    ) {
+
+        button
+        .classList
+        .add(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "🔇 Unmute";
+
+    }
+
+    else {
+
+        button
+        .classList
+        .remove(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "🎙️ Mute";
+
+    }
+
+}
+
+
+/* =====================================
+   SPEAKER
+===================================== */
+
+function toggleSpeaker() {
+
+    isSpeakerOn =
+        !isSpeakerOn;
+
+
+    const button =
+    document.getElementById(
+        "speaker-btn"
+    );
+
+
+    remoteAudio.volume =
+    isSpeakerOn
+    ?
+    1
+    :
+    0.8;
+
+
+    if (
+        isSpeakerOn
+    ) {
+
+        button
+        .classList
+        .add(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "🔊 Speaker";
+
+    }
+
+    else {
+
+        button
+        .classList
+        .remove(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "📞 Earpiece";
+
+    }
+
+}
+
+
+/* =====================================
+   QUALITY
+===================================== */
+
+function toggleQuality() {
+
+    if (
+        !localStream
+    ) return;
+
+
+    isHighQuality =
+        !isHighQuality;
+
+
+    const button =
+    document.getElementById(
+        "quality-btn"
+    );
+
+
+    localStream
+    .getAudioTracks()
+    .forEach(
+        function(track) {
+
+            if (
+                !track.applyConstraints
+            ) return;
+
+
+            const constraints =
+            isHighQuality
+            ?
+            {
+
+                sampleRate: {
+
+                    ideal:
+                    48000
+
+                },
+
+                channelCount: {
+
+                    ideal:
+                    1
+
+                }
+
+            }
+            :
+            {
+
+                sampleRate: {
+
+                    ideal:
+                    16000
+
+                },
+
+                channelCount: {
+
+                    ideal:
+                    1
+
+                }
+
+            };
+
+
+            track
+            .applyConstraints(
+                constraints
+            )
+            .catch(
+                function() {}
+            );
+
+        }
+    );
+
+
+    if (
+        isHighQuality
+    ) {
+
+        button
+        .classList
+        .add(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "📶 Smart HD";
+
+    }
+
+    else {
+
+        button
+        .classList
+        .remove(
+            "active"
+        );
+
+
+        button.innerHTML =
+        "📶 Data Saver";
+
+    }
+
+}
+
+
+/* =====================================
+   AUTOPLAY
+===================================== */
+
+function showAudioButton() {
+
+    document
+    .getElementById(
+        "call-status"
+    )
+    .innerHTML =
+    '<button class="start-audio-btn" onclick="startRemoteAudio()">🔊 Tap to Start Audio</button>';
+
+}
+
+
+window.startRemoteAudio =
+function() {
+
+    remoteAudio
+    .play()
+    .then(
+        function() {
+
+            setStatus(
+                "Active Call 🟢"
+            );
+
+        }
+    )
+    .catch(
+        function() {
+
+            showAudioButton();
+
+        }
+    );
+
+};
+
+
+/* =====================================
+   GO BACK
+===================================== */
+
+function goBack() {
+
+    try {
+
+        window.close();
+
+    }
+
+    catch(e) {}
+
+
+    setTimeout(
+        function() {
+
+            if (
+                window.history.length >
+                1
+            ) {
+
+                window.history.back();
+
+            }
+
+        },
+
+        200
+    );
+
+}
+
+
+/* =====================================
+   PAGE CLOSE
+===================================== */
+
+window.addEventListener(
+    "pagehide",
+    function() {
+
+        if (
+            !endingCall &&
+            callConnected
+        ) {
+
+            /*
+               Try to notify remote side
+            */
+
+            try {
+
+                if (
+                    controlConnection &&
+                    controlConnection.open
+                ) {
+
+                    controlConnection.send({
+
+                        type:
+                        "END"
+
+                    });
+
+                }
+
+            }
+
+            catch(e) {}
+
+        }
+
+    }
+);
 
 </script>
 
