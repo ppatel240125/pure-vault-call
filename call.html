@@ -4,8 +4,11 @@
 <head>
 <meta charset="UTF-8">
 
-<meta name="viewport"
-content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta
+name="viewport"
+content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+
+>
 
 <title>Secure Voice Node</title>
 
@@ -17,105 +20,96 @@ content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable
     -webkit-user-select: none;
 }
 
+html,
+body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+}
+
 body {
     background: #07090e;
     color: #00ff66;
     font-family: monospace;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    height: 100vh;
-    margin: 0;
-    text-align: center;
     overflow: hidden;
-    touch-action: none;
+    touch-action: manipulation;
 }
 
 .box {
+    position: relative;
+    width: 92%;
+    max-width: 360px;
     background: #0b0e14;
     border: 1px solid #1f293d;
-    padding: 25px;
     border-radius: 16px;
-    width: 92%;
-    max-width: 340px;
-    box-shadow: 0 10px 30px rgba(0,0,0,0.8);
-    transition: opacity 0.3s;
-    position: relative;
+    padding: 26px;
+    box-shadow: 0 10px 30px rgba(0,0,0,.8);
 }
 
 .e2e-badge {
     position: absolute;
-    top: 15px;
-    right: 15px;
-    background: rgba(21, 128, 61, 0.2);
+    top: 14px;
+    right: 14px;
+    background: rgba(21,128,61,.2);
     color: #4ade80;
-    padding: 4px 8px;
+    border: 1px solid #166534;
     border-radius: 6px;
+    padding: 4px 8px;
     font-size: 10px;
     font-weight: bold;
-    border: 1px solid #166534;
-    display: flex;
-    align-items: center;
-    gap: 4px;
 }
 
 h3 {
     color: #3b82f6;
-    margin-bottom: 5px;
+    margin: 10px 0 5px;
     font-size: 16px;
     letter-spacing: 1px;
-    margin-top: 10px;
 }
 
 p {
-    font-size: 11px;
     color: #9ca3af;
+    font-size: 11px;
     margin-bottom: 15px;
 }
 
 #call-timer {
-    font-size: 24px;
-    color: #ffffff;
-    font-weight: bold;
-    letter-spacing: 2px;
-    margin-bottom: 10px;
     display: none;
+    color: white;
+    font-size: 26px;
+    font-weight: bold;
+    margin: 10px 0;
 }
 
 .status {
-    font-size: 14px;
-    margin: 15px 0 25px 0;
-    color: #ffb74d;
-    font-weight: bold;
-    min-height: 40px;
+    min-height: 44px;
     display: flex;
     align-items: center;
     justify-content: center;
+    color: #ffb74d;
+    font-size: 13px;
+    font-weight: bold;
+    text-align: center;
 }
 
 .controls-grid {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 12px;
-    margin-bottom: 15px;
+    margin-top: 14px;
 }
 
 .ctrl-btn {
     background: #1f293d;
     color: #d1d5db;
     border: none;
-    padding: 14px;
     border-radius: 10px;
+    padding: 14px;
+    font-size: 13px;
     font-weight: bold;
     cursor: pointer;
-    font-size: 13px;
-    transition: 0.2s;
-    outline: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 5px;
 }
 
 .ctrl-btn.active {
@@ -126,39 +120,30 @@ p {
 
 .full-width-btn {
     grid-column: span 2;
-    flex-direction: row;
-    justify-content: center;
-    font-size: 14px;
 }
 
 .end-btn {
+    width: 100%;
+    margin-top: 14px;
+    padding: 14px;
+    border: none;
+    border-radius: 10px;
     background: #7f1d1d;
     color: #fca5a5;
-    border: none;
-    padding: 14px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.start-audio-btn {
     width: 100%;
-    border-radius: 10px;
-    font-weight: bold;
-    cursor: pointer;
-    font-size: 14px;
-    outline: none;
-    margin-top: 10px;
-}
-
-.end-btn:hover {
-    background: #991b1b;
-}
-
-.unmute-btn {
-    background: #e53935;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 8px;
+    padding: 12px;
     border: none;
+    border-radius: 10px;
+    background: #2563eb;
+    color: white;
     font-weight: bold;
-    font-size: 14px;
     cursor: pointer;
-    box-shadow: 0 0 15px rgba(229,57,53,0.6);
 }
 
 </style>
@@ -169,62 +154,60 @@ p {
 
 <div class="box" id="main-box">
 
-<div class="e2e-badge">🔒 E2EE</div>
+```
+<div class="e2e-badge">🔒 P2P</div>
 
-<h3>SECURE_VOICE_NODE</h3>
+<h3>SECURE VOICE NODE</h3>
 
-<p>Encrypted P2P Voice Channel</p>
+<p>Fast P2P Voice Channel</p>
 
 <div id="call-timer">00:00</div>
 
 <div id="call-status" class="status">
-Preparing microphone...
+    Preparing microphone...
 </div>
 
 <audio
-id="remote-audio"
-autoplay
-playsinline
-webkit-playsinline> </audio>
+    id="remote-audio"
+    autoplay
+    playsinline
+></audio>
 
 <div class="controls-grid">
 
-<button
-id="mute-btn"
-class="ctrl-btn"
-onclick="toggleMute()">
+    <button
+        id="mute-btn"
+        class="ctrl-btn"
+        onclick="toggleMute()"
+    >
+        🎙️ Mute
+    </button>
 
-🎙️ <span>Mute</span>
+    <button
+        id="speaker-btn"
+        class="ctrl-btn"
+        onclick="toggleSpeaker()"
+    >
+        🔊 Speaker
+    </button>
 
-</button>
-
-<button
-id="speaker-btn"
-class="ctrl-btn"
-onclick="toggleSpeaker()">
-
-📞 <span>Speaker</span>
-
-</button>
-
-<button
-id="quality-btn"
-class="ctrl-btn full-width-btn"
-onclick="toggleQuality()">
-
-📶 Quality: Data Saver
-
-</button>
+    <button
+        id="quality-btn"
+        class="ctrl-btn full-width-btn"
+        onclick="toggleQuality()"
+    >
+        📶 Data Saver
+    </button>
 
 </div>
 
 <button
-class="end-btn"
-onclick="endCallAndClose()">
-
-🔴 END CALL
-
+    class="end-btn"
+    onclick="endCallAndClose()"
+>
+    🔴 END CALL
 </button>
+```
 
 </div>
 
@@ -232,349 +215,293 @@ onclick="endCallAndClose()">
 
 <script>
 
-/* ================================
-   URL SETTINGS
-================================ */
+/* =========================================
+   URL PARAMETERS
+========================================= */
 
-const urlParams = new URLSearchParams(window.location.search);
+const params =
+    new URLSearchParams(window.location.search);
 
-const roomId = urlParams.get("room");
+const roomId =
+    params.get("room");
 
-const role = urlParams.get("role");
+const role =
+    params.get("role");
 
 
-/* ================================
-   VARIABLES
-================================ */
+/* =========================================
+   PEER IDs
+========================================= */
+
+const myPeerId =
+    "vault_fast_" +
+    roomId +
+    "_" +
+    role;
+
+
+const targetRole =
+    role === "caller"
+    ? "receiver"
+    : "caller";
+
+
+const targetPeerId =
+    "vault_fast_" +
+    roomId +
+    "_" +
+    targetRole;
+
+
+/* =========================================
+   GLOBAL VARIABLES
+========================================= */
+
+let peer = null;
 
 let localStream = null;
 
-let remoteAudioEl =
-document.getElementById("remote-audio");
+let currentCall = null;
+
+let signalConnection = null;
+
+let remoteAudio =
+    document.getElementById("remote-audio");
+
+let peerReady = false;
+
+let remoteReady = false;
+
+let callStarted = false;
+
+let callConnected = false;
+
+let endingCall = false;
 
 let isMuted = false;
 
 let isSpeakerOn = false;
 
-let isHDMode = false;
+let isHighQuality = false;
 
-let currentPeer = null;
+let retryTimer = null;
 
-let currentCall = null;
-
-let wakeLock = null;
-
-let outgoingRingTimer = null;
+let timerInterval = null;
 
 let callStartTime = null;
 
-let callTimerInterval = null;
-
-let reconnectTimer = null;
-
-let isEndingCall = false;
-
-let callAttemptInProgress = false;
-
-let peerOpened = false;
-
-let remoteConnected = false;
-
-let disconnectTimer = null;
+let wakeLock = null;
 
 
-/* ================================
-   PREVENT ZOOM / GESTURE
-================================ */
-
-document.addEventListener(
-    "gesturestart",
-    function(e) {
-        e.preventDefault();
-    }
-);
-
-
-document.addEventListener(
-    "dblclick",
-    function(e) {
-        e.preventDefault();
-    },
-    { passive:false }
-);
-
-
-/* ================================
+/* =========================================
    STATUS
-================================ */
+========================================= */
 
-function setStatus(message) {
+function setStatus(text) {
 
     document
-    .getElementById("call-status")
-    .innerText = message;
+        .getElementById("call-status")
+        .innerText = text;
 
 }
 
 
-/* ================================
-   START APP
-================================ */
+/* =========================================
+   VALIDATE URL
+========================================= */
 
 if (!roomId || !role) {
 
     setStatus(
-        "Error: Invalid Room ID"
+        "Invalid call information."
+    );
+
+}
+
+else if (
+    role !== "caller" &&
+    role !== "receiver"
+) {
+
+    setStatus(
+        "Invalid call role."
     );
 
 }
 
 else {
 
-    initAudioCall();
+    startSystem();
 
 }
 
 
-/* ================================
-   WAKE LOCK
-================================ */
+/* =========================================
+   START SYSTEM
+========================================= */
 
-async function requestWakeLock() {
+async function startSystem() {
 
     try {
 
-        if (
-            "wakeLock" in navigator &&
-            document.visibilityState === "visible"
-        ) {
+        setStatus(
+            "Requesting microphone..."
+        );
 
-            wakeLock =
-            await navigator
-            .wakeLock
-            .request("screen");
 
-        }
+        localStream =
+            await getMicrophone();
+
+
+        setStatus(
+            "Microphone ready..."
+        );
+
+
+        await requestWakeLock();
+
+
+        createPeer();
 
     }
 
-    catch(error) {
+    catch (error) {
 
-        console.log(
-            "Wake lock unavailable"
-        );
+        showMicrophoneError(error);
 
     }
 
 }
 
 
-document.addEventListener(
-    "visibilitychange",
-    async function() {
+/* =========================================
+   GET MICROPHONE
+========================================= */
 
-        if (
-            remoteConnected &&
-            document.visibilityState === "visible"
-        ) {
+async function getMicrophone() {
 
-            await requestWakeLock();
+    if (
+        !navigator.mediaDevices ||
+        !navigator.mediaDevices.getUserMedia
+    ) {
 
-        }
+        throw {
+            name: "SecurityError"
+        };
 
     }
-);
 
 
-/* ================================
-   CALL TIMER
-================================ */
+    /*
+       Android-friendly request
+    */
 
-function startCallTimer() {
+    try {
 
-    if (callTimerInterval) return;
+        return await
+            navigator.mediaDevices
+                .getUserMedia({
 
-    document
-    .getElementById("call-timer")
-    .style.display = "block";
+                    audio: {
 
+                        echoCancellation: true,
 
-    callStartTime = Date.now();
+                        noiseSuppression: true,
 
+                        autoGainControl: true
 
-    callTimerInterval =
-    setInterval(function() {
+                    },
 
-        const diff =
-        Math.floor(
-            (
-                Date.now() -
-                callStartTime
-            ) / 1000
-        );
+                    video: false
 
+                });
 
-        const h =
-        Math.floor(
-            diff / 3600
-        )
-        .toString()
-        .padStart(2,"0");
+    }
 
+    catch (firstError) {
 
-        const m =
-        Math.floor(
-            (diff % 3600) / 60
-        )
-        .toString()
-        .padStart(2,"0");
+        /*
+           Basic fallback
+        */
 
+        return await
+            navigator.mediaDevices
+                .getUserMedia({
 
-        const s =
-        (diff % 60)
-        .toString()
-        .padStart(2,"0");
+                    audio: true,
 
+                    video: false
 
-        if (h === "00") {
-
-            document
-            .getElementById("call-timer")
-            .innerText =
-            m + ":" + s;
-
-        }
-
-        else {
-
-            document
-            .getElementById("call-timer")
-            .innerText =
-            h + ":" + m + ":" + s;
-
-        }
-
-    },1000);
-
-}
-
-
-function stopCallTimer() {
-
-    if (callTimerInterval) {
-
-        clearInterval(
-            callTimerInterval
-        );
-
-        callTimerInterval = null;
+                });
 
     }
 
 }
 
 
-/* ================================
+/* =========================================
    MICROPHONE ERROR
-================================ */
+========================================= */
 
-function showMicrophoneError(err) {
+function showMicrophoneError(error) {
 
     console.error(
-        "Microphone Error:",
-        err
+        "Microphone error:",
+        error
     );
 
 
     let message =
-    "Microphone Error";
+        "Microphone error.";
 
 
     if (
-        err &&
-        err.name === "NotAllowedError"
+        error.name ===
+        "NotAllowedError"
     ) {
 
         message =
-        "Microphone permission denied. Browser Settings માં Microphone Allow કરો.";
+            "Microphone permission denied. Browser Settings માં Allow કરો.";
 
     }
 
     else if (
-        err &&
-        err.name === "NotFoundError"
+        error.name ===
+        "NotFoundError"
     ) {
 
         message =
-        "No microphone found.";
+            "Microphone મળ્યો નથી.";
 
     }
 
     else if (
-        err &&
-        err.name === "NotReadableError"
+        error.name ===
+        "NotReadableError"
     ) {
 
         message =
-        "Microphone is busy. અન્ય Call અથવા Recorder App બંધ કરો.";
+            "Microphone હાલમાં બીજા App દ્વારા ઉપયોગમાં છે.";
 
     }
 
     else if (
-        err &&
-        err.name === "OverconstrainedError"
+        error.name ===
+        "SecurityError"
     ) {
 
         message =
-        "Phone microphone settings are not supported.";
+            "HTTPS secure page જરૂરી છે.";
 
     }
 
     else if (
-        err &&
-        err.name === "SecurityError"
+        error.name
     ) {
 
         message =
-        "Microphone security error. HTTPS થી website ખોલો.";
-
-    }
-
-    else if (
-        err &&
-        err.name === "AbortError"
-    ) {
-
-        message =
-        "Microphone start failed. ફરી પ્રયાસ કરો.";
-
-    }
-
-    else if (
-        err &&
-        err.name === "InvalidStateError"
-    ) {
-
-        message =
-        "Browser page is not active.";
-
-    }
-
-    else if (
-        err &&
-        err.name === "TypeError"
-    ) {
-
-        message =
-        "Microphone requires HTTPS secure page.";
-
-    }
-
-    else if (err) {
-
-        message =
-        "Microphone Error: " +
-        err.name;
+            "Microphone Error: " +
+            error.name;
 
     }
 
@@ -584,216 +511,82 @@ function showMicrophoneError(err) {
 }
 
 
-/* ================================
-   GET MICROPHONE
-================================ */
-
-async function getMicrophone() {
-
-    if (
-        !navigator.mediaDevices ||
-        !navigator.mediaDevices.getUserMedia
-    ) {
-
-        throw new Error(
-            "getUserMedia not supported or page is not secure"
-        );
-
-    }
-
-
-    /*
-       FIRST TRY:
-       NORMAL ANDROID FRIENDLY AUDIO
-    */
-
-    try {
-
-        return await
-        navigator.mediaDevices
-        .getUserMedia({
-
-            audio: {
-
-                echoCancellation: true,
-
-                noiseSuppression: true,
-
-                autoGainControl: true
-
-            },
-
-            video: false
-
-        });
-
-    }
-
-    catch(firstError) {
-
-        console.warn(
-            "Advanced audio request failed, trying basic microphone",
-            firstError
-        );
-
-
-        /*
-           SECOND TRY:
-           BASIC MICROPHONE
-        */
-
-        return await
-        navigator.mediaDevices
-        .getUserMedia({
-
-            audio: true,
-
-            video: false
-
-        });
-
-    }
-
-}
-
-
-/* ================================
-   INIT CALL
-================================ */
-
-async function initAudioCall() {
-
-    try {
-
-        setStatus(
-            "Requesting microphone permission..."
-        );
-
-
-        localStream =
-        await getMicrophone();
-
-
-        const audioTracks =
-        localStream
-        .getAudioTracks();
-
-
-        if (
-            !audioTracks ||
-            audioTracks.length === 0
-        ) {
-
-            throw new Error(
-                "No audio track received"
-            );
-
-        }
-
-
-        setStatus(
-            "Microphone ready. Connecting..."
-        );
-
-
-        createPeer();
-
-
-    }
-
-    catch(err) {
-
-        showMicrophoneError(err);
-
-    }
-
-}
-
-
-/* ================================
+/* =========================================
    CREATE PEER
-================================ */
+========================================= */
 
 function createPeer() {
 
-    if (
-        !roomId ||
-        !role
-    ) return;
+    peer =
+        new Peer(
+            myPeerId,
+            {
 
+                host:
+                    "0.peerjs.com",
 
-    const peerId =
-    "vault_v3_" +
-    roomId +
-    "_" +
-    role;
+                port:
+                    443,
 
+                path:
+                    "/",
 
-    currentPeer =
-    new Peer(
-        peerId,
-        {
+                secure:
+                    true,
 
-            host:
-            "0.peerjs.com",
+                config: {
 
-            port:
-            443,
+                    iceServers: [
 
-            path:
-            "/",
+                        {
+                            urls:
+                                "stun:stun.l.google.com:19302"
+                        },
 
-            secure:
-            true,
+                        {
+                            urls:
+                                "stun:global.stun.twilio.com:3478"
+                        }
 
+                    ]
 
-            config: {
-
-                iceServers: [
-
-                    {
-                        urls:
-                        "stun:stun.l.google.com:19302"
-                    },
-
-                    {
-                        urls:
-                        "stun:global.stun.twilio.com:3478"
-                    }
-
-                ]
+                }
 
             }
-
-        }
-    );
+        );
 
 
-    /* ============================
-       PEER OPEN
-    ============================ */
+    /*
+       PEER READY
+    */
 
-    currentPeer.on(
+    peer.on(
         "open",
         function() {
 
-            peerOpened = true;
-
-
-            setStatus(
-                role === "caller"
-                ?
-                "Calling..."
-                :
-                "Waiting for call..."
-            );
+            peerReady =
+                true;
 
 
             if (
-                role === "caller"
+                role ===
+                "receiver"
             ) {
 
-                startCallRetryLoop();
+                setStatus(
+                    "Waiting for caller..."
+                );
+
+            }
+
+            else {
+
+                setStatus(
+                    "Looking for receiver..."
+                );
+
+
+                startFastHandshake();
 
             }
 
@@ -801,142 +594,116 @@ function createPeer() {
     );
 
 
-    /* ============================
-       INCOMING CALL
-    ============================ */
+    /*
+       SIGNAL CONNECTION
+    */
 
-    currentPeer.on(
+    peer.on(
+        "connection",
+        function(connection) {
+
+            handleSignalConnection(
+                connection
+            );
+
+        }
+    );
+
+
+    /*
+       INCOMING VOICE CALL
+    */
+
+    peer.on(
         "call",
         function(call) {
 
             if (
-                isEndingCall
-            ) {
-
-                call.close();
-
-                return;
-
-            }
-
-
-            /*
-               If an existing call is alive,
-               ignore duplicate calls.
-            */
-
-            if (
-                currentCall &&
-                remoteConnected
+                endingCall
             ) {
 
                 try {
-
                     call.close();
-
                 }
-
                 catch(e) {}
-
 
                 return;
 
             }
 
 
-            currentCall = call;
-
-
-            callAttemptInProgress =
-            false;
-
-
             if (
-                reconnectTimer
+                currentCall
             ) {
 
-                clearTimeout(
-                    reconnectTimer
-                );
+                try {
+                    call.close();
+                }
+                catch(e) {}
 
-                reconnectTimer = null;
+                return;
 
             }
+
+
+            currentCall =
+                call;
 
 
             setStatus(
-                "Connecting call..."
+                "Connecting..."
             );
 
 
-            try {
+            call.answer(
+                localStream
+            );
 
-                call.answer(
-                    localStream
-                );
 
-                handleCallStream(
-                    call
-                );
-
-            }
-
-            catch(error) {
-
-                console.error(
-                    "Answer error",
-                    error
-                );
-
-                setStatus(
-                    "Could not answer call."
-                );
-
-            }
+            handleVoiceCall(
+                call
+            );
 
         }
     );
 
 
-    /* ============================
+    /*
        PEER ERROR
-    ============================ */
+    */
 
-    currentPeer.on(
+    peer.on(
         "error",
         function(error) {
 
             console.error(
-                "Peer Error:",
+                "Peer error:",
                 error
             );
 
 
             if (
+                endingCall
+            ) return;
+
+
+            if (
                 error.type ===
-                "unavailable-id"
+                "peer-unavailable"
             ) {
 
-                setStatus(
-                    "Connection ID busy. Reload both phones and try again."
-                );
-
-                return;
+                remoteReady =
+                    false;
 
             }
 
 
-            setStatus(
-                "Connection error. Retrying..."
-            );
-
-
             if (
-                role === "caller" &&
-                !isEndingCall
+                role ===
+                "caller"
             ) {
 
-                scheduleRetry();
+                scheduleFastRetry();
 
             }
 
@@ -944,32 +711,16 @@ function createPeer() {
     );
 
 
-    currentPeer.on(
+    /*
+       PEER DISCONNECTED
+    */
+
+    peer.on(
         "disconnected",
         function() {
 
-            peerOpened = false;
-
-
-            if (
-                !isEndingCall
-            ) {
-
-                setStatus(
-                    "Signal connection lost..."
-                );
-
-            }
-
-        }
-    );
-
-
-    currentPeer.on(
-        "close",
-        function() {
-
-            peerOpened = false;
+            peerReady =
+                false;
 
         }
     );
@@ -977,88 +728,342 @@ function createPeer() {
 }
 
 
-/* ================================
-   CALL RETRY LOOP
-================================ */
+/* =========================================
+   FAST HANDSHAKE
+========================================= */
 
-function startCallRetryLoop() {
+function startFastHandshake() {
 
     if (
-        role !== "caller"
+        endingCall ||
+        callConnected
     ) return;
 
 
-    tryConnect();
+    if (
+        !peer ||
+        peer.destroyed
+    ) return;
 
 
-}
-
-
-/* ================================
-   TRY CONNECT
-================================ */
-
-function tryConnect() {
+    /*
+       Already have an open signal
+    */
 
     if (
-        isEndingCall ||
-        remoteConnected
+        signalConnection &&
+        signalConnection.open
     ) {
+
+        signalConnection.send({
+
+            type:
+                "READY_CHECK"
+
+        });
 
         return;
 
     }
-
-
-    if (
-        !currentPeer ||
-        currentPeer.destroyed ||
-        !peerOpened ||
-        !localStream
-    ) {
-
-        scheduleRetry();
-
-        return;
-
-    }
-
-
-    if (
-        callAttemptInProgress
-    ) {
-
-        scheduleRetry();
-
-        return;
-
-    }
-
-
-    const targetPeerId =
-    "vault_v3_" +
-    roomId +
-    "_receiver";
-
-
-    callAttemptInProgress =
-    true;
-
-
-    setStatus(
-        "Calling receiver..."
-    );
-
-
-    let call = null;
 
 
     try {
 
-        call =
-        currentPeer.call(
-            targetPeerId,
-            localStream
+        const connection =
+            peer.connect(
+                targetPeerId,
+                {
+
+                    reliable: true,
+
+                    serialization:
+                        "json"
+
+                }
+            );
+
+
+        handleSignalConnection(
+            connection
+        );
+
+    }
+
+    catch(error) {
+
+        scheduleFastRetry();
+
+    }
+
+}
+
+
+/* =========================================
+   HANDLE SIGNAL CONNECTION
+========================================= */
+
+function handleSignalConnection(
+    connection
+) {
+
+    if (!connection) return;
+
+
+    signalConnection =
+        connection;
+
+
+    connection.on(
+        "open",
+        function() {
+
+            if (
+                endingCall
+            ) return;
+
+
+            /*
+               Tell the other phone:
+               I am ready
+            */
+
+            try {
+
+                connection.send({
+
+                    type:
+                        "READY",
+
+                    role:
+                        role
+
+                });
+
+            }
+
+            catch(e) {}
+
+
+            /*
+               Caller waits for
+               receiver READY
+            */
+
+            if (
+                role ===
+                "caller"
+            ) {
+
+                try {
+
+                    connection.send({
+
+                        type:
+                            "READY_CHECK"
+
+                    });
+
+                }
+
+                catch(e) {}
+
+            }
+
+        }
+    );
+
+
+    connection.on(
+        "data",
+        function(data) {
+
+            if (
+                endingCall
+            ) return;
+
+
+            if (!data) return;
+
+
+            /*
+               READY MESSAGE
+            */
+
+            if (
+                data.type ===
+                "READY"
+            ) {
+
+                remoteReady =
+                    true;
+
+
+                /*
+                   Receiver is ready:
+                   caller immediately calls
+                */
+
+                if (
+                    role ===
+                    "caller"
+                ) {
+
+                    startVoiceCallImmediately();
+
+                }
+
+            }
+
+
+            /*
+               READY CHECK
+            */
+
+            if (
+                data.type ===
+                "READY_CHECK"
+            ) {
+
+                try {
+
+                    connection.send({
+
+                        type:
+                            "READY",
+
+                        role:
+                            role
+
+                    });
+
+                }
+
+                catch(e) {}
+
+            }
+
+
+            /*
+               END CALL MESSAGE
+            */
+
+            if (
+                data.type ===
+                "END_CALL"
+            ) {
+
+                remoteEndedCall();
+
+            }
+
+        }
+    );
+
+
+    connection.on(
+        "close",
+        function() {
+
+            if (
+                signalConnection ===
+                connection
+            ) {
+
+                signalConnection =
+                    null;
+
+            }
+
+
+            if (
+                !callConnected &&
+                role === "caller" &&
+                !endingCall
+            ) {
+
+                scheduleFastRetry();
+
+            }
+
+        }
+    );
+
+
+    connection.on(
+        "error",
+        function() {
+
+            if (
+                !callConnected &&
+                role === "caller" &&
+                !endingCall
+            ) {
+
+                scheduleFastRetry();
+
+            }
+
+        }
+    );
+
+}
+
+
+/* =========================================
+   START VOICE CALL IMMEDIATELY
+========================================= */
+
+function startVoiceCallImmediately() {
+
+    if (
+        endingCall ||
+        callStarted ||
+        callConnected
+    ) return;
+
+
+    if (
+        !peer ||
+        !localStream
+    ) return;
+
+
+    callStarted =
+        true;
+
+
+    setStatus(
+        "Connecting call..."
+    );
+
+
+    try {
+
+        const call =
+            peer.call(
+                targetPeerId,
+                localStream
+            );
+
+
+        if (!call) {
+
+            callStarted =
+                false;
+
+            scheduleFastRetry();
+
+            return;
+
+        }
+
+
+        currentCall =
+            call;
+
+
+        handleVoiceCall(
+            call
         );
 
     }
@@ -1066,139 +1071,71 @@ function tryConnect() {
     catch(error) {
 
         console.error(
-            "Call attempt failed",
+            "Voice call error:",
             error
         );
 
 
-        callAttemptInProgress =
-        false;
+        callStarted =
+            false;
 
 
-        scheduleRetry();
-
-        return;
+        scheduleFastRetry();
 
     }
-
-
-    if (!call) {
-
-        callAttemptInProgress =
-        false;
-
-
-        scheduleRetry();
-
-        return;
-
-    }
-
-
-    currentCall =
-    call;
-
-
-    handleCallStream(
-        call
-    );
-
-
-    /*
-       If no connection happens,
-       retry again after delay.
-    */
-
-    setTimeout(
-        function() {
-
-            if (
-                !remoteConnected &&
-                !isEndingCall
-            ) {
-
-                try {
-
-                    if (
-                        currentCall === call
-                    ) {
-
-                        call.close();
-
-                        currentCall = null;
-
-                    }
-
-                }
-
-                catch(e) {}
-
-
-                callAttemptInProgress =
-                false;
-
-
-                scheduleRetry();
-
-            }
-
-        },
-        10000
-    );
 
 }
 
 
-/* ================================
-   SCHEDULE RETRY
-================================ */
+/* =========================================
+   FAST RETRY
+========================================= */
 
-function scheduleRetry() {
+function scheduleFastRetry() {
 
     if (
-        isEndingCall ||
-        remoteConnected ||
+        endingCall ||
+        callConnected ||
         role !== "caller"
-    ) {
-
-        return;
-
-    }
+    ) return;
 
 
-    if (
-        reconnectTimer
-    ) {
+    if (retryTimer) {
 
         clearTimeout(
-            reconnectTimer
+            retryTimer
         );
 
     }
 
 
-    reconnectTimer =
-    setTimeout(
-        function() {
+    retryTimer =
+        setTimeout(
+            function() {
 
-            reconnectTimer =
-            null;
+                retryTimer =
+                    null;
 
 
-            tryConnect();
+                callStarted =
+                    false;
 
-        },
-        2500
-    );
+
+                startFastHandshake();
+
+            },
+
+            500
+        );
 
 }
 
 
-/* ================================
-   HANDLE CALL STREAM
-================================ */
+/* =========================================
+   HANDLE VOICE CALL
+========================================= */
 
-function handleCallStream(call) {
+function handleVoiceCall(call) {
 
     if (!call) return;
 
@@ -1208,40 +1145,26 @@ function handleCallStream(call) {
         function(remoteStream) {
 
             if (
-                isEndingCall
+                endingCall
             ) return;
 
 
-            remoteConnected =
-            true;
+            callConnected =
+                true;
 
 
-            callAttemptInProgress =
-            false;
+            callStarted =
+                true;
 
 
-            if (
-                reconnectTimer
-            ) {
+            if (retryTimer) {
 
                 clearTimeout(
-                    reconnectTimer
+                    retryTimer
                 );
 
-                reconnectTimer = null;
-
-            }
-
-
-            if (
-                disconnectTimer
-            ) {
-
-                clearTimeout(
-                    disconnectTimer
-                );
-
-                disconnectTimer = null;
+                retryTimer =
+                    null;
 
             }
 
@@ -1257,57 +1180,28 @@ function handleCallStream(call) {
             requestWakeLock();
 
 
-            setupBackgroundMediaSession();
+            setupMediaSession();
 
 
-            remoteAudioEl.srcObject =
-            remoteStream;
+            remoteAudio.srcObject =
+                remoteStream;
 
 
-            remoteAudioEl.volume =
-            isSpeakerOn
-            ?
-            1.0
-            :
-            0.8;
+            remoteAudio.volume =
+                isSpeakerOn
+                ? 1
+                : 0.8;
 
 
-            const playPromise =
-            remoteAudioEl.play();
-
-
-            if (
-                playPromise
-            ) {
-
-                playPromise
-                .then(
+            remoteAudio
+                .play()
+                .catch(
                     function() {
 
-                        forceEarpieceDefault();
-
-                    }
-                )
-                .catch(
-                    function(error) {
-
-                        console.warn(
-                            "Audio autoplay blocked",
-                            error
-                        );
-
-
-                        document
-                        .getElementById(
-                            "call-status"
-                        )
-                        .innerHTML =
-                        '<button class="unmute-btn" onclick="forcePlayAudio()">🔊 Tap to Start Call Audio</button>';
+                        showStartAudioButton();
 
                     }
                 );
-
-            }
 
         }
     );
@@ -1317,7 +1211,12 @@ function handleCallStream(call) {
         "close",
         function() {
 
-            handleRemoteClose();
+            if (
+                endingCall
+            ) return;
+
+
+            handleCallDisconnected();
 
         }
     );
@@ -1328,172 +1227,17 @@ function handleCallStream(call) {
         function(error) {
 
             console.error(
-                "Call Error:",
+                "Call error:",
                 error
             );
 
 
-            handleRemoteClose();
-
-        }
-    );
-
-
-    /*
-       WAIT FOR PEER CONNECTION
-    */
-
-    const checkPeerConnection =
-    setInterval(
-        function() {
-
             if (
-                !call ||
-                remoteConnected ||
-                isEndingCall
-            ) {
-
-                clearInterval(
-                    checkPeerConnection
-                );
-
-                return;
-
-            }
+                endingCall
+            ) return;
 
 
-            if (
-                call.peerConnection
-            ) {
-
-                clearInterval(
-                    checkPeerConnection
-                );
-
-
-                monitorPeerConnection(
-                    call
-                );
-
-            }
-
-        },
-        200
-    );
-
-}
-
-
-/* ================================
-   MONITOR CONNECTION
-================================ */
-
-function monitorPeerConnection(call) {
-
-    if (
-        !call ||
-        !call.peerConnection
-    ) return;
-
-
-    call.peerConnection
-    .addEventListener(
-        "iceconnectionstatechange",
-        function() {
-
-            const state =
-            call.peerConnection
-            .iceConnectionState;
-
-
-            console.log(
-                "ICE State:",
-                state
-            );
-
-
-            if (
-                state === "connected" ||
-                state === "completed"
-            ) {
-
-                if (
-                    disconnectTimer
-                ) {
-
-                    clearTimeout(
-                        disconnectTimer
-                    );
-
-                    disconnectTimer =
-                    null;
-
-                }
-
-
-                return;
-
-            }
-
-
-            if (
-                state === "failed"
-            ) {
-
-                handleRemoteClose();
-
-            }
-
-
-            /*
-               DISCONNECTED CAN BE TEMPORARY
-               WAIT BEFORE ENDING
-            */
-
-            if (
-                state === "disconnected"
-            ) {
-
-                if (
-                    disconnectTimer
-                ) {
-
-                    clearTimeout(
-                        disconnectTimer
-                    );
-
-                }
-
-
-                disconnectTimer =
-                setTimeout(
-                    function() {
-
-                        if (
-                            call.peerConnection &&
-                            call.peerConnection
-                            .iceConnectionState ===
-                            "disconnected"
-                        ) {
-
-                            handleRemoteClose();
-
-                        }
-
-                    },
-                    8000
-                );
-
-            }
-
-
-            if (
-                state === "closed"
-            ) {
-
-                handleRemoteClose();
-
-            }
+            handleCallDisconnected();
 
         }
     );
@@ -1501,62 +1245,43 @@ function monitorPeerConnection(call) {
 }
 
 
-/* ================================
-   REMOTE CLOSED
-================================ */
+/* =========================================
+   CALL DISCONNECTED
+========================================= */
 
-function handleRemoteClose() {
+function handleCallDisconnected() {
 
-    if (
-        isEndingCall
-    ) return;
-
-
-    remoteConnected =
-    false;
+    callConnected =
+        false;
 
 
-    callAttemptInProgress =
-    false;
+    callStarted =
+        false;
+
+
+    currentCall =
+        null;
 
 
     stopCallTimer();
 
 
     if (
-        disconnectTimer
-    ) {
-
-        clearTimeout(
-            disconnectTimer
-        );
-
-        disconnectTimer =
-        null;
-
-    }
+        endingCall
+    ) return;
 
 
     if (
-        currentCall
-    ) {
-
-        currentCall =
-        null;
-
-    }
-
-
-    if (
-        role === "caller"
+        role ===
+        "caller"
     ) {
 
         setStatus(
-            "Call disconnected. Reconnecting..."
+            "Reconnecting..."
         );
 
 
-        scheduleRetry();
+        scheduleFastRetry();
 
     }
 
@@ -1571,45 +1296,208 @@ function handleRemoteClose() {
 }
 
 
-/* ================================
-   AUDIO PLAY BUTTON
-================================ */
+/* =========================================
+   AUDIO AUTOPLAY BUTTON
+========================================= */
 
-window.forcePlayAudio =
+function showStartAudioButton() {
+
+    const status =
+        document.getElementById(
+            "call-status"
+        );
+
+
+    status.innerHTML =
+        '<button class="start-audio-btn" onclick="startRemoteAudio()">🔊 Tap to Start Audio</button>';
+
+}
+
+
+window.startRemoteAudio =
 function() {
 
-    remoteAudioEl
-    .play()
-    .then(
-        function() {
+    remoteAudio
+        .play()
+        .then(
+            function() {
 
-            setStatus(
-                "Active Call 🟢"
-            );
+                setStatus(
+                    "Active Call 🟢"
+                );
 
+            }
+        )
+        .catch(
+            function() {
 
-            forceEarpieceDefault();
+                showStartAudioButton();
 
-        }
-    )
-    .catch(
-        function(error) {
-
-            console.log(
-                error
-            );
-
-        }
-    );
+            }
+        );
 
 };
 
 
-/* ================================
-   MEDIA SESSION
-================================ */
+/* =========================================
+   CALL TIMER
+========================================= */
 
-function setupBackgroundMediaSession() {
+function startCallTimer() {
+
+    if (timerInterval) return;
+
+
+    callStartTime =
+        Date.now();
+
+
+    document
+        .getElementById(
+            "call-timer"
+        )
+        .style.display =
+        "block";
+
+
+    timerInterval =
+        setInterval(
+            function() {
+
+                const seconds =
+                    Math.floor(
+                        (
+                            Date.now() -
+                            callStartTime
+                        ) / 1000
+                    );
+
+
+                const hours =
+                    Math.floor(
+                        seconds / 3600
+                    );
+
+
+                const minutes =
+                    Math.floor(
+                        (
+                            seconds % 3600
+                        ) / 60
+                    );
+
+
+                const secs =
+                    seconds % 60;
+
+
+                let result = "";
+
+
+                if (
+                    hours > 0
+                ) {
+
+                    result +=
+                        String(hours)
+                        .padStart(2,"0") +
+                        ":";
+
+                }
+
+
+                result +=
+                    String(minutes)
+                    .padStart(2,"0") +
+                    ":" +
+                    String(secs)
+                    .padStart(2,"0");
+
+
+                document
+                    .getElementById(
+                        "call-timer"
+                    )
+                    .innerText =
+                    result;
+
+            },
+
+            1000
+        );
+
+}
+
+
+function stopCallTimer() {
+
+    if (timerInterval) {
+
+        clearInterval(
+            timerInterval
+        );
+
+        timerInterval =
+            null;
+
+    }
+
+}
+
+
+/* =========================================
+   WAKE LOCK
+========================================= */
+
+async function requestWakeLock() {
+
+    try {
+
+        if (
+            "wakeLock" in navigator &&
+            document.visibilityState ===
+            "visible"
+        ) {
+
+            wakeLock =
+                await navigator
+                    .wakeLock
+                    .request(
+                        "screen"
+                    );
+
+        }
+
+    }
+
+    catch(e) {}
+
+}
+
+
+document.addEventListener(
+    "visibilitychange",
+    function() {
+
+        if (
+            document.visibilityState ===
+            "visible" &&
+            callConnected
+        ) {
+
+            requestWakeLock();
+
+        }
+
+    }
+);
+
+
+/* =========================================
+   MEDIA SESSION
+========================================= */
+
+function setupMediaSession() {
 
     if (
         !("mediaSession" in navigator)
@@ -1618,247 +1506,158 @@ function setupBackgroundMediaSession() {
 
     try {
 
-        navigator.mediaSession.metadata =
-        new MediaMetadata({
+        navigator
+            .mediaSession
+            .metadata =
+            new MediaMetadata({
 
-            title:
-            "Active Call",
+                title:
+                    "Active Voice Call",
 
-            artist:
-            "Secure Voice Node",
+                artist:
+                    "Secure Voice Node"
 
-            album:
-            "Voice Call"
-
-        });
-
-
-        navigator.mediaSession
-        .setActionHandler(
-            "pause",
-            function() {
-
-                toggleMute();
-
-            }
-        );
+            });
 
 
-        navigator.mediaSession
-        .setActionHandler(
-            "stop",
-            function() {
+        navigator
+            .mediaSession
+            .setActionHandler(
+                "stop",
+                function() {
 
-                endCallAndClose();
+                    endCallAndClose();
 
-            }
-        );
-
-    }
-
-    catch(error) {
-
-        console.log(
-            "Media session unavailable"
-        );
-
-    }
-
-}
-
-
-/* ================================
-   EARPIECE
-================================ */
-
-async function forceEarpieceDefault() {
-
-    if (
-        typeof
-        remoteAudioEl.setSinkId ===
-        "undefined"
-    ) {
-
-        return;
-
-    }
-
-
-    try {
-
-        const devices =
-        await navigator.mediaDevices
-        .enumerateDevices();
-
-
-        const audioOutputs =
-        devices.filter(
-            function(device) {
-
-                return (
-                    device.kind ===
-                    "audiooutput"
-                );
-
-            }
-        );
-
-
-        const earpiece =
-        audioOutputs.find(
-            function(device) {
-
-                const label =
-                (
-                    device.label ||
-                    ""
-                )
-                .toLowerCase();
-
-
-                return (
-                    label.includes(
-                        "earpiece"
-                    ) ||
-
-                    label.includes(
-                        "handset"
-                    )
-                );
-
-            }
-        );
-
-
-        if (
-            earpiece
-        ) {
-
-            await remoteAudioEl
-            .setSinkId(
-                earpiece.deviceId
+                }
             );
 
-        }
-
     }
 
-    catch(error) {
-
-        console.log(
-            "Earpiece selection unavailable"
-        );
-
-    }
+    catch(e) {}
 
 }
 
 
-/* ================================
+/* =========================================
    MUTE
-================================ */
+========================================= */
 
 function toggleMute() {
 
-    if (
-        !localStream
-    ) return;
+    if (!localStream) return;
 
 
     isMuted =
-    !isMuted;
+        !isMuted;
 
 
     localStream
-    .getAudioTracks()
-    .forEach(
-        function(track) {
+        .getAudioTracks()
+        .forEach(
+            function(track) {
 
-            track.enabled =
-            !isMuted;
+                track.enabled =
+                    !isMuted;
 
-        }
-    );
-
-
-    const muteBtn =
-    document.getElementById(
-        "mute-btn"
-    );
+            }
+        );
 
 
-    muteBtn
-    .classList
-    .toggle(
-        "active",
-        isMuted
-    );
+    const button =
+        document.getElementById(
+            "mute-btn"
+        );
 
 
-    muteBtn.innerHTML =
-    isMuted
-    ?
-    "🔇 <span>Unmute</span>"
-    :
-    "🎙️ <span>Mute</span>";
+    if (isMuted) {
+
+        button
+            .classList
+            .add(
+                "active"
+            );
+
+
+        button.innerHTML =
+            "🔇 Unmute";
+
+    }
+
+    else {
+
+        button
+            .classList
+            .remove(
+                "active"
+            );
+
+
+        button.innerHTML =
+            "🎙️ Mute";
+
+    }
 
 }
 
 
-/* ================================
+/* =========================================
    SPEAKER
-================================ */
+========================================= */
 
 async function toggleSpeaker() {
 
     isSpeakerOn =
-    !isSpeakerOn;
+        !isSpeakerOn;
 
 
-    const speakerBtn =
-    document.getElementById(
-        "speaker-btn"
-    );
+    const button =
+        document.getElementById(
+            "speaker-btn"
+        );
 
 
-    try {
+    remoteAudio.volume =
+        isSpeakerOn
+        ? 1
+        : 0.8;
 
-        if (
-            typeof
-            remoteAudioEl.setSinkId !==
-            "undefined"
-        ) {
+
+    /*
+       setSinkId works only
+       on supported browsers
+    */
+
+    if (
+        typeof remoteAudio.setSinkId !==
+        "undefined"
+    ) {
+
+        try {
 
             const devices =
-            await navigator.mediaDevices
-            .enumerateDevices();
+                await navigator
+                    .mediaDevices
+                    .enumerateDevices();
 
 
             const outputs =
-            devices.filter(
-                device =>
-                device.kind ===
-                "audiooutput"
-            );
+                devices.filter(
+                    device =>
+                    device.kind ===
+                    "audiooutput"
+                );
 
 
-            if (
-                outputs.length > 0
-            ) {
-
-                let targetDevice =
-                null;
+            let device = null;
 
 
-                if (
-                    isSpeakerOn
-                ) {
+            if (isSpeakerOn) {
 
-                    targetDevice =
+                device =
                     outputs.find(
-                        device =>
+                        d =>
                         (
-                            device.label ||
+                            d.label ||
                             ""
                         )
                         .toLowerCase()
@@ -1867,27 +1666,26 @@ async function toggleSpeaker() {
                         )
                     );
 
-                }
+            }
 
-                else {
+            else {
 
-                    targetDevice =
+                device =
                     outputs.find(
-                        device => {
+                        d => {
 
                             const label =
-                            (
-                                device.label ||
-                                ""
-                            )
-                            .toLowerCase();
+                                (
+                                    d.label ||
+                                    ""
+                                )
+                                .toLowerCase();
 
 
                             return (
                                 label.includes(
                                     "earpiece"
                                 ) ||
-
                                 label.includes(
                                     "handset"
                                 )
@@ -1896,379 +1694,176 @@ async function toggleSpeaker() {
                         }
                     );
 
-                }
+            }
 
 
-                if (
-                    targetDevice
-                ) {
+            if (device) {
 
-                    await remoteAudioEl
+                await remoteAudio
                     .setSinkId(
-                        targetDevice.deviceId
+                        device.deviceId
                     );
-
-                }
 
             }
 
         }
 
-    }
-
-    catch(error) {
-
-        console.log(
-            "Speaker switching unavailable"
-        );
+        catch(e) {}
 
     }
 
 
-    if (
-        isSpeakerOn
-    ) {
+    if (isSpeakerOn) {
 
-        speakerBtn
-        .classList
-        .add(
-            "active"
-        );
-
-
-        speakerBtn.innerHTML =
-        "🔊 <span>Speaker</span>";
-
-
-        remoteAudioEl.volume =
-        1.0;
-
-
-        if (
-            remoteConnected
-        ) {
-
-            setStatus(
-                "Active Call 🔊"
+        button
+            .classList
+            .add(
+                "active"
             );
 
-        }
+
+        button.innerHTML =
+            "🔊 Speaker";
 
     }
 
     else {
 
-        speakerBtn
-        .classList
-        .remove(
-            "active"
-        );
-
-
-        speakerBtn.innerHTML =
-        "📞 <span>Speaker</span>";
-
-
-        remoteAudioEl.volume =
-        0.8;
-
-
-        if (
-            remoteConnected
-        ) {
-
-            setStatus(
-                "Active Call 🟢"
+        button
+            .classList
+            .remove(
+                "active"
             );
 
-        }
+
+        button.innerHTML =
+            "📞 Earpiece";
 
     }
 
 }
 
 
-/* ================================
+/* =========================================
    QUALITY
-================================ */
+========================================= */
 
 function toggleQuality() {
 
-    if (
-        !localStream
-    ) return;
+    if (!localStream) return;
 
 
-    isHDMode =
-    !isHDMode;
+    isHighQuality =
+        !isHighQuality;
 
 
-    const qBtn =
-    document.getElementById(
-        "quality-btn"
-    );
+    const button =
+        document.getElementById(
+            "quality-btn"
+        );
 
 
     localStream
-    .getAudioTracks()
-    .forEach(
-        async function(track) {
-
-            if (
-                !track.applyConstraints
-            ) return;
-
-
-            try {
+        .getAudioTracks()
+        .forEach(
+            function(track) {
 
                 if (
-                    isHDMode
-                ) {
+                    !track.applyConstraints
+                ) return;
 
-                    await track
-                    .applyConstraints({
 
-                        sampleRate: {
-                            ideal: 48000
-                        },
+                if (isHighQuality) {
 
-                        channelCount: {
-                            ideal: 1
-                        }
+                    track
+                        .applyConstraints({
 
-                    });
+                            sampleRate: {
+                                ideal: 48000
+                            },
+
+                            channelCount: {
+                                ideal: 1
+                            }
+
+                        })
+                        .catch(
+                            function() {}
+                        );
 
                 }
 
                 else {
 
-                    await track
-                    .applyConstraints({
+                    track
+                        .applyConstraints({
 
-                        sampleRate: {
-                            ideal: 16000
-                        },
+                            sampleRate: {
+                                ideal: 16000
+                            },
 
-                        channelCount: {
-                            ideal: 1
-                        }
+                            channelCount: {
+                                ideal: 1
+                            }
 
-                    });
+                        })
+                        .catch(
+                            function() {}
+                        );
 
                 }
 
             }
-
-            catch(error) {
-
-                console.log(
-                    "Quality constraint not supported"
-                );
-
-            }
-
-        }
-    );
-
-
-    if (
-        isHDMode
-    ) {
-
-        qBtn
-        .classList
-        .add(
-            "active"
         );
 
 
-        qBtn.innerText =
-        "📶 Quality: Smart HD";
+    if (isHighQuality) {
+
+        button
+            .classList
+            .add(
+                "active"
+            );
+
+
+        button.innerHTML =
+            "📶 Smart HD";
 
     }
 
     else {
 
-        qBtn
-        .classList
-        .remove(
-            "active"
-        );
+        button
+            .classList
+            .remove(
+                "active"
+            );
 
 
-        qBtn.innerText =
-        "📶 Quality: Data Saver";
+        button.innerHTML =
+            "📶 Data Saver";
 
     }
 
 }
 
 
-/* ================================
-   END CALL
-================================ */
+/* =========================================
+   REMOTE END CALL
+========================================= */
 
-function endCallAndClose() {
+function remoteEndedCall() {
 
-    if (
-        isEndingCall
-    ) return;
+    if (endingCall) return;
 
 
-    isEndingCall =
-    true;
+    endingCall =
+        true;
 
 
-    remoteConnected =
-    false;
-
-
-    callAttemptInProgress =
-    false;
-
-
-    stopCallTimer();
-
-
-    if (
-        reconnectTimer
-    ) {
-
-        clearTimeout(
-            reconnectTimer
-        );
-
-        reconnectTimer =
-        null;
-
-    }
-
-
-    if (
-        disconnectTimer
-    ) {
-
-        clearTimeout(
-            disconnectTimer
-        );
-
-        disconnectTimer =
-        null;
-
-    }
-
-
-    if (
-        wakeLock !== null
-    ) {
-
-        wakeLock
-        .release()
-        .catch(
-            function() {}
-        );
-
-
-        wakeLock =
-        null;
-
-    }
-
-
-    if (
-        "mediaSession" in navigator
-    ) {
-
-        try {
-
-            navigator
-            .mediaSession
-            .metadata =
-            null;
-
-        }
-
-        catch(e) {}
-
-    }
-
-
-    if (
-        outgoingRingTimer
-    ) {
-
-        clearInterval(
-            outgoingRingTimer
-        );
-
-    }
-
-
-    /*
-       STOP MICROPHONE
-    */
-
-    if (
-        localStream
-    ) {
-
-        localStream
-        .getTracks()
-        .forEach(
-            function(track) {
-
-                track.stop();
-
-            }
-        );
-
-    }
-
-
-    /*
-       CLOSE CALL
-    */
-
-    const callToClose =
-    currentCall;
-
-
-    currentCall =
-    null;
-
-
-    if (
-        callToClose
-    ) {
-
-        try {
-
-            callToClose.close();
-
-        }
-
-        catch(e) {}
-
-    }
-
-
-    /*
-       DESTROY PEER
-    */
-
-    if (
-        currentPeer
-    ) {
-
-        try {
-
-            currentPeer.destroy();
-
-        }
-
-        catch(e) {}
-
-    }
+    stopEverything(
+        false
+    );
 
 
     setStatus(
@@ -2277,11 +1872,69 @@ function endCallAndClose() {
 
 
     document
-    .getElementById(
-        "main-box"
-    )
-    .style.opacity =
-    "0.4";
+        .getElementById(
+            "main-box"
+        )
+        .style.opacity =
+        "0.5";
+
+}
+
+
+/* =========================================
+   END CALL
+========================================= */
+
+function endCallAndClose() {
+
+    if (endingCall) return;
+
+
+    endingCall =
+        true;
+
+
+    /*
+       Inform other phone first
+    */
+
+    try {
+
+        if (
+            signalConnection &&
+            signalConnection.open
+        ) {
+
+            signalConnection.send({
+
+                type:
+                    "END_CALL"
+
+            });
+
+        }
+
+    }
+
+    catch(e) {}
+
+
+    stopEverything(
+        true
+    );
+
+
+    setStatus(
+        "Call Ended."
+    );
+
+
+    document
+        .getElementById(
+            "main-box"
+        )
+        .style.opacity =
+        "0.5";
 
 
     setTimeout(
@@ -2290,26 +1943,149 @@ function endCallAndClose() {
             window.close();
 
 
-            setTimeout(
-                function() {
+            if (
+                window.history.length > 1
+            ) {
 
-                    if (
-                        window.history.length > 1
-                    ) {
+                setTimeout(
+                    function() {
 
                         window.history.back();
 
-                    }
+                    },
 
-                },
-                500
-            );
+                    300
+                );
+
+            }
 
         },
-        800
+
+        700
     );
 
 }
+
+
+/* =========================================
+   STOP EVERYTHING
+========================================= */
+
+function stopEverything(
+    destroyPeer
+) {
+
+    callConnected =
+        false;
+
+
+    callStarted =
+        false;
+
+
+    remoteReady =
+        false;
+
+
+    stopCallTimer();
+
+
+    if (retryTimer) {
+
+        clearTimeout(
+            retryTimer
+        );
+
+        retryTimer =
+            null;
+
+    }
+
+
+    if (wakeLock) {
+
+        wakeLock
+            .release()
+            .catch(
+                function() {}
+            );
+
+        wakeLock =
+            null;
+
+    }
+
+
+    if (localStream) {
+
+        localStream
+            .getTracks()
+            .forEach(
+                function(track) {
+
+                    track.stop();
+
+                }
+            );
+
+    }
+
+
+    if (currentCall) {
+
+        try {
+
+            currentCall.close();
+
+        }
+
+        catch(e) {}
+
+
+        currentCall =
+            null;
+
+    }
+
+
+    if (signalConnection) {
+
+        try {
+
+            signalConnection.close();
+
+        }
+
+        catch(e) {}
+
+
+        signalConnection =
+            null;
+
+    }
+
+
+    if (
+        destroyPeer &&
+        peer
+    ) {
+
+        try {
+
+            peer.destroy();
+
+        }
+
+        catch(e) {}
+
+    }
+
+}
+
+
+/* =========================================
+   END
+========================================= */
 
 </script>
 
