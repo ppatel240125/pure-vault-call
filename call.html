@@ -7,16 +7,24 @@
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; touch-action: none; }
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 16px; letter-spacing: 1px; }
-        p { font-size: 11px; color: #9ca3af; margin-bottom: 25px; }
-        .status { font-size: 14px; margin: 20px 0; color: #ffb74d; font-weight: bold; min-height: 40px; display: flex; align-items: center; justify-content: center; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); transition: opacity 0.3s; position: relative; }
+        
+        /* E2EE Security Badge */
+        .e2e-badge { position: absolute; top: 15px; right: 15px; background: rgba(21, 128, 61, 0.2); color: #4ade80; padding: 4px 8px; border-radius: 6px; font-size: 10px; font-weight: bold; border: 1px solid #166534; display: flex; align-items: center; gap: 4px; }
+        
+        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 16px; letter-spacing: 1px; margin-top: 10px; }
+        p { font-size: 11px; color: #9ca3af; margin-bottom: 15px; }
+        
+        #call-timer { font-size: 24px; color: #ffffff; font-weight: bold; letter-spacing: 2px; margin-bottom: 10px; display: none; }
+        .status { font-size: 14px; margin: 15px 0 25px 0; color: #ffb74d; font-weight: bold; min-height: 40px; display: flex; align-items: center; justify-content: center; }
         
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 15px; }
-        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; outline: none; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; transition: 0.2s; outline: none; display: flex; flex-direction: column; align-items: center; gap: 5px; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
+        .full-width-btn { grid-column: span 2; flex-direction: row; justify-content: center; font-size: 14px; }
+
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 10px; }
         .end-btn:hover { background: #991b1b; }
 
         .unmute-btn { background: #e53935; color: white; padding: 10px 20px; border-radius: 8px; border: none; font-weight: bold; font-size: 14px; cursor: pointer; box-shadow: 0 0 15px rgba(229, 57, 53, 0.6); animation: pulse 1.5s infinite; }
@@ -24,16 +32,20 @@
     </style>
 </head>
 <body>
-    <div class="box">
+    <div class="box" id="main-box">
+        <div class="e2e-badge">🔒 E2EE</div>
         <h3>SECURE_VOICE_NODE</h3>
-        <p>Encrypted 2G Low-Data Channel</p>
+        <p>Encrypted P2P Voice Channel</p>
+        
+        <div id="call-timer">00:00:00</div>
         <div id="call-status" class="status">Connecting to secure stream...</div>
         
         <audio id="remote-audio" autoplay playsinline webkit-playsinline></audio>
 
         <div class="controls-grid">
-            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">📞 Earpiece</button>
+            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ <span>Mute</span></button>
+            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">📞 <span>Earpiece</span></button>
+            <button id="quality-btn" class="ctrl-btn full-width-btn" onclick="toggleQuality()">📶 Quality: Data Saver</button>
         </div>
 
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
@@ -49,9 +61,15 @@
         let remoteAudioEl = document.getElementById('remote-audio');
         let isMuted = false;
         let isSpeakerOn = false; 
+        let isHDMode = false;
         let currentPeer = null;
+        let currentCall = null;
+        
         let wakeLock = null;
         let outgoingRingTimer = null;
+        
+        let callStartTime = null;
+        let callTimerInterval = null;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
@@ -61,7 +79,7 @@
                 if ('wakeLock' in navigator) {
                     wakeLock = await navigator.wakeLock.request('screen'); 
                 }
-            } catch (err) { console.log("WakeLock error:", err); }
+            } catch (err) {}
         }
         
         document.addEventListener('visibilitychange', async () => {
@@ -69,6 +87,12 @@
                 await requestWakeLock();
             }
         });
+        
+        setInterval(() => {
+            if (callTimerInterval && (wakeLock === null || wakeLock.released)) {
+                requestWakeLock();
+            }
+        }, 30000);
 
         if (!roomId) {
             document.getElementById('call-status').innerText = "Error: Invalid Room ID";
@@ -76,6 +100,29 @@
             initAudioCall();
             requestWakeLock();
             if (role === 'caller') playOutgoingRingtone();
+        }
+
+        function startCallTimer() {
+            if (callTimerInterval) return; 
+            document.getElementById('call-timer').style.display = 'block';
+            callStartTime = Date.now();
+            
+            callTimerInterval = setInterval(() => {
+                let diff = Math.floor((Date.now() - callStartTime) / 1000);
+                let h = Math.floor(diff / 3600).toString().padStart(2, '0');
+                let m = Math.floor((diff % 3600) / 60).toString().padStart(2, '0');
+                let s = (diff % 60).toString().padStart(2, '0');
+                
+                if (h === "00") {
+                    document.getElementById('call-timer').innerText = `${m}:${s}`;
+                } else {
+                    document.getElementById('call-timer').innerText = `${h}:${m}:${s}`;
+                }
+            }, 1000);
+        }
+
+        function stopCallTimer() {
+            if (callTimerInterval) clearInterval(callTimerInterval);
         }
 
         function playOutgoingRingtone() {
@@ -101,7 +148,13 @@
 
         function initAudioCall() {
             navigator.mediaDevices.getUserMedia({ 
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+                audio: { 
+                    echoCancellation: true, 
+                    noiseSuppression: true, 
+                    autoGainControl: true,
+                    sampleRate: { ideal: 8000, max: 8000 },
+                    channelCount: { ideal: 1 }
+                }, 
                 video: false 
             })
             .then(stream => {
@@ -143,55 +196,66 @@
             else setTimeout(() => tryConnect(targetPeerId), 2000);
         }
 
-        // ઈયરપીસમાં ફોર્સ કરવા માટેનું સેફ (Safe) ફંક્શન
         async function forceEarpieceDefault() {
-            if (typeof remoteAudioEl.setSinkId === 'undefined') {
-                console.log("Audio routing not supported. Playing on default speaker.");
-                return; // જો સપોર્ટ ન હોય તો કશું જ ના કરો, અવાજ ડિફોલ્ટ આવવા દો.
-            }
+            if (typeof remoteAudioEl.setSinkId === 'undefined') return;
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
-                
-                // ખાસ ઈયરપીસ (Earpiece/Handset) શોધો
                 let earpiece = audioOutputs.find(d => 
                     d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('handset')
                 );
-                
-                // જો ઈયરપીસ મળે તો જ અવાજ તેમાં નાખો, નહીંતર એમનેમ રહેવા દો.
                 if (earpiece) {
                     await remoteAudioEl.setSinkId(earpiece.deviceId);
-                    console.log("Routed to Earpiece.");
-                } else {
-                    console.log("No specific earpiece found. Playing on default speaker.");
                 }
-            } catch (error) {
-                console.log('Earpiece force error:', error);
+            } catch (error) {}
+        }
+
+        // --- NEW: SETUP BACKGROUND MEDIA SESSION ---
+        function setupBackgroundMediaSession() {
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = new MediaMetadata({
+                    title: 'Active Call 🟢',
+                    artist: 'Secure Voice Node',
+                    album: 'E2EE Encrypted Call'
+                });
+                
+                // યુઝર નોટિફિકેશન પેનલમાંથી મ્યુટ કે કટ કરી શકે
+                navigator.mediaSession.setActionHandler('pause', function() { toggleMute(); });
+                navigator.mediaSession.setActionHandler('stop', function() { endCallAndClose(); });
             }
         }
 
         function handleCallStream(call) {
+            currentCall = call;
             if(outgoingRingTimer) clearInterval(outgoingRingTimer);
+            
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Active Call 🟢";
+                startCallTimer(); 
+                setupBackgroundMediaSession(); // બેકગ્રાઉન્ડ સપોર્ટ ચાલુ કરો
+                
                 remoteAudioEl.srcObject = remoteStream;
                 remoteAudioEl.volume = 0.8; 
                 
-                // ઓડિયો પ્લે કરવાની કોશિશ
                 remoteAudioEl.play().then(() => {
                     forceEarpieceDefault(); 
                 }).catch((error) => {
-                    console.log("Autoplay blocked by browser:", error);
-                    // જો બ્રાઉઝર અવાજ રોકે તો લાલ બટન આપો
                     document.getElementById('call-status').innerHTML = `<button class="unmute-btn" onclick="forcePlayAudio()">🔊 Tap to Unmute Call</button>`;
                 });
             });
-            call.on('close', () => {
-                window.close();
-            });
+
+            call.on('close', () => { endCallAndClose(); });
+
+            if (call.peerConnection) {
+                call.peerConnection.addEventListener('iceconnectionstatechange', () => {
+                    const state = call.peerConnection.iceConnectionState;
+                    if (state === 'disconnected' || state === 'closed' || state === 'failed') {
+                        endCallAndClose();
+                    }
+                });
+            }
         }
 
-        // યુઝર બટન દબાવે ત્યારે અવાજ ચાલુ કરવા
         window.forcePlayAudio = function() {
             remoteAudioEl.play().then(() => {
                 document.getElementById('call-status').innerText = "Active Call 🟢";
@@ -205,27 +269,23 @@
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
             const muteBtn = document.getElementById('mute-btn');
             muteBtn.classList.toggle('active', isMuted);
-            muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            muteBtn.innerHTML = isMuted ? "🔇 <span>Unmute</span>" : "🎙️ <span>Mute</span>";
         }
 
-        // સ્પીકર અને ઈયરપીસ બદલવા માટેનું સેફ (Safe) ફંક્શન
         async function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
             const statusEl = document.getElementById('call-status');
             const isAutoplayBlocked = statusEl.innerHTML.includes('unmute-btn');
             
-            // જો બ્રાઉઝર સપોર્ટ ન કરતું હોય, તો ફક્ત વોલ્યુમ વધારી-ઘટાડીને કામ ચલાવશે (અવાજ બંધ નહીં કરે)
             if (typeof remoteAudioEl.setSinkId !== 'undefined') {
                 try {
                     const devices = await navigator.mediaDevices.enumerateDevices();
                     const audioOutputs = devices.filter(device => device.kind === 'audiooutput');
-                    
                     if (audioOutputs.length > 0) {
                         let targetDevice = audioOutputs.find(d => 
                             isSpeakerOn ? d.label.toLowerCase().includes('speaker') : (d.label.toLowerCase().includes('earpiece') || d.label.toLowerCase().includes('handset'))
                         );
-                        
                         if (targetDevice) {
                             await remoteAudioEl.setSinkId(targetDevice.deviceId);
                         } else if (audioOutputs.length > 1) {
@@ -233,32 +293,75 @@
                             await remoteAudioEl.setSinkId(targetDevice.deviceId);
                         }
                     }
-                } catch (error) { console.log(error); }
-            } else {
-                // સપોર્ટ નથી તો એક નાનકડી વોર્નિંગ બતાવશે, પણ કૉલ ચાલુ જ રહેશે
-                console.log("Speaker toggle not fully supported by this browser.");
+                } catch (error) {}
             }
 
-            // UI અને વોલ્યુમ બદલો (સપોર્ટ હોય કે ના હોય)
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
-                speakerBtn.innerText = "🔊 Speaker ON";
+                speakerBtn.innerHTML = "🔊 <span>Speaker</span>";
                 if(!isAutoplayBlocked) statusEl.innerText = "Active Call 🔊";
                 remoteAudioEl.volume = 1.0; 
             } else {
                 speakerBtn.classList.remove('active');
-                speakerBtn.innerText = "📞 Earpiece";
+                speakerBtn.innerHTML = "📞 <span>Earpiece</span>";
                 if(!isAutoplayBlocked) statusEl.innerText = "Active Call 🟢";
                 remoteAudioEl.volume = 0.8; 
             }
         }
 
+        function toggleQuality() {
+            if (!localStream) return;
+            isHDMode = !isHDMode;
+            const qBtn = document.getElementById('quality-btn');
+            
+            if (isHDMode) {
+                qBtn.classList.add('active');
+                qBtn.innerText = "📶 Quality: Smart HD (Auto)";
+                localStream.getAudioTracks().forEach(track => {
+                    if (track.applyConstraints) {
+                        track.applyConstraints({ 
+                            sampleRate: { min: 8000, ideal: 48000, max: 48000 }, 
+                            channelCount: { ideal: 1 } 
+                        }).catch(()=>{});
+                    }
+                });
+            } else {
+                qBtn.classList.remove('active');
+                qBtn.innerText = "📶 Quality: Data Saver";
+                localStream.getAudioTracks().forEach(track => {
+                    if (track.applyConstraints) {
+                        track.applyConstraints({ 
+                            sampleRate: { ideal: 8000, max: 8000 }, 
+                            channelCount: { ideal: 1 } 
+                        }).catch(()=>{});
+                    }
+                });
+            }
+        }
+
         function endCallAndClose() {
+            stopCallTimer();
             if(outgoingRingTimer) clearInterval(outgoingRingTimer);
-            if (wakeLock !== null) wakeLock.release().catch(() => {});
-            if (localStream) localStream.getTracks().forEach(track => track.stop());
-            if (currentPeer) currentPeer.destroy();
-            window.close();
+            if(wakeLock !== null) wakeLock.release().catch(() => {});
+            
+            // મીડિયા સેશન બંધ કરો
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.metadata = null;
+            }
+
+            if(localStream) localStream.getTracks().forEach(track => track.stop());
+            if(currentCall) currentCall.close();
+            if(currentPeer) currentPeer.destroy();
+            
+            document.getElementById('call-status').innerText = "Call Ended.";
+            document.getElementById('main-box').style.opacity = '0.4';
+
+            setTimeout(() => {
+                window.close(); 
+                setTimeout(() => {
+                    window.history.back();
+                }, 500);
+            }, 800);
         }
     </script>
 </body>
