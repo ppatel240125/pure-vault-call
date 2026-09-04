@@ -5,27 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Voice Node - HD</title>
+    <title>Secure Secure Node - Voice & Video</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 25px; border-radius: 16px; width: 92%; max-width: 340px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
-        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 16px; letter-spacing: 1px; }
-        p { font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
-        .status { font-size: 13px; margin: 12px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 18px; color: #60a5fa; margin-bottom: 12px; font-weight: bold; letter-spacing: 2px; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
+        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 15px; letter-spacing: 1px; }
+        p { font-size: 11px; color: #9ca3af; margin-bottom: 10px; }
+        .status { font-size: 12px; margin: 8px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 16px; color: #60a5fa; margin-bottom: 10px; font-weight: bold; letter-spacing: 2px; }
         
+        /* Video Container */
+        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; width: 100%; }
+        video { width: 48%; height: 90px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
+        video.active { display: block; }
+
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px 6px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
-        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 12px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; margin-bottom: 6px; outline: none; }
+        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 13px; outline: none; margin-top: 2px; }
         .end-btn:hover { background: #991b1b; }
 
-        /* Touch Protection Shield Overlay */
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
@@ -34,11 +38,16 @@
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
-        <h3>SECURE_VOICE_NODE</h3>
+        <h3>SECURE_NODE_AV</h3>
         <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
+        <!-- Video elements (Hidden by default, shown when video is enabled) -->
+        <div class="video-container">
+            <video id="local-video" autoplay playsinline muted></video>
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
         <audio id="remote-audio" autoplay playsinline></audio>
 
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
@@ -46,7 +55,8 @@
         <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
-            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()" style="grid-column: span 2;">⚡ HD Off</button>
+            <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video Off</button>
+            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
@@ -59,8 +69,7 @@
         const role = urlParams.get('role');
         const redirectUrl = urlParams.get('back');
 
-        // હિસ્ટ્રીમાં સેવ થતું સંપૂર્ણ અટકાવવા માટે (પેજ કેશમાંથી ખુલે તો પણ)
-        window.addEventListener('pageshow', function(event) {
+        window.addEventListener('pageshow', function() {
             if (window.history.replaceState) {
                 window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
             }
@@ -69,8 +78,12 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
+        let localVideoEl = document.getElementById('local-video');
+        let remoteVideoEl = document.getElementById('remote-video');
+
         let isMuted = false;
         let isSpeakerOn = false;
+        let isVideoActive = false;
         let isHDActive = false;
         let isCombinedLocked = false;
         let currentPeer = null;
@@ -91,11 +104,7 @@
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
         async function requestWakeLock() {
-            try { 
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen'); 
-                }
-            } catch (err) {}
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
 
         function toggleFullscreenAndLock() {
@@ -105,20 +114,14 @@
 
             if (isCombinedLocked) {
                 const elem = document.documentElement;
-                if (elem.requestFullscreen) {
-                    elem.requestFullscreen().catch(() => {});
-                } else if (elem.webkitRequestFullscreen) {
-                    elem.webkitRequestFullscreen();
-                }
+                if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
+                else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
                 shield.classList.add('active');
                 btn.classList.add('active');
                 btn.innerText = "🔓 Unlock Screen";
             } else {
-                if (document.exitFullscreen) {
-                    document.exitFullscreen().catch(() => {});
-                } else if (document.webkitExitFullscreen) {
-                    document.webkitExitFullscreen();
-                }
+                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
                 shield.classList.remove('active');
                 btn.classList.remove('active');
                 btn.innerText = "⛶ Fullscreen & Lock";
@@ -127,10 +130,7 @@
 
         function handleShieldClick() {
             const currentTime = new Date().getTime();
-            const tapLength = currentTime - lastTapTime;
-            if (tapLength < 300 && tapLength > 0) {
-                toggleFullscreenAndLock();
-            }
+            if ((currentTime - lastTapTime) < 300 && (currentTime - lastTapTime) > 0) toggleFullscreenAndLock();
             lastTapTime = currentTime;
         }
 
@@ -138,7 +138,7 @@
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
             startDeviceAlerts();
-            initAudioCall();
+            initMediaCall(false);
             requestWakeLock();
         }
 
@@ -152,27 +152,18 @@
             } else {
                 try {
                     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    playBeepRingtone();
+                    ringTimer = setInterval(() => {
+                        if (!audioCtx) return;
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(480, audioCtx.currentTime);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        osc.connect(gain); gain.connect(audioCtx.destination);
+                        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+                    }, 2500);
                 } catch(e) {}
             }
-        }
-
-        function playBeepRingtone() {
-            if (ringTimer) return;
-            ringTimer = setInterval(() => {
-                if (!audioCtx) return;
-                try {
-                    const osc = audioCtx.createOscillator();
-                    const gain = audioCtx.createGain();
-                    osc.type = 'sine';
-                    osc.frequency.setValueAtTime(480, audioCtx.currentTime);
-                    gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                    osc.connect(gain);
-                    gain.connect(audioCtx.destination);
-                    osc.start();
-                    osc.stop(audioCtx.currentTime + 0.5);
-                } catch(e){}
-            }, 2500);
         }
 
         function stopAlerts() {
@@ -181,57 +172,76 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        function initAudioCall() {
-            navigator.mediaDevices.getUserMedia({ 
+        // Initialize Media (Audio + Optional Video) supporting Bluetooth/Earphones
+        function initMediaCall(enableVideo) {
+            const constraints = {
                 audio: { 
                     echoCancellation: true, 
                     noiseSuppression: true, 
                     autoGainControl: true,
-                    sampleRate: 16000 
-                }, 
-                video: false 
-            })
+                    sampleRate: isHDActive ? 48000 : 16000 
+                },
+                video: enableVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v21_${roomId}_${role}`;
-                const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v21_${roomId}_${targetRole}`;
+                if (enableVideo) {
+                    localVideoEl.srcObject = stream;
+                    localVideoEl.classList.add('active');
+                } else {
+                    localVideoEl.classList.remove('active');
+                    localVideoEl.srcObject = null;
+                }
 
-                currentPeer = new Peer(peerId, {
-                    host: '0.peerjs.com', port: 443, path: '/', secure: true,
-                    config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
-                });
-
-                currentPeer.on('open', () => {
-                    document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
-                    setTimeout(() => tryConnect(targetPeerId), 800);
-                });
-
-                currentPeer.on('connection', (conn) => {
-                    dataConnection = conn;
-                    setupDataConnectionEvents();
-                });
-
-                currentPeer.on('call', (call) => {
-                    activeCall = call;
-                    stopAlerts();
-                    call.answer(localStream);
-                    handleCallStream(call);
-                });
-
-                currentPeer.on('error', () => {
-                    document.getElementById('call-status').innerText = "Connecting...";
-                });
+                if (!currentPeer) {
+                    setupPeerConnection();
+                } else if (activeCall) {
+                    // Replace stream dynamically if toggling video mid-call
+                    replaceStreamInCall(stream);
+                }
             })
             .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Microphone permission required!";
+                document.getElementById('call-status').innerText = "Mic/Camera permission required!";
+            });
+        }
+
+        function setupPeerConnection() {
+            const peerId = `secure_av22_${roomId}_${role}`;
+            const targetRole = role === 'caller' ? 'receiver' : 'caller';
+            const targetPeerId = `secure_av22_${roomId}_${targetRole}`;
+
+            currentPeer = new Peer(peerId, {
+                host: '0.peerjs.com', port: 443, path: '/', secure: true,
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
+            });
+
+            currentPeer.on('open', () => {
+                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
+                setTimeout(() => tryConnect(targetPeerId), 800);
+            });
+
+            currentPeer.on('connection', (conn) => {
+                dataConnection = conn;
+                setupDataConnectionEvents();
+            });
+
+            currentPeer.on('call', (call) => {
+                activeCall = call;
+                stopAlerts();
+                call.answer(localStream);
+                handleCallStream(call);
+            });
+
+            currentPeer.on('error', () => {
+                document.getElementById('call-status').innerText = "Connecting...";
             });
         }
 
         function tryConnect(targetPeerId) {
             if (!currentPeer || currentPeer.destroyed) return;
-            
             dataConnection = currentPeer.connect(targetPeerId);
             setupDataConnectionEvents();
 
@@ -244,6 +254,16 @@
             }
         }
 
+        function replaceStreamInCall(newStream) {
+            if (activeCall && activeCall.peerConnection) {
+                const senders = activeCall.peerConnection.getSenders();
+                newStream.getTracks().forEach(track => {
+                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+                    if (sender) sender.replaceTrack(track);
+                });
+            }
+        }
+
         function setupDataConnectionEvents() {
             if (!dataConnection) return;
             dataConnection.on('data', (data) => {
@@ -251,6 +271,8 @@
                     executeCleanupAndExit(true);
                 } else if (data && data.type === 'HD_SYNC') {
                     applyRemoteHDState(data.active);
+                } else if (data && data.type === 'VIDEO_SYNC') {
+                    // Sync remote video state notice if needed
                 }
             });
         }
@@ -259,10 +281,18 @@
             stopAlerts();
             
             call.on('stream', (remoteStream) => {
-                document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
+                document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
+
+                // Check if remote stream has video tracks
+                if (remoteStream.getVideoTracks().length > 0) {
+                    remoteVideoEl.srcObject = remoteStream;
+                    remoteVideoEl.classList.add('active');
+                } else {
+                    remoteVideoEl.classList.remove('active');
+                }
 
                 remoteAudioEl.srcObject = remoteStream;
                 remoteAudioEl.volume = 0.7; 
@@ -274,31 +304,43 @@
             });
         }
 
+        // Toggle Video Mode (On/Off)
+        function toggleVideoMode() {
+            isVideoActive = !isVideoActive;
+            const videoBtn = document.getElementById('video-btn');
+            
+            if (isVideoActive) {
+                videoBtn.classList.add('active');
+                videoBtn.innerText = "📹 Video ON";
+            } else {
+                videoBtn.classList.remove('active');
+                videoBtn.innerText = "📹 Video Off";
+            }
+
+            initMediaCall(isVideoActive);
+            if (dataConnection && dataConnection.open) {
+                dataConnection.send({ type: 'VIDEO_SYNC', active: isVideoActive });
+            }
+        }
+
         function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
-            const statusEl = document.getElementById('call-status');
-            
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.7;
 
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
-                if(statusEl.innerText.includes("Earpiece")) {
-                    statusEl.innerText = statusEl.innerText.replace("Earpiece", "Loudspeaker");
-                }
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🔊 Speaker";
-                if(statusEl.innerText.includes("Loudspeaker")) {
-                    statusEl.innerText = statusEl.innerText.replace("Loudspeaker", "Earpiece");
-                }
             }
         }
 
         function toggleHDMode() {
             isHDActive = !isHDActive;
             updateHDUIState();
+            initMediaCall(isVideoActive); // Re-initialize with high sample rate
             if (dataConnection && dataConnection.open) {
                 dataConnection.send({ type: 'HD_SYNC', active: isHDActive });
             }
@@ -317,7 +359,7 @@
             if (isHDActive) {
                 hdBtn.classList.add('active');
                 hdBtn.innerText = "⚡ HD ON";
-                modeText.innerText = "HD Voice Mode Active (High Quality)";
+                modeText.innerText = "HD Mode Active (High Quality)";
             } else {
                 hdBtn.classList.remove('active');
                 hdBtn.innerText = "⚡ HD Off";
@@ -360,10 +402,7 @@
             isReturning = true;
 
             stopAlerts();
-            if (callTimerInterval) {
-                clearInterval(callTimerInterval);
-                callTimerInterval = null;
-            }
+            if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
 
             try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
             wakeLock = null;
