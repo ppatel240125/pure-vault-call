@@ -5,26 +5,26 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - True Fullscreen Video Call</title>
+    <title>Secure Node - Fullscreen Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; transition: all 0.3s ease; }
         
-        /* જ્યારે વિડિયો ચાલુ થાય ત્યારે બોક્સ આખી સ્ક્રીન બની જશે */
+        /* જ્યારે વિડિયો ચાલુ થાય ત્યારે આખી સ્ક્રીન ફૂલ-સ્ક્રીન બની જશે */
         body.video-fullscreen { background: #000; margin: 0; padding: 0; overflow: hidden; }
         body.video-fullscreen .box { max-width: 100% !important; width: 100vw !important; height: 100vh !important; border: none !important; border-radius: 0 !important; padding: 0 !important; background: #000 !important; box-shadow: none !important; position: fixed !important; top: 0 !important; left: 0 !important; z-index: 999; display: block !important; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Default Video Container (Normal state) */
+        /* Default Video Container */
         .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        /* Fullscreen Video Layout: સામેવાળાનો વિડિયો આખી સ્ક્રીન (100% Width & Height) */
+        /* ફૂલ-સ્ક્રીન વિડિયો લેઆઉટ: સામેવાળાનો વિડિયો આખી સ્ક્રીન પર (100% Width & Height) */
         body.video-fullscreen .video-container { position: absolute !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; padding: 0 !important; z-index: 1; background: #000; }
-        body.video-fullscreen #remote-video.active { width: 100vw !important; height: 100vh !important; max-height: none !important; border-radius: 0 !important; border: none !important; object-fit: cover !important; position: absolute !important; top: 0 !important; left: 0 !important; display: block !important; }
+        body.video-fullscreen #remote-video.active { width: 100vw !important; height: 100vh !important; max-height: none !important; border-radius: 0 !important; border: none !important; object-fit: cover !important; position: absolute !important; top: 0 !important; left: 0 !important; display: block !important; z-index: 1; }
         
         /* આપણો પોતાનો કેમેરા (Self Video) જમણી બાજુ ઉપર ફ્લોટિંગ બોક્સમાં */
         body.video-fullscreen #local-video.active { width: 110px !important; height: 150px !important; position: absolute !important; top: 20px !important; right: 20px !important; z-index: 10 !important; border-radius: 12px !important; border: 2px solid rgba(255,255,255,0.6) !important; object-fit: cover !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important; display: block !important; }
@@ -232,17 +232,9 @@
                 if (enableVideo) {
                     localVideoEl.srcObject = stream;
                     localVideoEl.classList.add('active');
-                    document.body.classList.add('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'flex';
-                    document.getElementById('normal-end-btn').style.display = 'none';
                 } else {
                     localVideoEl.classList.remove('active');
                     localVideoEl.srcObject = null;
-                    if (!remoteVideoEl.classList.contains('active')) {
-                        document.body.classList.remove('video-fullscreen');
-                        document.getElementById('video-active-controls').style.display = 'none';
-                        document.getElementById('normal-end-btn').style.display = 'block';
-                    }
                 }
 
                 if (!currentPeer) {
@@ -261,9 +253,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av38_${roomId}_${role}`;
+            const peerId = `secure_av39_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av38_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av39_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -331,6 +323,7 @@
                             document.getElementById('video-btn').innerText = "📹 Video Off";
                             initMediaCall(true);
                         }
+                        activateFullscreenUI();
                         document.getElementById('call-status').innerText = "Partner turned on Video 📹";
                     } else {
                         document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
@@ -348,22 +341,36 @@
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
 
+                // સાફ રીતે રિમોટ વિડિયો અને ઓડિયો બાઇન્ડ કરો
                 remoteVideoEl.srcObject = remoteStream;
-                if (remoteStream.getVideoTracks().length > 0) {
-                    remoteVideoEl.classList.add('active');
-                    document.body.classList.add('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'flex';
-                    document.getElementById('normal-end-btn').style.display = 'none';
-                }
+                remoteVideoEl.play().catch(() => {});
+                remoteVideoEl.classList.add('active');
 
                 remoteAudioEl.srcObject = remoteStream;
                 remoteAudioEl.volume = 0.7; 
                 remoteAudioEl.play().catch(() => {});
+
+                // જો રિમોટ સ્ટ્રીમમાં વિડિયો ટ્રેક હોય તો ફૂલસ્ક્રીન મોડ ઓન કરો
+                if (remoteStream.getVideoTracks().length > 0) {
+                    activateFullscreenUI();
+                }
             });
 
             call.on('close', () => {
                 executeCleanupAndExit();
             });
+        }
+
+        function activateFullscreenUI() {
+            document.body.classList.add('video-fullscreen');
+            document.getElementById('video-active-controls').style.display = 'flex';
+            document.getElementById('normal-end-btn').style.display = 'none';
+        }
+
+        function deactivateFullscreenUI() {
+            document.body.classList.remove('video-fullscreen');
+            document.getElementById('video-active-controls').style.display = 'none';
+            document.getElementById('normal-end-btn').style.display = 'block';
         }
 
         function toggleVideoMode() {
@@ -373,13 +380,12 @@
             if (isVideoActive) {
                 videoBtn.classList.add('active');
                 videoBtn.innerText = "📹 Video Off";
+                activateFullscreenUI();
             } else {
                 videoBtn.classList.remove('active');
                 videoBtn.innerText = "📹 Video On";
-                if (!remoteVideoEl.classList.contains('active')) {
-                    document.body.classList.remove('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'none';
-                    document.getElementById('normal-end-btn').style.display = 'block';
+                if (!remoteVideoEl.srcObject || remoteVideoEl.srcObject.getVideoTracks().length === 0) {
+                    deactivateFullscreenUI();
                 }
             }
 
