@@ -57,12 +57,14 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         const role = urlParams.get('role');
-        const redirectUrl = urlParams.get('back'); // ચેટ વિન્ડોની બેક લિંક
+        const redirectUrl = urlParams.get('back');
 
-        // બ્રાઉઝર હિસ્ટ્રીમાં કોલ પેજ સેવ થતું અટકાવવા માટે
-        if (window.history.replaceState) {
-            window.history.replaceState({ secureVoiceCall: true }, document.title, window.location.href);
-        }
+        // હિસ્ટ્રીમાં સેવ થતું સંપૂર્ણ અટકાવવા માટે (પેજ કેશમાંથી ખુલે તો પણ)
+        window.addEventListener('pageshow', function(event) {
+            if (window.history.replaceState) {
+                window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            }
+        });
 
         let localStream = null;
         let activeCall = null;
@@ -191,9 +193,9 @@
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v20_${roomId}_${role}`;
+                const peerId = `secure_v21_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v20_${roomId}_${targetRole}`;
+                const targetPeerId = `secure_v21_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -385,7 +387,6 @@
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             } catch(e) {}
 
-            // ચેટ વિન્ડો કે બેક પેજ પર ઓટોમેટિક પરત ફરવા માટે
             setTimeout(() => {
                 if (redirectUrl) {
                     window.location.replace(redirectUrl);
