@@ -5,28 +5,34 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Responsive Fullscreen Video Call</title>
+    <title>Secure Node - Overlay Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; }
         
-        /* True Fullscreen Video Mode for Both Mobile & PC */
+        /* Fullscreen Video Mode for Mobile & PC */
         body.video-fullscreen { background: #000; }
-        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 0; background: #000; max-height: 100vh; justify-content: space-between; position: absolute; top: 0; left: 0; z-index: 10; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 0; background: #000; max-height: 100vh; justify-content: flex-start; position: relative; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Remote video fills the entire screen */
-        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 4px 0; width: 100%; flex-wrap: wrap; }
+        /* Video Container */
+        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        body.video-fullscreen .video-container { width: 100%; height: 100vh; margin: 0; position: absolute; top: 0; left: 0; z-index: 1; display: block; }
-        body.video-fullscreen #remote-video.active { width: 100% !important; height: 100% !important; max-height: none; border-radius: 0; border: none; object-fit: cover; position: absolute; top: 0; left: 0; }
-        
-        /* Local video as a floating picture-in-picture box */
-        body.video-fullscreen #local-video.active { width: 110px; height: 150px; position: absolute; top: 20px; right: 20px; z-index: 20; border-radius: 10px; border: 2px solid #fff; object-fit: cover; }
+        /* PC / Laptop Layout */
+        body.video-fullscreen .video-container { height: 62vh; flex-direction: row; gap: 10px; align-content: center; justify-content: center; }
+        body.video-fullscreen video.active { width: 48%; height: 100%; max-height: none; object-fit: cover; }
+
+        /* મોબાઈલ માટે ટ્રુ ફૂલ-સ્ક્રીન અને પહોળો વિડિયો */
+        @media (max-width: 768px) {
+            body.video-fullscreen .video-container { height: 100vh; margin: 0; width: 100vh; position: absolute; top: 0; left: 0; }
+            body.video-fullscreen #remote-video.active { width: 100% !important; height: 100vh !important; border-radius: 0; border: none; object-fit: cover; }
+            /* લોકલ વિડિયો (સેલ્ફ) ઉપર નાની ફ્રેમ તરીકે ખૂણામાં દેખાશે */
+            body.video-fullscreen #local-video.active { width: 100px !important; height: 140px !important; position: absolute; top: 15px; right: 15px; z-index: 10; border-radius: 10px; border: 2px solid rgba(255,255,255,0.4); }
+        }
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 4px; }
@@ -40,20 +46,14 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Video Call Bottom Controls (Shown on touch/mousemove) */
-        .video-controls { display: none; flex-direction: column; gap: 10px; width: 100%; position: absolute; bottom: 30px; left: 0; padding: 0 20px; z-index: 30; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
-        .video-controls.show-controls { opacity: 1; pointer-events: auto; }
-        
-        .video-buttons-row { display: flex; gap: 10px; width: 100%; }
-        .video-ctrl-btn { background: rgba(31, 41, 61, 0.9); color: #d1d5db; border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px; flex: 1; outline: none; backdrop-filter: blur(5px); }
+        /* Video Call Bottom Controls - વિડિયો ઉપર આછા (Semi-transparent Floating Overlay) બટનો */
+        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: absolute; bottom: 20px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.6); padding: 12px; border-radius: 14px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.1); }
+        .video-buttons-row { display: flex; gap: 8px; width: 100%; }
+        .video-ctrl-btn { background: rgba(31, 41, 61, 0.8); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
         .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.9); color: #60a5fa; border: 1px solid #3b82f6; }
 
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 15px; outline: none; box-shadow: 0 5px 15px rgba(127,29,29,0.5); }
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
         .end-btn:hover { background: #991b1b; }
-
-        /* Floating Call Status & Timer */
-        .video-floating-header { display: none; position: absolute; top: 15px; left: 0; width: 100%; z-index: 30; text-align: center; background: rgba(0,0,0,0.5); padding: 8px; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
-        .video-floating-header.show-controls { opacity: 1; pointer-events: auto; }
 
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
@@ -62,20 +62,13 @@
 <body>
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
-    <div class="box" id="main-box">
-        
-        <!-- Floating Header -->
-        <div id="video-floating-header" class="video-floating-header">
-            <div id="v-call-status" style="font-size: 13px; color: #ffb74d; font-weight: bold;">Connected</div>
-            <div id="v-call-timer" style="font-size: 15px; color: #60a5fa; font-weight: bold;">00:00</div>
-        </div>
-
+    <div class="box">
         <div class="hide-in-video">
             <h3>SECURE_NODE_AV</h3>
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         </div>
         
-        <div>
+        <div class="hide-in-video">
             <div id="call-status" class="status">Initializing channel...</div>
             <div id="call-timer" class="timer" style="display:none;">00:00</div>
         </div>
@@ -96,7 +89,7 @@
             <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
-        <!-- Video Call Controls -->
+        <!-- Video Call Floating Overlay Controls -->
         <div id="video-active-controls" class="video-controls">
             <div class="video-buttons-row">
                 <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -144,35 +137,11 @@
         let lastTapTime = 0;
         let isEnded = false;
         let isReturning = false;
-        let controlsTimeout = null;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
-
-        // યુનિવર્સલ ઇવેન્ટ લિસનર: મોબાઈલમાં ટચ પર અને પીસીમાં માઉસ મુવમેન્ટ/ક્લિક પર બટનો દેખાડવા
-        function triggerShowControls(e) {
-            if (!document.body.classList.contains('video-fullscreen')) return;
-            if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-
-            const controls = document.getElementById('video-active-controls');
-            const header = document.getElementById('video-floating-header');
-            
-            controls.classList.add('show-controls');
-            header.classList.add('show-controls');
-
-            clearTimeout(controlsTimeout);
-            controlsTimeout = setTimeout(() => {
-                controls.classList.remove('show-controls');
-                header.classList.remove('show-controls');
-            }, 4000); // 4 સેકન્ડ પછી ઓટોમેટિક ગાયબ થઈ જશે
-        }
-
-        // ડોક્યુમેન્ટ પર ક્લિક, ટચ અને માઉસ મુવ રજીસ્ટર કરો
-        document.addEventListener('click', triggerShowControls);
-        document.addEventListener('touchstart', triggerShowControls);
-        document.addEventListener('mousemove', triggerShowControls);
 
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
@@ -269,14 +238,14 @@
                     localVideoEl.srcObject = stream;
                     localVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
                     document.getElementById('normal-end-btn').style.display = 'none';
                 } else {
                     localVideoEl.classList.remove('active');
                     localVideoEl.srcObject = null;
                     if (!remoteVideoEl.classList.contains('active')) {
                         document.body.classList.remove('video-fullscreen');
-                        document.getElementById('video-active-controls').classList.remove('show-controls');
-                        document.getElementById('video-floating-header').classList.remove('show-controls');
+                        document.getElementById('video-active-controls').style.display = 'none';
                         document.getElementById('normal-end-btn').style.display = 'block';
                     }
                 }
@@ -297,9 +266,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av36_${roomId}_${role}`;
+            const peerId = `secure_av35_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av36_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av35_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -368,10 +337,8 @@
                             initMediaCall(true);
                         }
                         document.getElementById('call-status').innerText = "Partner turned on Video 📹";
-                        document.getElementById('v-call-status').innerText = "Partner turned on Video 📹";
                     } else {
                         document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
-                        document.getElementById('v-call-status').innerText = "Encrypted Active Call 🔒";
                     }
                 }
             });
@@ -382,7 +349,6 @@
             
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
-                document.getElementById('v-call-status').innerText = "Encrypted Active Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
@@ -391,6 +357,7 @@
                 if (remoteStream.getVideoTracks().length > 0) {
                     remoteVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
                     document.getElementById('normal-end-btn').style.display = 'none';
                 }
 
@@ -416,8 +383,7 @@
                 videoBtn.innerText = "📹 Video On";
                 if (!remoteVideoEl.classList.contains('active')) {
                     document.body.classList.remove('video-fullscreen');
-                    document.getElementById('video-active-controls').classList.remove('show-controls');
-                    document.getElementById('video-floating-header').classList.remove('show-controls');
+                    document.getElementById('video-active-controls').style.display = 'none';
                     document.getElementById('normal-end-btn').style.display = 'block';
                 }
             }
@@ -485,9 +451,7 @@
                 callSeconds++;
                 let mins = Math.floor(callSeconds / 60).toString().padStart(2, '0');
                 let secs = (callSeconds % 60).toString().padStart(2, '0');
-                let timeStr = `${mins}:${secs}`;
-                document.getElementById('call-timer').innerText = timeStr;
-                document.getElementById('v-call-timer').innerText = timeStr;
+                document.getElementById('call-timer').innerText = `${mins}:${secs}`;
             }, 1000);
         }
 
