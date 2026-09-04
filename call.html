@@ -5,34 +5,27 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Overlay Video Call</title>
+    <title>Secure Node - True Fullscreen Video</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; }
         
-        /* Fullscreen Video Mode for Mobile & PC */
+        /* True Fullscreen Video Mode for Both Mobile & Laptop */
         body.video-fullscreen { background: #000; }
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 0; background: #000; max-height: 100vh; justify-content: flex-start; position: relative; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Video Container */
-        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
+        /* Video Container fills entire screen */
+        .video-container { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: relative; background: #000; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        /* PC / Laptop Layout */
-        body.video-fullscreen .video-container { height: 62vh; flex-direction: row; gap: 10px; align-content: center; justify-content: center; }
-        body.video-fullscreen video.active { width: 48%; height: 100%; max-height: none; object-fit: cover; }
-
-        /* મોબાઈલ માટે ટ્રુ ફૂલ-સ્ક્રીન અને પહોળો વિડિયો */
-        @media (max-width: 768px) {
-            body.video-fullscreen .video-container { height: 100vh; margin: 0; width: 100vh; position: absolute; top: 0; left: 0; }
-            body.video-fullscreen #remote-video.active { width: 100% !important; height: 100vh !important; border-radius: 0; border: none; object-fit: cover; }
-            /* લોકલ વિડિયો (સેલ્ફ) ઉપર નાની ફ્રેમ તરીકે ખૂણામાં દેખાશે */
-            body.video-fullscreen #local-video.active { width: 100px !important; height: 140px !important; position: absolute; top: 15px; right: 15px; z-index: 10; border-radius: 10px; border: 2px solid rgba(255,255,255,0.4); }
-        }
+        /* Fullscreen Video Layout: સામેવાળાનો વિડિયો આખી સ્ક્રીન પર અને આપણો વિડિયો (સેલ્ફ) નાની ફ્રેમ તરીકે ખૂણામાં */
+        body.video-fullscreen .video-container { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; margin: 0; }
+        body.video-fullscreen #remote-video.active { width: 100% !important; height: 100% !important; max-height: none; border-radius: 0; border: none; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1; }
+        body.video-fullscreen #local-video.active { width: 110px !important; height: 150px !important; position: absolute; top: 20px; right: 20px; z-index: 10; border-radius: 12px; border: 2px solid rgba(255,255,255,0.6); object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 4px; }
@@ -47,10 +40,10 @@
         .utility-btn.active { background: #713f12; color: #fde047; }
 
         /* Video Call Bottom Controls - વિડિયો ઉપર આછા (Semi-transparent Floating Overlay) બટનો */
-        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: absolute; bottom: 20px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.6); padding: 12px; border-radius: 14px; backdrop-filter: blur(6px); border: 1px solid rgba(255,255,255,0.1); }
+        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: absolute; bottom: 25px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.65); padding: 12px; border-radius: 14px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); }
         .video-buttons-row { display: flex; gap: 8px; width: 100%; }
-        .video-ctrl-btn { background: rgba(31, 41, 61, 0.8); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
-        .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.9); color: #60a5fa; border: 1px solid #3b82f6; }
+        .video-ctrl-btn { background: rgba(31, 41, 61, 0.85); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
+        .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.95); color: #60a5fa; border: 1px solid #3b82f6; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
         .end-btn:hover { background: #991b1b; }
@@ -266,9 +259,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av35_${roomId}_${role}`;
+            const peerId = `secure_av36_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av35_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av36_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
