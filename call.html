@@ -5,30 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Perfect Video Call</title>
+    <title>Secure Node - Responsive Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 400px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; max-height: 95vh; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 450px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 700px; }
         
-        /* Fullscreen Video Mode for Both Mobile & Laptop */
+        /* True Fullscreen Video Mode for Mobile & PC */
         body.video-fullscreen { background: #000; }
-        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 12px; background: #07090e; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 8px; background: #07090e; max-height: 100vh; justify-content: space-between; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Perfect Responsive Video Layout */
-        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 8px 0; width: 100%; flex-wrap: wrap; }
+        /* Responsive Video Layout (Full Width for Mobile) */
+        .video-container { display: flex; gap: 6px; justify-content: center; align-items: center; margin: 4px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        body.video-fullscreen .video-container { height: 60vh; }
-        body.video-fullscreen video.active { width: 48%; height: 100%; max-height: none; }
+        body.video-fullscreen .video-container { height: 68vh; flex-direction: column; gap: 6px; align-content: center; }
+        body.video-fullscreen video.active { width: 100%; height: 48%; max-height: none; }
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
-        p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
-        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
+        p { font-size: 10px; color: #9ca3af; margin-bottom: 4px; }
+        .status { font-size: 12px; margin: 2px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 4px; font-weight: bold; letter-spacing: 2px; }
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
@@ -38,11 +38,12 @@
         .utility-btn.active { background: #713f12; color: #fde047; }
 
         /* Video Call Bottom Controls */
-        .video-controls { display: none; gap: 8px; width: 100%; margin-top: 8px; }
+        .video-controls { display: none; flex-direction: column; gap: 6px; width: 100%; margin-top: auto; }
+        .video-buttons-row { display: flex; gap: 8px; width: 100%; }
         .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
         .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
 
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 6px; }
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
         .end-btn:hover { background: #991b1b; }
 
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
@@ -79,13 +80,16 @@
             <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
-        <!-- Minimal Controls during Video Call -->
+        <!-- Video Call Controls -->
         <div id="video-active-controls" class="video-controls">
-            <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
+            <div class="video-buttons-row">
+                <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+                <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
+            </div>
+            <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
         </div>
 
-        <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
+        <button id="normal-end-btn" class="end-btn hide-in-video" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -226,12 +230,14 @@
                     localVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
                     document.getElementById('video-active-controls').style.display = 'flex';
+                    document.getElementById('normal-end-btn').style.display = 'none';
                 } else {
                     localVideoEl.classList.remove('active');
                     localVideoEl.srcObject = null;
                     if (!remoteVideoEl.classList.contains('active')) {
                         document.body.classList.remove('video-fullscreen');
                         document.getElementById('video-active-controls').style.display = 'none';
+                        document.getElementById('normal-end-btn').style.display = 'block';
                     }
                 }
 
@@ -251,9 +257,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av26_${roomId}_${role}`;
+            const peerId = `secure_av28_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av26_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av28_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -315,7 +321,6 @@
                     applyRemoteHDState(data.active);
                 } else if (data && data.type === 'VIDEO_SYNC') {
                     if (data.active) {
-                        // જો સામેની વ્યક્તિ વિડિયો ચાલુ કરે તો આપોઆપ વીડિયો મોડ ઓન કરો
                         if (!isVideoActive) {
                             isVideoActive = true;
                             document.getElementById('video-btn').classList.add('active');
@@ -344,6 +349,7 @@
                     remoteVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
                     document.getElementById('video-active-controls').style.display = 'flex';
+                    document.getElementById('normal-end-btn').style.display = 'none';
                 }
 
                 remoteAudioEl.srcObject = remoteStream;
@@ -369,6 +375,7 @@
                 if (!remoteVideoEl.classList.contains('active')) {
                     document.body.classList.remove('video-fullscreen');
                     document.getElementById('video-active-controls').style.display = 'none';
+                    document.getElementById('normal-end-btn').style.display = 'block';
                 }
             }
 
