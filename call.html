@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Video Call</title>
+    <title>Secure Node - Audio Call (2G Data Saver + Auto HD)</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
@@ -16,32 +16,22 @@
         body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
         body.video-fullscreen .hide-in-video { display: none !important; }
-        
-        /* Video Layout for Fullscreen */
-        body.video-fullscreen .video-container { height: 75vh; flex-direction: column; gap: 8px; justify-content: center; }
-        body.video-fullscreen video { width: 100%; height: 48%; border-radius: 12px; }
+
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
-        
-        /* Video Container */
-        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; width: 100%; }
-        video { width: 48%; height: 100px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
-        video.active { display: block; }
+
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
         .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Minimal Video Call Controls (Only Mute, Switch Camera, End Call) */
-        .video-controls { display: flex; gap: 10px; width: 100%; margin-top: auto; }
-        .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; flex: 1; outline: none; }
-        .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
@@ -55,28 +45,22 @@
     
     <div class="box">
         <div class="hide-in-video">
-            <h3>SECURE_NODE_AV</h3>
+            <h3>SECURE_NODE_AUDIO</h3>
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         </div>
         
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Video elements -->
-        <div class="video-container">
-            <video id="local-video" autoplay playsinline muted></video>
-            <video id="remote-video" autoplay playsinline></video>
-        </div>
-        <audio id="remote-audio" autoplay playsinline></audio>
+        <!-- Audio only -->
+<audio id="remote-audio" autoplay playsinline></audio>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
         <div class="controls-grid hide-in-video">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
-            <button id="auto-hd-btn" class="ctrl-btn active" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
-            <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video On</button>
-            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
+            <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
         </div>
 
         <!-- Minimal Controls shown only during Video Call -->
@@ -104,14 +88,10 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
-        let localVideoEl = document.getElementById('local-video');
-        let remoteVideoEl = document.getElementById('remote-video');
-
-        let isMuted = false;
+let isMuted = false;
         let isSpeakerOn = false;              // Default: earpiece / normal call audio
-        let isVideoActive = false;
-        let isHDActive = false;              // Default: 2G data-saver quality
-        let isAutoHD = true;                 // Auto HD setting is ON by default
+        let isHDActive = false;
+        let isAutoHD = false;              // Default: 2G data-saver quality
         let hdManuallySet = false;
         let callStarted = false;
         let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
@@ -168,10 +148,9 @@
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
             startDeviceAlerts();
-            updateHDUIState();
             updateAutoHDUI();
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
-            initMediaCall(false);
+            initMediaCall();
             requestWakeLock();
         }
 
@@ -206,28 +185,17 @@
         }
 
         // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
-        function initMediaCall(enableVideo) {
-            // Default is intentionally 2G/data-saver: mono Opus, 16 kHz.
-            // HD raises audio quality only when the user/Auto-HD enables it.
+        function initMediaCall() {
+            // Audio-only call. Default profile is optimized for 2G / low data.
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
                 channelCount: { ideal: 1, max: 1 },
-                sampleRate: { ideal: isHDActive ? 48000 : 16000 }
+                sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
             };
 
-            const videoConstraints = enableVideo ? {
-                width: { ideal: isHDActive ? 640 : 320, max: isHDActive ? 640 : 320 },
-                height: { ideal: isHDActive ? 480 : 240, max: isHDActive ? 480 : 240 },
-                frameRate: { ideal: isHDActive ? 20 : 10, max: isHDActive ? 24 : 12 },
-                facingMode: currentFacingMode
-            } : false;
-
-            navigator.mediaDevices.getUserMedia({
-                audio: audioConstraints,
-                video: videoConstraints
-            })
+            navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
             .then(stream => {
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
@@ -235,23 +203,8 @@
 
                 localStream = stream;
 
-                // Keep the user's mute state after a stream replacement.
                 if (isMuted) {
                     localStream.getAudioTracks().forEach(track => { track.enabled = false; });
-                }
-
-                if (enableVideo) {
-                    localVideoEl.srcObject = stream;
-                    localVideoEl.classList.add('active');
-                    document.body.classList.add('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'flex';
-                } else {
-                    localVideoEl.classList.remove('active');
-                    localVideoEl.srcObject = null;
-                    if (!remoteVideoEl.classList.contains('active')) {
-                        document.body.classList.remove('video-fullscreen');
-                        document.getElementById('video-active-controls').style.display = 'none';
-                    }
                 }
 
                 applyAudioOutputMode();
@@ -264,12 +217,7 @@
             })
             .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Camera/Mic permission required!";
-                if (enableVideo) {
-                    isVideoActive = false;
-                    document.getElementById('video-btn').classList.remove('active');
-                    document.getElementById('video-btn').innerText = "📹 Video On";
-                }
+                document.getElementById('call-status').innerText = "Microphone permission required!";
             });
         }
 
@@ -334,21 +282,9 @@
             dataConnection.on('data', (data) => {
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
-                } else if (data && data.type === 'HD_SYNC') {
-                    applyRemoteHDState(!!data.active, data.auto !== false);
-                } else if (data && data.type === 'AUTO_HD_SYNC') {
-                    isAutoHD = !!data.active;
-                    updateAutoHDUI();
-                    if (isAutoHD && !hdManuallySet) {
-                        setHDState(false, false);
-                    }
-                } else if (data && data.type === 'VIDEO_SYNC') {
-                    if (data.active) {
-                        document.getElementById('call-status').innerText = "Partner turned on Video 📹";
-                        // જો સામેવાળો વિડિયો ચાલુ કરે તો ઓટોમેટિક આપણી સ્ક્રીન પણ ફૂલ-સ્ક્રીન વિડિયો મોડમાં આવી જશે
-                    } else {
-                        document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
-                    }
+                } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
+                    // Compatibility: either signal can synchronize the Auto HD state.
+                    setAutoHDState(!!data.active, false, false);
                 }
             });
         }
@@ -357,18 +293,11 @@
             stopAlerts();
             
             call.on('stream', (remoteStream) => {
-                document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
+                document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
                 callStarted = true;
-
-                if (remoteStream.getVideoTracks().length > 0) {
-                    remoteVideoEl.srcObject = remoteStream;
-                    remoteVideoEl.classList.add('active');
-                    document.body.classList.add('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'flex';
-                }
 
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
@@ -378,36 +307,6 @@
             call.on('close', () => {
                 executeCleanupAndExit();
             });
-        }
-
-        function toggleVideoMode() {
-            isVideoActive = !isVideoActive;
-            const videoBtn = document.getElementById('video-btn');
-            
-            if (isVideoActive) {
-                videoBtn.classList.add('active');
-                videoBtn.innerText = "📹 Video Off";
-            } else {
-                videoBtn.classList.remove('active');
-                videoBtn.innerText = "📹 Video On";
-                if (!remoteVideoEl.classList.contains('active')) {
-                    document.body.classList.remove('video-fullscreen');
-                    document.getElementById('video-active-controls').style.display = 'none';
-                }
-            }
-
-            initMediaCall(isVideoActive);
-            if (dataConnection && dataConnection.open) {
-                dataConnection.send({ type: 'VIDEO_SYNC', active: isVideoActive });
-            }
-        }
-
-        // ફ્રન્ટ અને બેક કેમેરા બદલવા માટેનું ફંક્શન (Switch Camera)
-        function switchCamera() {
-            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-            if (isVideoActive) {
-                initMediaCall(true);
-            }
         }
 
         function applyAudioOutputMode() {
@@ -438,87 +337,42 @@
             }
         }
 
+        // Auto HD OFF = hard 2G/Data Saver profile. No HD upgrade is allowed while OFF.
         function toggleAutoHD() {
-            isAutoHD = !isAutoHD;
-            hdManuallySet = false;
+            setAutoHDState(!isAutoHD, true, true);
+        }
+
+        function setAutoHDState(enabled, broadcast = true, reinitialize = true) {
+            isAutoHD = !!enabled;
+            isHDActive = isAutoHD;
             updateAutoHDUI();
 
-            if (dataConnection && dataConnection.open) {
-                try {
-                    dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD });
-                } catch (e) {}
-            }
-
-            // Auto-HD starts from the safe 2G profile. It can be upgraded later
-            // by explicit HD selection or a future quality detector.
-            if (isAutoHD) {
-                setHDState(false, false);
-            }
-        }
-
-        function updateAutoHDUI() {
-            const btn = document.getElementById('auto-hd-btn');
-            if (!btn) return;
-
-            btn.classList.toggle('active', isAutoHD);
-            btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
-        }
-
-        function setHDState(active, manual = false, broadcast = true) {
-            const changed = isHDActive !== !!active;
-            isHDActive = !!active;
-
-            if (manual) {
-                hdManuallySet = true;
-            }
-
-            updateHDUIState();
-
-            if (changed) {
-                initMediaCall(isVideoActive);
+            if (reinitialize) {
+                initMediaCall();
             }
 
             if (broadcast && dataConnection && dataConnection.open) {
                 try {
                     dataConnection.send({
-                        type: 'HD_SYNC',
-                        active: isHDActive,
-                        auto: isAutoHD
+                        type: 'AUTO_HD_SYNC',
+                        active: isAutoHD
                     });
                 } catch (e) {}
             }
         }
 
-        function toggleHDMode() {
-            // Manual HD selection overrides Auto-HD until Auto-HD is toggled again.
-            setHDState(!isHDActive, true, true);
-        }
-
-        function applyRemoteHDState(status, remoteAuto = true) {
-            isAutoHD = remoteAuto;
-            hdManuallySet = false;
-            if (isHDActive !== !!status) {
-                isHDActive = !!status;
-                updateHDUIState();
-                initMediaCall(isVideoActive);
-            } else {
-                updateHDUIState();
-            }
-            updateAutoHDUI();
-        }
-
-        function updateHDUIState() {
-            const hdBtn = document.getElementById('hd-btn');
+        function updateAutoHDUI() {
+            const btn = document.getElementById('auto-hd-btn');
             const modeText = document.getElementById('mode-text');
+            if (!btn) return;
 
-            if (isHDActive) {
-                hdBtn.classList.add('active');
-                hdBtn.innerText = hdManuallySet ? "⚡ HD ON (Manual)" : "⚡ HD ON";
-                modeText.innerText = "HD Mode Active";
-            } else {
-                hdBtn.classList.remove('active');
-                hdBtn.innerText = "⚡ HD Off";
-                modeText.innerText = "Data Saver Mode (2G Optimized)";
+            btn.classList.toggle('active', isAutoHD);
+            btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
+
+            if (modeText) {
+                modeText.innerText = isAutoHD
+                    ? "Auto HD Active (High Quality)"
+                    : "Data Saver Mode (2G Optimized)";
             }
         }
 
