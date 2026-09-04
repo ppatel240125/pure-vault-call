@@ -57,32 +57,12 @@
         const urlParams = new URLSearchParams(window.location.search);
         const roomId = urlParams.get('room');
         const role = urlParams.get('role');
-        const redirectUrl = urlParams.get('back'); // ચેટ વિન્ડોની બેક લિંક (જો હોય તો)
+        const redirectUrl = urlParams.get('back'); // ચેટ વિન્ડોની બેક લિંક
 
-        /*
-         * IMPORTANT:
-         * A web page cannot delete Chrome/Google's complete browser history.
-         * This code only prevents the call page from remaining as a normal
-         * in-page navigation entry and uses replace() when returning to chat.
-         */
-        const CALL_PAGE_URL = window.location.href;
-
+        // બ્રાઉઝર હિસ્ટ્રીમાં કોલ પેજ સેવ થતું અટકાવવા માટે
         if (window.history.replaceState) {
-            // Keep this page as the current entry without adding a new entry.
-            window.history.replaceState(
-                { secureVoiceCall: true },
-                document.title,
-                window.location.href
-            );
+            window.history.replaceState({ secureVoiceCall: true }, document.title, window.location.href);
         }
-
-        // Prevent the Back button from navigating through a stale call state.
-        history.pushState({ secureVoiceGuard: true }, document.title, window.location.href);
-        window.addEventListener('popstate', () => {
-            if (!isEnded) {
-                history.pushState({ secureVoiceGuard: true }, document.title, window.location.href);
-            }
-        });
 
         let localStream = null;
         let activeCall = null;
@@ -102,7 +82,6 @@
         let lastTapTime = 0;
         let isEnded = false;
         let isReturning = false;
-        let remoteEndSent = false;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
@@ -212,9 +191,9 @@
             })
             .then(stream => {
                 localStream = stream;
-                const peerId = `secure_v14_${roomId}_${role}`;
+                const peerId = `secure_v20_${roomId}_${role}`;
                 const targetRole = role === 'caller' ? 'receiver' : 'caller';
-                const targetPeerId = `secure_v14_${roomId}_${targetRole}`;
+                const targetPeerId = `secure_v20_${roomId}_${targetRole}`;
 
                 currentPeer = new Peer(peerId, {
                     host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -267,7 +246,6 @@
             if (!dataConnection) return;
             dataConnection.on('data', (data) => {
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
-                    // The other user ended the call. This side must return to its own chat too.
                     executeCleanupAndExit(true);
                 } else if (data && data.type === 'HD_SYNC') {
                     applyRemoteHDState(data.active);
@@ -279,7 +257,7 @@
             stopAlerts();
             
             call.on('stream', (remoteStream) => {
-                document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Default Audio)";
+                document.getElementById('call-status').innerText = "Encrypted Active Call 🔒 (Earpiece)";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
@@ -294,38 +272,26 @@
             });
         }
 
-        async function toggleSpeaker() {
+        function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
             const statusEl = document.getElementById('call-status');
-
-            /*
-             * Browser security limitation:
-             * Standard mobile HTML does not provide a universal API that can
-             * force the physical telephone earpiece or loudspeaker.
-             * The browser/OS selects the output route. This button therefore
-             * provides the supported user-controlled loudness fallback.
-             */
+            
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.7;
 
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
-                statusEl.innerText = "Encrypted Active Call 🔒 (Speaker Mode)";
+                if(statusEl.innerText.includes("Earpiece")) {
+                    statusEl.innerText = statusEl.innerText.replace("Earpiece", "Loudspeaker");
+                }
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🔊 Speaker";
-                statusEl.innerText = "Encrypted Active Call 🔒 (Default Audio)";
-            }
-
-            try {
-                // Some browsers expose setSinkId for user-selected output devices.
-                // No deviceId is forced here because mobile earpiece IDs are normally
-                // not exposed to web pages.
-                if (typeof remoteAudioEl.play === 'function') {
-                    await remoteAudioEl.play();
+                if(statusEl.innerText.includes("Loudspeaker")) {
+                    statusEl.innerText = statusEl.innerText.replace("Loudspeaker", "Earpiece");
                 }
-            } catch (e) {}
+            }
         }
 
         function toggleHDMode() {
@@ -377,7 +343,6 @@
         }
 
         function endCallAndClose() {
-            // Tell the other peer first. Both sides then run the same cleanup.
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
@@ -389,88 +354,48 @@
 
         function executeCleanupAndExit(endedByRemote = false) {
             if (isEnded || isReturning) return;
-
             isEnded = true;
             isReturning = true;
 
             stopAlerts();
-
             if (callTimerInterval) {
                 clearInterval(callTimerInterval);
                 callTimerInterval = null;
             }
 
-            try {
-                if (wakeLock !== null) wakeLock.release().catch(() => {});
-            } catch(e) {}
+            try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
             wakeLock = null;
 
-            try {
-                if (activeCall) activeCall.close();
-            } catch(e) {}
-
-            try {
-                if (localStream) localStream.getTracks().forEach(track => track.stop());
-            } catch(e) {}
+            try { if (activeCall) activeCall.close(); } catch(e) {}
+            try { if (localStream) localStream.getTracks().forEach(track => track.stop()); } catch(e) {}
 
             try {
                 remoteAudioEl.pause();
                 remoteAudioEl.srcObject = null;
             } catch(e) {}
 
-            try {
-                if (dataConnection) dataConnection.close();
-            } catch(e) {}
+            try { if (dataConnection) dataConnection.close(); } catch(e) {}
+            try { if (currentPeer && !currentPeer.destroyed) currentPeer.destroy(); } catch(e) {}
 
-            try {
-                if (currentPeer && !currentPeer.destroyed) currentPeer.destroy();
-            } catch(e) {}
-
-            document.getElementById('call-status').innerText =
-                endedByRemote ? "Call ended by other user. Returning..." : "Call ended. Returning...";
-
+            document.getElementById('call-status').innerText = 
+                endedByRemote ? "Call ended by other user. Returning..." : "Call terminated. Returning...";
+            
             try {
                 if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             } catch(e) {}
 
-            /*
-             * Both users use their own `back` URL supplied by their chat page.
-             * location.replace() replaces the current call page instead of adding
-             * the chat navigation as a new history entry.
-             */
+            // ચેટ વિન્ડો કે બેક પેજ પર ઓટોમેટિક પરત ફરવા માટે
             setTimeout(() => {
                 if (redirectUrl) {
                     window.location.replace(redirectUrl);
-                    return;
-                }
-
-                // Fallback: remove query parameters from the current call URL.
-                try {
-                    const cleanUrl = window.location.origin + window.location.pathname;
-                    window.location.replace(cleanUrl);
-                } catch(e) {
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
                     window.close();
                 }
-            }, 250);
+            }, 300);
         }
-
-        // If the page is being closed/reloaded, stop local media immediately.
-        window.addEventListener('pagehide', () => {
-            try {
-                if (localStream) localStream.getTracks().forEach(track => track.stop());
-            } catch(e) {}
-            try {
-                if (currentPeer && !currentPeer.destroyed) currentPeer.destroy();
-            } catch(e) {}
-        });
-
-        window.addEventListener('beforeunload', () => {
-            try {
-                if (localStream) localStream.getTracks().forEach(track => track.stop());
-            } catch(e) {}
-        });
-
     </script>
 </body>
 </html>
