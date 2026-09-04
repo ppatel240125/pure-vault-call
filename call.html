@@ -5,22 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Audio Call</title>
+    <title>Secure Node - Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
+        
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
-        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 15px; letter-spacing: 1px; }
-        p { font-size: 11px; color: #9ca3af; margin-bottom: 15px; }
-        .status { font-size: 13px; margin: 10px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 18px; color: #60a5fa; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
-        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px 8px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; outline: none; }
+        
+        /* True Fullscreen Video Mode */
+        body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
+        body.video-fullscreen .hide-in-video { display: none !important; }
+        
+        /* Video Layout for Fullscreen */
+        body.video-fullscreen .video-container { height: 75vh; flex-direction: column; gap: 8px; justify-content: center; }
+        body.video-fullscreen video { width: 100%; height: 48%; border-radius: 12px; }
+
+        h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
+        p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
+        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
+        
+        /* Video Container */
+        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; width: 100%; }
+        video { width: 48%; height: 100px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
+        video.active { display: block; }
+
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
-        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 8px; outline: none; }
+        
+        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
+
+        /* Minimal Video Call Controls (Only Mute, Switch Camera, End Call) */
+        .video-controls { display: flex; gap: 10px; width: 100%; margin-top: auto; }
+        .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; flex: 1; outline: none; }
+        .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
+
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
+
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
@@ -29,18 +54,34 @@
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
-        <h3>SECURE_NODE_VOICE</h3>
-        <p id="mode-text">Data Saver Mode (2G Optimized)</p>
+        <div class="hide-in-video">
+            <h3>SECURE_NODE_AV</h3>
+            <p id="mode-text">Data Saver Mode (2G Optimized)</p>
+        </div>
+        
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
+        <!-- Video elements -->
+        <div class="video-container">
+            <video id="local-video" autoplay playsinline muted></video>
+            <video id="remote-video" autoplay playsinline></video>
+        </div>
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
-        <div class="controls-grid">
+        <div class="controls-grid hide-in-video">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+            <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video On</button>
+            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
+        </div>
+
+        <!-- Minimal Controls shown only during Video Call -->
+        <div id="video-active-controls" class="video-controls" style="display:none;">
+            <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+            <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
         </div>
 
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
@@ -62,8 +103,14 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
+        let localVideoEl = document.getElementById('local-video');
+        let remoteVideoEl = document.getElementById('remote-video');
+
         let isMuted = false;
         let isSpeakerOn = false;
+        let isVideoActive = false;
+        let isHDActive = false;
+        let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
         let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
@@ -117,7 +164,7 @@
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
             startDeviceAlerts();
-            initAudioCall();
+            initMediaCall(false);
             requestWakeLock();
         }
 
@@ -151,22 +198,63 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        function initAudioCall() {
-            navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false })
+        // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
+        function initMediaCall(enableVideo) {
+            const constraints = {
+                audio: { 
+                    echoCancellation: true, 
+                    noiseSuppression: true, 
+                    autoGainControl: true,
+                    sampleRate: isHDActive ? 48000 : 16000 
+                },
+                video: enableVideo ? { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 },
+                    facingMode: currentFacingMode 
+                } : false
+            };
+
+            navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
+                // જો અગાઉનો કોઈ સ્ટ્રીમ ચાલુ હોય તો તેના ટ્રેક બંધ કરો
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
                 localStream = stream;
-                setupPeerConnection();
+
+                if (enableVideo) {
+                    localVideoEl.srcObject = stream;
+                    localVideoEl.classList.add('active');
+                    document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
+                } else {
+                    localVideoEl.classList.remove('active');
+                    localVideoEl.srcObject = null;
+                    if (!remoteVideoEl.classList.contains('active')) {
+                        document.body.classList.remove('video-fullscreen');
+                        document.getElementById('video-active-controls').style.display = 'none';
+                    }
+                }
+
+                if (!currentPeer) {
+                    setupPeerConnection();
+                } else if (activeCall) {
+                    replaceStreamInCall(stream);
+                }
             })
             .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Microphone permission required!";
+                document.getElementById('call-status').innerText = "Camera/Mic permission required!";
+                isVideoActive = false;
+                document.getElementById('video-btn').classList.remove('active');
+                document.getElementById('video-btn').innerText = "📹 Video On";
             });
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_audio_${roomId}_${role}`;
+            const peerId = `secure_av25_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_audio_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av25_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -209,11 +297,30 @@
             }
         }
 
+        function replaceStreamInCall(newStream) {
+            if (activeCall && activeCall.peerConnection) {
+                const senders = activeCall.peerConnection.getSenders();
+                newStream.getTracks().forEach(track => {
+                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+                    if (sender) sender.replaceTrack(track);
+                });
+            }
+        }
+
         function setupDataConnectionEvents() {
             if (!dataConnection) return;
             dataConnection.on('data', (data) => {
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
+                } else if (data && data.type === 'HD_SYNC') {
+                    applyRemoteHDState(data.active);
+                } else if (data && data.type === 'VIDEO_SYNC') {
+                    if (data.active) {
+                        document.getElementById('call-status').innerText = "Partner turned on Video 📹";
+                        // જો સામેવાળો વિડિયો ચાલુ કરે તો ઓટોમેટિક આપણી સ્ક્રીન પણ ફૂલ-સ્ક્રીન વિડિયો મોડમાં આવી જશે
+                    } else {
+                        document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
+                    }
                 }
             });
         }
@@ -227,6 +334,13 @@
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
 
+                if (remoteStream.getVideoTracks().length > 0) {
+                    remoteVideoEl.srcObject = remoteStream;
+                    remoteVideoEl.classList.add('active');
+                    document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
+                }
+
                 remoteAudioEl.srcObject = remoteStream;
                 remoteAudioEl.volume = 0.7; 
                 remoteAudioEl.play().catch(() => {});
@@ -235,6 +349,36 @@
             call.on('close', () => {
                 executeCleanupAndExit();
             });
+        }
+
+        function toggleVideoMode() {
+            isVideoActive = !isVideoActive;
+            const videoBtn = document.getElementById('video-btn');
+            
+            if (isVideoActive) {
+                videoBtn.classList.add('active');
+                videoBtn.innerText = "📹 Video Off";
+            } else {
+                videoBtn.classList.remove('active');
+                videoBtn.innerText = "📹 Video On";
+                if (!remoteVideoEl.classList.contains('active')) {
+                    document.body.classList.remove('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'none';
+                }
+            }
+
+            initMediaCall(isVideoActive);
+            if (dataConnection && dataConnection.open) {
+                dataConnection.send({ type: 'VIDEO_SYNC', active: isVideoActive });
+            }
+        }
+
+        // ફ્રન્ટ અને બેક કેમેરા બદલવા માટેનું ફંક્શન (Switch Camera)
+        function switchCamera() {
+            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+            if (isVideoActive) {
+                initMediaCall(true);
+            }
         }
 
         function toggleSpeaker() {
@@ -248,6 +392,36 @@
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🔊 Speaker";
+            }
+        }
+
+        function toggleHDMode() {
+            isHDActive = !isHDActive;
+            updateHDUIState();
+            initMediaCall(isVideoActive);
+            if (dataConnection && dataConnection.open) {
+                dataConnection.send({ type: 'HD_SYNC', active: isHDActive });
+            }
+        }
+
+        function applyRemoteHDState(status) {
+            if (isHDActive === status) return;
+            isHDActive = status;
+            updateHDUIState();
+        }
+
+        function updateHDUIState() {
+            const hdBtn = document.getElementById('hd-btn');
+            const modeText = document.getElementById('mode-text');
+
+            if (isHDActive) {
+                hdBtn.classList.add('active');
+                hdBtn.innerText = "⚡ HD ON";
+                modeText.innerText = "HD Mode Active (High Quality)";
+            } else {
+                hdBtn.classList.remove('active');
+                hdBtn.innerText = "⚡ HD Off";
+                modeText.innerText = "Data Saver Mode (2G Optimized)";
             }
         }
 
@@ -265,9 +439,17 @@
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            
             const muteBtn = document.getElementById('mute-btn');
+            const videoMuteBtn = document.getElementById('video-mute-btn');
+            
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            
+            if (videoMuteBtn) {
+                videoMuteBtn.classList.toggle('active', isMuted);
+                videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            }
         }
 
         function endCallAndClose() {
