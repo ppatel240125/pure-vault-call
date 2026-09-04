@@ -57,6 +57,11 @@
         const role = urlParams.get('role');
         const redirectUrl = urlParams.get('back'); // ચેટ વિન્ડોની બેક લિંક (જો હોય તો)
 
+        // 🔥 આ લાઇન કોલ પેજને બ્રાઉઝરની હિસ્ટ્રીમાં સેવ થતો અટકાવશે
+        if (window.history.replaceState) {
+            window.history.replaceState(null, '', window.location.href);
+        }
+
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
