@@ -74,6 +74,7 @@
         <div class="controls-grid hide-in-video">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+            <button id="auto-hd-btn" class="ctrl-btn active" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
             <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video On</button>
             <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
@@ -107,9 +108,12 @@
         let remoteVideoEl = document.getElementById('remote-video');
 
         let isMuted = false;
-        let isSpeakerOn = false;
+        let isSpeakerOn = false;              // Default: earpiece / normal call audio
         let isVideoActive = false;
-        let isHDActive = false;
+        let isHDActive = false;              // Default: 2G data-saver quality
+        let isAutoHD = true;                 // Auto HD setting is ON by default
+        let hdManuallySet = false;
+        let callStarted = false;
         let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
         let isCombinedLocked = false;
         let currentPeer = null;
@@ -164,6 +168,9 @@
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
             startDeviceAlerts();
+            updateHDUIState();
+            updateAutoHDUI();
+            document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
             initMediaCall(false);
             requestWakeLock();
         }
@@ -200,27 +207,38 @@
 
         // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
         function initMediaCall(enableVideo) {
-            const constraints = {
-                audio: { 
-                    echoCancellation: true, 
-                    noiseSuppression: true, 
-                    autoGainControl: true,
-                    sampleRate: isHDActive ? 48000 : 16000 
-                },
-                video: enableVideo ? { 
-                    width: { ideal: 640 }, 
-                    height: { ideal: 480 },
-                    facingMode: currentFacingMode 
-                } : false
+            // Default is intentionally 2G/data-saver: mono Opus, 16 kHz.
+            // HD raises audio quality only when the user/Auto-HD enables it.
+            const audioConstraints = {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true,
+                channelCount: { ideal: 1, max: 1 },
+                sampleRate: { ideal: isHDActive ? 48000 : 16000 }
             };
 
-            navigator.mediaDevices.getUserMedia(constraints)
+            const videoConstraints = enableVideo ? {
+                width: { ideal: isHDActive ? 640 : 320, max: isHDActive ? 640 : 320 },
+                height: { ideal: isHDActive ? 480 : 240, max: isHDActive ? 480 : 240 },
+                frameRate: { ideal: isHDActive ? 20 : 10, max: isHDActive ? 24 : 12 },
+                facingMode: currentFacingMode
+            } : false;
+
+            navigator.mediaDevices.getUserMedia({
+                audio: audioConstraints,
+                video: videoConstraints
+            })
             .then(stream => {
-                // જો અગાઉનો કોઈ સ્ટ્રીમ ચાલુ હોય તો તેના ટ્રેક બંધ કરો
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                 }
+
                 localStream = stream;
+
+                // Keep the user's mute state after a stream replacement.
+                if (isMuted) {
+                    localStream.getAudioTracks().forEach(track => { track.enabled = false; });
+                }
 
                 if (enableVideo) {
                     localVideoEl.srcObject = stream;
@@ -236,6 +254,8 @@
                     }
                 }
 
+                applyAudioOutputMode();
+
                 if (!currentPeer) {
                     setupPeerConnection();
                 } else if (activeCall) {
@@ -245,9 +265,11 @@
             .catch(() => {
                 stopAlerts();
                 document.getElementById('call-status').innerText = "Camera/Mic permission required!";
-                isVideoActive = false;
-                document.getElementById('video-btn').classList.remove('active');
-                document.getElementById('video-btn').innerText = "📹 Video On";
+                if (enableVideo) {
+                    isVideoActive = false;
+                    document.getElementById('video-btn').classList.remove('active');
+                    document.getElementById('video-btn').innerText = "📹 Video On";
+                }
             });
         }
 
@@ -313,7 +335,13 @@
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
                 } else if (data && data.type === 'HD_SYNC') {
-                    applyRemoteHDState(data.active);
+                    applyRemoteHDState(!!data.active, data.auto !== false);
+                } else if (data && data.type === 'AUTO_HD_SYNC') {
+                    isAutoHD = !!data.active;
+                    updateAutoHDUI();
+                    if (isAutoHD && !hdManuallySet) {
+                        setHDState(false, false);
+                    }
                 } else if (data && data.type === 'VIDEO_SYNC') {
                     if (data.active) {
                         document.getElementById('call-status').innerText = "Partner turned on Video 📹";
@@ -333,6 +361,7 @@
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
+                callStarted = true;
 
                 if (remoteStream.getVideoTracks().length > 0) {
                     remoteVideoEl.srcObject = remoteStream;
@@ -342,7 +371,7 @@
                 }
 
                 remoteAudioEl.srcObject = remoteStream;
-                remoteAudioEl.volume = 0.7; 
+                applyAudioOutputMode();
                 remoteAudioEl.play().catch(() => {});
             });
 
@@ -381,33 +410,101 @@
             }
         }
 
+        function applyAudioOutputMode() {
+            // Web/mobile browsers generally route a normal <audio> element to
+            // the phone earpiece during a call-like interaction. We deliberately
+            // do NOT force a speaker sink by default.
+            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.85;
+
+            // Where supported, keep normal audio routing. Some mobile browsers
+            // do not expose setSinkId, so the OS/browser decides the physical route.
+            if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
+                remoteAudioEl.setSinkId('default').catch(() => {});
+            }
+        }
+
         function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
-            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.7;
+
+            applyAudioOutputMode();
 
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
             } else {
                 speakerBtn.classList.remove('active');
-                speakerBtn.innerText = "🔊 Speaker";
+                speakerBtn.innerText = "🎧 Earpiece";
+            }
+        }
+
+        function toggleAutoHD() {
+            isAutoHD = !isAutoHD;
+            hdManuallySet = false;
+            updateAutoHDUI();
+
+            if (dataConnection && dataConnection.open) {
+                try {
+                    dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD });
+                } catch (e) {}
+            }
+
+            // Auto-HD starts from the safe 2G profile. It can be upgraded later
+            // by explicit HD selection or a future quality detector.
+            if (isAutoHD) {
+                setHDState(false, false);
+            }
+        }
+
+        function updateAutoHDUI() {
+            const btn = document.getElementById('auto-hd-btn');
+            if (!btn) return;
+
+            btn.classList.toggle('active', isAutoHD);
+            btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
+        }
+
+        function setHDState(active, manual = false, broadcast = true) {
+            const changed = isHDActive !== !!active;
+            isHDActive = !!active;
+
+            if (manual) {
+                hdManuallySet = true;
+            }
+
+            updateHDUIState();
+
+            if (changed) {
+                initMediaCall(isVideoActive);
+            }
+
+            if (broadcast && dataConnection && dataConnection.open) {
+                try {
+                    dataConnection.send({
+                        type: 'HD_SYNC',
+                        active: isHDActive,
+                        auto: isAutoHD
+                    });
+                } catch (e) {}
             }
         }
 
         function toggleHDMode() {
-            isHDActive = !isHDActive;
-            updateHDUIState();
-            initMediaCall(isVideoActive);
-            if (dataConnection && dataConnection.open) {
-                dataConnection.send({ type: 'HD_SYNC', active: isHDActive });
-            }
+            // Manual HD selection overrides Auto-HD until Auto-HD is toggled again.
+            setHDState(!isHDActive, true, true);
         }
 
-        function applyRemoteHDState(status) {
-            if (isHDActive === status) return;
-            isHDActive = status;
-            updateHDUIState();
+        function applyRemoteHDState(status, remoteAuto = true) {
+            isAutoHD = remoteAuto;
+            hdManuallySet = false;
+            if (isHDActive !== !!status) {
+                isHDActive = !!status;
+                updateHDUIState();
+                initMediaCall(isVideoActive);
+            } else {
+                updateHDUIState();
+            }
+            updateAutoHDUI();
         }
 
         function updateHDUIState() {
@@ -416,8 +513,8 @@
 
             if (isHDActive) {
                 hdBtn.classList.add('active');
-                hdBtn.innerText = "⚡ HD ON";
-                modeText.innerText = "HD Mode Active (High Quality)";
+                hdBtn.innerText = hdManuallySet ? "⚡ HD ON (Manual)" : "⚡ HD ON";
+                modeText.innerText = "HD Mode Active";
             } else {
                 hdBtn.classList.remove('active');
                 hdBtn.innerText = "⚡ HD Off";
@@ -456,11 +553,28 @@
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
+                    // A second packet helps on weak/high-latency links where the
+                    // first data packet can be lost during connection shutdown.
+                    setTimeout(() => {
+                        try {
+                            if (dataConnection && dataConnection.open) {
+                                dataConnection.send({ type: 'END_CALL' });
+                            }
+                        } catch (e) {}
+                    }, 120);
                 }
             } catch (e) {}
 
             executeCleanupAndExit(false);
         }
+
+        window.addEventListener('beforeunload', () => {
+            try {
+                if (dataConnection && dataConnection.open) {
+                    dataConnection.send({ type: 'END_CALL' });
+                }
+            } catch (e) {}
+        });
 
         function executeCleanupAndExit(endedByRemote = false) {
             if (isEnded || isReturning) return;
