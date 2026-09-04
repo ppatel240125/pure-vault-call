@@ -5,26 +5,29 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Immersive Video Call</title>
+    <title>Secure Node - Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; transition: all 0.3s ease; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
         
-        /* True Fullscreen Video Mode (Hides extra buttons, shows large video + End Call) */
-        body.video-fullscreen { background: #000; }
-        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 15px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
+        
+        /* True Fullscreen Video Mode */
+        body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
         body.video-fullscreen .hide-in-video { display: none !important; }
-        body.video-fullscreen .video-container { height: 72vh; flex-direction: column; gap: 10px; }
-        body.video-fullscreen video { width: 100%; height: 48%; }
+        
+        /* Video Layout for Fullscreen */
+        body.video-fullscreen .video-container { height: 75vh; flex-direction: column; gap: 8px; justify-content: center; }
+        body.video-fullscreen video { width: 100%; height: 48%; border-radius: 12px; }
 
-        h3 { color: #3b82f6; margin-bottom: 2px; font-size: 15px; letter-spacing: 1px; }
-        p { font-size: 11px; color: #9ca3af; margin-bottom: 8px; }
-        .status { font-size: 12px; margin: 6px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 16px; color: #60a5fa; margin-bottom: 8px; font-weight: bold; letter-spacing: 2px; }
+        h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
+        p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
+        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
         
         /* Video Container */
-        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; width: 100%; }
+        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 8px; width: 100%; }
         video { width: 48%; height: 100px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
@@ -34,6 +37,11 @@
         
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
+
+        /* Minimal Video Call Controls (Only Mute, Switch Camera, End Call) */
+        .video-controls { display: flex; gap: 10px; width: 100%; margin-top: auto; }
+        .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 14px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 13px; flex: 1; outline: none; }
+        .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
@@ -70,6 +78,12 @@
             <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
+        <!-- Minimal Controls shown only during Video Call -->
+        <div id="video-active-controls" class="video-controls" style="display:none;">
+            <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+            <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
+        </div>
+
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
@@ -96,6 +110,7 @@
         let isSpeakerOn = false;
         let isVideoActive = false;
         let isHDActive = false;
+        let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
         let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
@@ -183,6 +198,7 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
+        // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
         function initMediaCall(enableVideo) {
             const constraints = {
                 audio: { 
@@ -191,21 +207,32 @@
                     autoGainControl: true,
                     sampleRate: isHDActive ? 48000 : 16000 
                 },
-                video: enableVideo ? { width: { ideal: 640 }, height: { ideal: 480 } } : false
+                video: enableVideo ? { 
+                    width: { ideal: 640 }, 
+                    height: { ideal: 480 },
+                    facingMode: currentFacingMode 
+                } : false
             };
 
             navigator.mediaDevices.getUserMedia(constraints)
             .then(stream => {
+                // જો અગાઉનો કોઈ સ્ટ્રીમ ચાલુ હોય તો તેના ટ્રેક બંધ કરો
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
                 localStream = stream;
+
                 if (enableVideo) {
                     localVideoEl.srcObject = stream;
                     localVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
                 } else {
                     localVideoEl.classList.remove('active');
                     localVideoEl.srcObject = null;
                     if (!remoteVideoEl.classList.contains('active')) {
                         document.body.classList.remove('video-fullscreen');
+                        document.getElementById('video-active-controls').style.display = 'none';
                     }
                 }
 
@@ -215,9 +242,9 @@
                     replaceStreamInCall(stream);
                 }
             })
-            .catch((err) => {
+            .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Camera/Mic permission denied!";
+                document.getElementById('call-status').innerText = "Camera/Mic permission required!";
                 isVideoActive = false;
                 document.getElementById('video-btn').classList.remove('active');
                 document.getElementById('video-btn').innerText = "📹 Video On";
@@ -225,9 +252,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av24_${roomId}_${role}`;
+            const peerId = `secure_av25_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av24_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av25_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -290,6 +317,7 @@
                 } else if (data && data.type === 'VIDEO_SYNC') {
                     if (data.active) {
                         document.getElementById('call-status').innerText = "Partner turned on Video 📹";
+                        // જો સામેવાળો વિડિયો ચાલુ કરે તો ઓટોમેટિક આપણી સ્ક્રીન પણ ફૂલ-સ્ક્રીન વિડિયો મોડમાં આવી જશે
                     } else {
                         document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
                     }
@@ -310,6 +338,7 @@
                     remoteVideoEl.srcObject = remoteStream;
                     remoteVideoEl.classList.add('active');
                     document.body.classList.add('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'flex';
                 }
 
                 remoteAudioEl.srcObject = remoteStream;
@@ -334,12 +363,21 @@
                 videoBtn.innerText = "📹 Video On";
                 if (!remoteVideoEl.classList.contains('active')) {
                     document.body.classList.remove('video-fullscreen');
+                    document.getElementById('video-active-controls').style.display = 'none';
                 }
             }
 
             initMediaCall(isVideoActive);
             if (dataConnection && dataConnection.open) {
                 dataConnection.send({ type: 'VIDEO_SYNC', active: isVideoActive });
+            }
+        }
+
+        // ફ્રન્ટ અને બેક કેમેરા બદલવા માટેનું ફંક્શન (Switch Camera)
+        function switchCamera() {
+            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
+            if (isVideoActive) {
+                initMediaCall(true);
             }
         }
 
@@ -401,9 +439,17 @@
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            
             const muteBtn = document.getElementById('mute-btn');
+            const videoMuteBtn = document.getElementById('video-mute-btn');
+            
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            
+            if (videoMuteBtn) {
+                videoMuteBtn.classList.toggle('active', isMuted);
+                videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            }
         }
 
         function endCallAndClose() {
