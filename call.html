@@ -5,45 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Fixed Video Call</title>
+    <title>Secure Node - Audio Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
-        
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; transition: all 0.3s ease; }
-        
-        body.video-fullscreen { background: #000; margin: 0; padding: 0; overflow: hidden; }
-        body.video-fullscreen .box { max-width: 100% !important; width: 100vw !important; height: 100vh !important; border: none !important; border-radius: 0 !important; padding: 0 !important; background: #000 !important; box-shadow: none !important; position: fixed !important; top: 0 !important; left: 0 !important; z-index: 999; display: block !important; }
-        body.video-fullscreen .hide-in-video { display: none !important; }
-        
-        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
-        video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
-        video.active { display: block; }
-
-        body.video-fullscreen .video-container { position: absolute !important; top: 0 !important; left: 0 !important; width: 100vw !important; height: 100vh !important; margin: 0 !important; padding: 0 !important; z-index: 1; background: #000; }
-        body.video-fullscreen #remote-video.active { width: 100vw !important; height: 100vh !important; max-height: none !important; border-radius: 0 !important; border: none !important; object-fit: cover !important; position: absolute !important; top: 0 !important; left: 0 !important; display: block !important; z-index: 1; }
-        body.video-fullscreen #local-video.active { width: 110px !important; height: 150px !important; position: absolute !important; top: 20px !important; right: 20px !important; z-index: 10 !important; border-radius: 12px !important; border: 2px solid rgba(255,255,255,0.6) !important; object-fit: cover !important; box-shadow: 0 4px 15px rgba(0,0,0,0.8) !important; display: block !important; }
-
-        h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
-        p { font-size: 10px; color: #9ca3af; margin-bottom: 4px; }
-        .status { font-size: 12px; margin: 2px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 4px; font-weight: bold; letter-spacing: 2px; }
-
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
+        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 15px; letter-spacing: 1px; }
+        p { font-size: 11px; color: #9ca3af; margin-bottom: 15px; }
+        .status { font-size: 13px; margin: 10px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 18px; color: #60a5fa; margin-bottom: 15px; font-weight: bold; letter-spacing: 2px; }
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px 8px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
-        
-        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
+        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 12px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 8px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
-
-        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: fixed; bottom: 25px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.65); padding: 12px; border-radius: 14px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); }
-        .video-buttons-row { display: flex; gap: 8px; width: 100%; }
-        .video-ctrl-btn { background: rgba(31, 41, 61, 0.85); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
-        .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.95); color: #60a5fa; border: 1px solid #3b82f6; }
-
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
-
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
@@ -52,40 +29,21 @@
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
-        <div class="hide-in-video">
-            <h3>SECURE_NODE_AV</h3>
-            <p id="mode-text">Data Saver Mode (2G Optimized)</p>
-        </div>
+        <h3>SECURE_NODE_VOICE</h3>
+        <p id="mode-text">Data Saver Mode (2G Optimized)</p>
+        <div id="call-status" class="status">Initializing channel...</div>
+        <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <div class="hide-in-video">
-            <div id="call-status" class="status">Initializing channel...</div>
-            <div id="call-timer" class="timer" style="display:none;">00:00</div>
-        </div>
-        
-        <div class="video-container">
-            <video id="local-video" autoplay playsinline muted></video>
-            <video id="remote-video" autoplay playsinline></video>
-        </div>
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
-        <div class="controls-grid hide-in-video">
+        <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
-            <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video On</button>
-            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
-        <div id="video-active-controls" class="video-controls">
-            <div class="video-buttons-row">
-                <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-                <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
-            </div>
-            <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
-        </div>
-
-        <button id="normal-end-btn" class="end-btn hide-in-video" onclick="endCallAndClose()">🔴 END CALL</button>
+        <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -104,14 +62,8 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
-        let localVideoEl = document.getElementById('local-video');
-        let remoteVideoEl = document.getElementById('remote-video');
-
         let isMuted = false;
         let isSpeakerOn = false;
-        let isVideoActive = false;
-        let isHDActive = false;
-        let currentFacingMode = 'user';
         let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
@@ -165,7 +117,7 @@
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
             startDeviceAlerts();
-            initInitialAudioStream();
+            initAudioCall();
             requestWakeLock();
         }
 
@@ -199,26 +151,22 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        // શરુઆતમાં માત્ર ઓડિયો સ્ટ્રીમથી કોલ સેટઅપ કરો
-        function initInitialAudioStream() {
-            navigator.mediaDevices.getUserMedia({ 
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
-                video: false 
-            })
+        function initAudioCall() {
+            navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false })
             .then(stream => {
                 localStream = stream;
                 setupPeerConnection();
             })
             .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Mic permission required!";
+                document.getElementById('call-status').innerText = "Microphone permission required!";
             });
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av40_${roomId}_${role}`;
+            const peerId = `secure_audio_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av40_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_audio_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -266,14 +214,6 @@
             dataConnection.on('data', (data) => {
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
-                } else if (data && data.type === 'HD_SYNC') {
-                    applyRemoteHDState(data.active);
-                } else if (data && data.type === 'VIDEO_SYNC') {
-                    if (data.active) {
-                        document.getElementById('call-status').innerText = "Partner turned on Video 📹";
-                    } else {
-                        document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
-                    }
                 }
             });
         }
@@ -287,98 +227,14 @@
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
 
-                // રિમોટ ઓડિયો અને વિડિયો બાઈન્ડ કરો
                 remoteAudioEl.srcObject = remoteStream;
+                remoteAudioEl.volume = 0.7; 
                 remoteAudioEl.play().catch(() => {});
-
-                if (remoteStream.getVideoTracks().length > 0) {
-                    remoteVideoEl.srcObject = remoteStream;
-                    remoteVideoEl.play().catch(() => {});
-                    remoteVideoEl.classList.add('active');
-                    activateFullscreenUI();
-                }
             });
 
             call.on('close', () => {
                 executeCleanupAndExit();
             });
-        }
-
-        function activateFullscreenUI() {
-            document.body.classList.add('video-fullscreen');
-            document.getElementById('video-active-controls').style.display = 'flex';
-            document.getElementById('normal-end-btn').style.display = 'none';
-        }
-
-        function deactivateFullscreenUI() {
-            document.body.classList.remove('video-fullscreen');
-            document.getElementById('video-active-controls').style.display = 'none';
-            document.getElementById('normal-end-btn').style.display = 'block';
-        }
-
-        // જ્યારે યુઝર વિડિયો બટન દબાવશે ત્યારે કેમેરા સ્ટ્રીમ ઉમેરાશે
-        function toggleVideoMode() {
-            isVideoActive = !isVideoActive;
-            const videoBtn = document.getElementById('video-btn');
-            
-            const constraints = {
-                audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
-                video: isVideoActive ? { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: currentFacingMode } : false
-            };
-
-            navigator.mediaDevices.getUserMedia(constraints)
-            .then(stream => {
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-                localStream = stream;
-
-                if (isVideoActive) {
-                    localVideoEl.srcObject = stream;
-                    localVideoEl.play().catch(() => {});
-                    localVideoEl.classList.add('active');
-                    videoBtn.classList.add('active');
-                    videoBtn.innerText = "📹 Video Off";
-                    activateFullscreenUI();
-                } else {
-                    localVideoEl.classList.remove('active');
-                    localVideoEl.srcObject = null;
-                    videoBtn.classList.remove('active');
-                    videoBtn.innerText = "📹 Video On";
-                    if (!remoteVideoEl.srcObject || remoteVideoEl.srcObject.getVideoTracks().length === 0) {
-                        deactivateFullscreenUI();
-                    }
-                }
-
-                // PeerConnection માં નવો સ્ટ્રીમ અપડેટ કરો
-                if (activeCall && activeCall.peerConnection) {
-                    const senders = activeCall.peerConnection.getSenders();
-                    stream.getTracks().forEach(track => {
-                        const sender = senders.find(s => s.track && s.track.kind === track.kind);
-                        if (sender) {
-                            sender.replaceTrack(track);
-                        }
-                    });
-                }
-
-                if (dataConnection && dataConnection.open) {
-                    dataConnection.send({ type: 'VIDEO_SYNC', active: isVideoActive });
-                }
-            })
-            .catch(() => {
-                isVideoActive = false;
-                videoBtn.classList.remove('active');
-                videoBtn.innerText = "📹 Video On";
-                document.getElementById('call-status').innerText = "Camera permission denied!";
-            });
-        }
-
-        function switchCamera() {
-            currentFacingMode = (currentFacingMode === 'user') ? 'environment' : 'user';
-            if (isVideoActive) {
-                toggleVideoMode();
-                setTimeout(toggleVideoMode, 200); // Restart with new facing mode
-            }
         }
 
         function toggleSpeaker() {
@@ -395,30 +251,6 @@
             }
         }
 
-        function toggleHDMode() {
-            isHDActive = !isHDActive;
-            const hdBtn = document.getElementById('hd-btn');
-            if (isHDActive) {
-                hdBtn.classList.add('active');
-                hdBtn.innerText = "⚡ HD ON";
-                document.getElementById('mode-text').innerText = "HD Mode Active";
-            } else {
-                hdBtn.classList.remove('active');
-                hdBtn.innerText = "⚡ HD Off";
-                document.getElementById('mode-text').innerText = "Data Saver Mode";
-            }
-            if (dataConnection && dataConnection.open) {
-                dataConnection.send({ type: 'HD_SYNC', active: isHDActive });
-            }
-        }
-
-        function applyRemoteHDState(status) {
-            isHDActive = status;
-            const hdBtn = document.getElementById('hd-btn');
-            hdBtn.classList.toggle('active', isHDActive);
-            hdBtn.innerText = isHDActive ? "⚡ HD ON" : "⚡ HD Off";
-        }
-
         function startCallTimer() {
             if (callTimerInterval) return;
             callTimerInterval = setInterval(() => {
@@ -433,17 +265,9 @@
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
-            
             const muteBtn = document.getElementById('mute-btn');
-            const videoMuteBtn = document.getElementById('video-mute-btn');
-            
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
-            
-            if (videoMuteBtn) {
-                videoMuteBtn.classList.toggle('active', isMuted);
-                videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
-            }
         }
 
         function endCallAndClose() {
