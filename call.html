@@ -5,31 +5,35 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Tap to Show Controls</title>
+    <title>Secure Node - True Fullscreen Video Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; }
         
-        /* Fullscreen Video Mode */
+        /* True Fullscreen Video Mode */
         body.video-fullscreen { background: #000; }
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 0; background: #000; max-height: 100vh; justify-content: space-between; position: absolute; top: 0; left: 0; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Video Container filling entire screen in video mode */
-        body.video-fullscreen .video-container { width: 100%; height: 100vh; margin: 0; position: absolute; top: 0; left: 0; z-index: 1; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        body.video-fullscreen video.active { width: 100% !important; height: 100% !important; max-height: none; border-radius: 0; border: none; object-fit: cover; }
-
+        /* Remote video fills the entire screen */
         .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 4px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
+        body.video-fullscreen .video-container { width: 100%; height: 100vh; margin: 0; position: absolute; top: 0; left: 0; z-index: 1; display: block; }
+        body.video-fullscreen #remote-video.active { width: 100% !important; height: 100% !important; max-height: none; border-radius: 0; border: none; object-fit: cover; position: absolute; top: 0; left: 0; }
+        
+        /* Local video as a floating picture-in-picture box on mobile */
+        body.video-fullscreen #local-video.active { width: 100px; height: 140px; position: absolute; top: 20px; right: 20px; z-index: 5; border-radius: 10px; border: 2px solid #fff; object-fit: cover; }
+
         /* PC માટે ફ્રેમ યથાવત રાખવા */
         @media (min-width: 769px) {
             body.video-fullscreen .box { padding: 10px; background: #07090e; max-height: 100vh; justify-content: space-between; width: 100%; }
-            body.video-fullscreen .video-container { height: 60vh; position: relative; flex-direction: row; }
-            body.video-fullscreen video.active { width: 48% !important; height: 100% !important; border-radius: 8px; border: 1px solid #1f293d; }
+            body.video-fullscreen .video-container { height: 60vh; position: relative; display: flex; flex-direction: row; }
+            body.video-fullscreen #remote-video.active { position: relative; width: 48% !important; height: 100% !important; border-radius: 8px; border: 1px solid #1f293d; }
+            body.video-fullscreen #local-video.active { position: relative; width: 48% !important; height: 100% !important; top: auto; right: auto; border-radius: 8px; border: 1px solid #1f293d; }
         }
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
@@ -44,19 +48,19 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Video Call Bottom Controls - Initially Hidden in Fullscreen, Shown on Tap */
-        .video-controls { display: none; flex-direction: column; gap: 6px; width: 100%; position: absolute; bottom: 20px; left: 0; padding: 0 15px; z-index: 10; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        /* Video Call Bottom Controls - Shown on tap, includes Mute, Flip Cam, and End Call */
+        .video-controls { display: none; flex-direction: column; gap: 10px; width: 100%; position: absolute; bottom: 30px; left: 0; padding: 0 20px; z-index: 10; opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
         .video-controls.show-controls { opacity: 1; pointer-events: auto; }
         
-        .video-buttons-row { display: flex; gap: 8px; width: 100%; }
-        .video-ctrl-btn { background: rgba(31, 41, 61, 0.85); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; backdrop-filter: blur(5px); }
-        .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.85); color: #60a5fa; border: 1px solid #3b82f6; }
+        .video-buttons-row { display: flex; gap: 10px; width: 100%; }
+        .video-ctrl-btn { background: rgba(31, 41, 61, 0.9); color: #d1d5db; border: none; padding: 14px; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 13px; flex: 1; outline: none; backdrop-filter: blur(5px); }
+        .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.9); color: #60a5fa; border: 1px solid #3b82f6; }
 
-        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 15px; width: 100%; border-radius: 12px; font-weight: bold; cursor: pointer; font-size: 15px; outline: none; box-shadow: 0 5px 15px rgba(127,29,29,0.5); }
         .end-btn:hover { background: #991b1b; }
 
-        /* Floating Call Status & Timer during Fullscreen Video */
-        .video-floating-header { display: none; position: absolute; top: 15px; left: 0; width: 100%; z-index: 10; text-align: center; background: rgba(0,0,0,0.4); padding: 6px; backdrop-filter: blur(4px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
+        /* Floating Call Status & Timer */
+        .video-floating-header { display: none; position: absolute; top: 15px; left: 0; width: 100%; z-index: 10; text-align: center; background: rgba(0,0,0,0.5); padding: 8px; backdrop-filter: blur(5px); opacity: 0; transition: opacity 0.3s ease; pointer-events: none; }
         .video-floating-header.show-controls { opacity: 1; pointer-events: auto; }
 
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
@@ -68,10 +72,10 @@
     
     <div class="box" id="main-box" onclick="handleScreenTap(event)">
         
-        <!-- Floating Header for Video Mode (Shown on tap) -->
+        <!-- Floating Header -->
         <div id="video-floating-header" class="video-floating-header">
-            <div id="v-call-status" style="font-size: 12px; color: #ffb74d; font-weight: bold;">Connected</div>
-            <div id="v-call-timer" style="font-size: 14px; color: #60a5fa; font-weight: bold;">00:00</div>
+            <div id="v-call-status" style="font-size: 13px; color: #ffb74d; font-weight: bold;">Connected</div>
+            <div id="v-call-timer" style="font-size: 15px; color: #60a5fa; font-weight: bold;">00:00</div>
         </div>
 
         <div class="hide-in-video">
@@ -100,7 +104,7 @@
             <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
         </div>
 
-        <!-- Video Call Controls (Toggled on Screen Tap) -->
+        <!-- Video Call Controls (Shown on tap, includes Mute, Flip Cam & End Call) -->
         <div id="video-active-controls" class="video-controls">
             <div class="video-buttons-row">
                 <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -155,11 +159,8 @@
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
-        // સ્ક્રીન પર ટચ કરવાથી બટનો દેખાડવા અને 4 સે પછી ગાયબ કરવા માટેનું ફંક્શન
         function handleScreenTap(e) {
             if (!document.body.classList.contains('video-fullscreen')) return;
-            
-            // જો બટન પર જ ક્લિક કર્યું હોય તો ટાઈમર રિસેટ ન કરો
             if (e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
 
             const controls = document.getElementById('video-active-controls');
@@ -173,7 +174,7 @@
                 controlsTimeout = setTimeout(() => {
                     controls.classList.remove('show-controls');
                     header.classList.remove('show-controls');
-                }, 4000); // 4 સેકન્ડ પછી ઓટોમેટિક ગાયબ થઈ જશે
+                }, 4000);
             }
         }
 
@@ -300,9 +301,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av34_${roomId}_${role}`;
+            const peerId = `secure_av35_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av34_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av35_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
