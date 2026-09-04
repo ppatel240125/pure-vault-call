@@ -5,22 +5,30 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Secure Node - Voice & Video</title>
+    <title>Secure Node - Fullscreen Video & Audio</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
-        h3 { color: #3b82f6; margin-bottom: 5px; font-size: 15px; letter-spacing: 1px; }
-        p { font-size: 11px; color: #9ca3af; margin-bottom: 10px; }
-        .status { font-size: 12px; margin: 8px 0; color: #ffb74d; font-weight: bold; }
-        .timer { font-size: 16px; color: #60a5fa; margin-bottom: 10px; font-weight: bold; letter-spacing: 2px; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 380px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; transition: all 0.3s ease; }
+        
+        /* Fullscreen Video Mode Styling */
+        body.video-fullscreen { background: #000; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
+        
+        h3 { color: #3b82f6; margin: 2px 0; font-size: 14px; letter-spacing: 1px; }
+        p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
+        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
         
         /* Video Container */
-        .video-container { display: flex; gap: 6px; justify-content: center; margin-bottom: 10px; width: 100%; }
-        video { width: 48%; height: 90px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
+        .video-container { display: flex; gap: 8px; justify-content: center; margin-bottom: 8px; width: 100%; position: relative; }
+        video { width: 48%; height: 110px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
+        
+        /* Expanded video for fullscreen mode */
+        body.video-fullscreen video.active { height: 35vh; width: 48%; }
 
-        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 6px; }
         .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
@@ -38,28 +46,32 @@
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
-        <h3>SECURE_NODE_AV</h3>
-        <p id="mode-text">Data Saver Mode (2G Optimized)</p>
-        <div id="call-status" class="status">Initializing channel...</div>
-        <div id="call-timer" class="timer" style="display:none;">00:00</div>
+        <div>
+            <h3>SECURE_NODE_AV</h3>
+            <p id="mode-text">Data Saver Mode (2G Optimized)</p>
+            <div id="call-status" class="status">Initializing channel...</div>
+            <div id="call-timer" class="timer" style="display:none;">00:00</div>
+        </div>
         
-        <!-- Video elements (Hidden by default, shown when video is enabled) -->
+        <!-- Video elements -->
         <div class="video-container">
             <video id="local-video" autoplay playsinline muted></video>
             <video id="remote-video" autoplay playsinline></video>
         </div>
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        <div>
+            <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
-        <div class="controls-grid">
-            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
-            <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video Off</button>
-            <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
+            <div class="controls-grid">
+                <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+                <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+                <button id="video-btn" class="ctrl-btn" onclick="toggleVideoMode()">📹 Video Off</button>
+                <button id="hd-btn" class="ctrl-btn" onclick="toggleHDMode()">⚡ HD Off</button>
+            </div>
+
+            <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
         </div>
-
-        <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -172,7 +184,6 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        // Initialize Media (Audio + Optional Video) supporting Bluetooth/Earphones
         function initMediaCall(enableVideo) {
             const constraints = {
                 audio: { 
@@ -190,15 +201,18 @@
                 if (enableVideo) {
                     localVideoEl.srcObject = stream;
                     localVideoEl.classList.add('active');
+                    document.body.classList.add('video-fullscreen');
                 } else {
                     localVideoEl.classList.remove('active');
                     localVideoEl.srcObject = null;
+                    if (!remoteVideoEl.classList.contains('active')) {
+                        document.body.classList.remove('video-fullscreen');
+                    }
                 }
 
                 if (!currentPeer) {
                     setupPeerConnection();
                 } else if (activeCall) {
-                    // Replace stream dynamically if toggling video mid-call
                     replaceStreamInCall(stream);
                 }
             })
@@ -209,9 +223,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av22_${roomId}_${role}`;
+            const peerId = `secure_av23_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av22_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av23_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
@@ -272,7 +286,12 @@
                 } else if (data && data.type === 'HD_SYNC') {
                     applyRemoteHDState(data.active);
                 } else if (data && data.type === 'VIDEO_SYNC') {
-                    // Sync remote video state notice if needed
+                    // When remote user toggles video, update UI and alert
+                    if (data.active) {
+                        document.getElementById('call-status').innerText = "Partner turned on Video 📹";
+                    } else {
+                        document.getElementById('call-status').innerText = "Encrypted Active Call 🔒";
+                    }
                 }
             });
         }
@@ -286,12 +305,10 @@
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
 
-                // Check if remote stream has video tracks
                 if (remoteStream.getVideoTracks().length > 0) {
                     remoteVideoEl.srcObject = remoteStream;
                     remoteVideoEl.classList.add('active');
-                } else {
-                    remoteVideoEl.classList.remove('active');
+                    document.body.classList.add('video-fullscreen');
                 }
 
                 remoteAudioEl.srcObject = remoteStream;
@@ -304,7 +321,6 @@
             });
         }
 
-        // Toggle Video Mode (On/Off)
         function toggleVideoMode() {
             isVideoActive = !isVideoActive;
             const videoBtn = document.getElementById('video-btn');
@@ -315,6 +331,9 @@
             } else {
                 videoBtn.classList.remove('active');
                 videoBtn.innerText = "📹 Video Off";
+                if (!remoteVideoEl.classList.contains('active')) {
+                    document.body.classList.remove('video-fullscreen');
+                }
             }
 
             initMediaCall(isVideoActive);
@@ -340,7 +359,7 @@
         function toggleHDMode() {
             isHDActive = !isHDActive;
             updateHDUIState();
-            initMediaCall(isVideoActive); // Re-initialize with high sample rate
+            initMediaCall(isVideoActive);
             if (dataConnection && dataConnection.open) {
                 dataConnection.send({ type: 'HD_SYNC', active: isHDActive });
             }
