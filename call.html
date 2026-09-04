@@ -10,21 +10,22 @@
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
-        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; }
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 15px; border-radius: 16px; width: 95%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; display: flex; flex-direction: column; justify-content: space-between; height: 96vh; max-height: 720px; transition: all 0.3s ease; }
         
-        /* True Fullscreen Video Mode for Both Mobile & Laptop */
-        body.video-fullscreen { background: #000; }
-        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 0; background: #000; max-height: 100vh; justify-content: flex-start; position: relative; }
+        /* જ્યારે વિડિયો ચાલુ થાય ત્યારે બોક્સ સંપૂર્ણ ફૂલ-સ્ક્રીન બની જશે અને બ્લેન્ક જગ્યા ખતમ થઈ જશે */
+        body.video-fullscreen { background: #000; margin: 0; padding: 0; }
+        body.video-fullscreen .box { max-width: 100% !important; width: 100vw !important; height: 100vh !important; border: none !important; border-radius: 0 !important; padding: 0 !important; background: #000 !important; box-shadow: none !important; position: fixed !important; top: 0 !important; left: 0 !important; z-index: 999; display: block !important; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        /* Video Container fills entire screen */
-        .video-container { display: flex; justify-content: center; align-items: center; width: 100%; height: 100%; position: relative; background: #000; }
+        /* Video Container & Elements */
+        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        /* Fullscreen Video Layout: સામેવાળાનો વિડિયો આખી સ્ક્રીન પર અને આપણો વિડિયો (સેલ્ફ) નાની ફ્રેમ તરીકે ખૂણામાં */
-        body.video-fullscreen .video-container { height: 100vh; width: 100vw; position: absolute; top: 0; left: 0; margin: 0; }
-        body.video-fullscreen #remote-video.active { width: 100% !important; height: 100% !important; max-height: none; border-radius: 0; border: none; object-fit: cover; position: absolute; top: 0; left: 0; z-index: 1; }
+        /* ફૂલ-સ્ક્રીન વિડિયો લેઆઉટ: સામેવાળાનો વિડિયો આખી સ્ક્રીન પર */
+        body.video-fullscreen .video-container { position: absolute; top: 0; left: 0; width: 100vw; height: 100vh; margin: 0; padding: 0; z-index: 1; }
+        body.video-fullscreen #remote-video.active { width: 100vw !important; height: 100vh !important; max-height: none !important; border-radius: 0 !important; border: none !important; object-fit: cover !important; position: absolute; top: 0; left: 0; }
+        /* આપણો પોતાનો કેમેરા (Self Video) જમણી બાજુ ઉપર નાની ફ્રેમમાં */
         body.video-fullscreen #local-video.active { width: 110px !important; height: 150px !important; position: absolute; top: 20px; right: 20px; z-index: 10; border-radius: 12px; border: 2px solid rgba(255,255,255,0.6); object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.8); }
 
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
@@ -39,8 +40,8 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Video Call Bottom Controls - વિડિયો ઉપર આછા (Semi-transparent Floating Overlay) બટનો */
-        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: absolute; bottom: 25px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.65); padding: 12px; border-radius: 14px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); }
+        /* Video Call Bottom Floating Controls (વિડિયો ઉપર આછા બટનો) */
+        .video-controls { display: none; flex-direction: column; gap: 8px; width: 92%; position: fixed; bottom: 25px; left: 4%; z-index: 20; background: rgba(11, 14, 20, 0.65); padding: 12px; border-radius: 14px; backdrop-filter: blur(8px); border: 1px solid rgba(255,255,255,0.15); }
         .video-buttons-row { display: flex; gap: 8px; width: 100%; }
         .video-ctrl-btn { background: rgba(31, 41, 61, 0.85); color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
         .video-ctrl-btn.active { background: rgba(30, 58, 138, 0.95); color: #60a5fa; border: 1px solid #3b82f6; }
@@ -259,9 +260,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av36_${roomId}_${role}`;
+            const peerId = `secure_av37_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av36_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av37_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
