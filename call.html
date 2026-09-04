@@ -17,15 +17,15 @@
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; background: #07090e; max-height: 100vh; justify-content: space-between; }
         body.video-fullscreen .hide-in-video { display: none !important; }
         
-        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 6px 0; width: 100%; flex-wrap: wrap; }
+        .video-container { display: flex; gap: 8px; justify-content: center; align-items: center; margin: 4px 0; width: 100%; flex-wrap: wrap; }
         video { width: 48%; max-height: 140px; background: #000; border-radius: 8px; object-fit: cover; border: 1px solid #1f293d; display: none; }
         video.active { display: block; }
 
-        body.video-fullscreen .video-container { height: 58vh; flex-direction: column; gap: 6px; align-content: center; justify-content: center; }
+        body.video-fullscreen .video-container { height: 52vh; flex-direction: column; gap: 4px; align-content: center; justify-content: center; }
         
-        /* મોબાઈલ માટે વિડિયો પહોળો અને ઓછી ઊંચાઈ વાળો તથા પીસી માટે યથાવત */
+        /* મોબાઈલ માટે વિડિયો ફ્રેમ અને લેપટોપ માટેનું સેટિંગ */
         @media (max-width: 768px) {
-            body.video-fullscreen video.active { width: 92% !important; height: 38vh !important; max-height: none; }
+            body.video-fullscreen video.active { width: 92% !important; height: 34vh !important; max-height: none; }
         }
         @media (min-width: 769px) {
             body.video-fullscreen video.active { width: 48%; height: 100%; max-height: none; }
@@ -43,10 +43,10 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Video Call Bottom Controls - બટનોને ઉપર તરફ સેટ કર્યા છે જેથી પૂરેપૂરા દેખાય */
-        .video-controls { display: none; flex-direction: column; gap: 6px; width: 100%; margin-bottom: 10px; padding-bottom: 2px; }
+        /* Video Call Bottom Controls - મોબાઈલમાં બટનો ઉપર તરફ સેટ કર્યા છે જેથી એન્ડ કોલ દેખાય */
+        .video-controls { display: none; flex-direction: column; gap: 6px; width: 100%; margin-bottom: 25px; padding-bottom: 5px; }
         .video-buttons-row { display: flex; gap: 8px; width: 100%; }
-        .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 12px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
+        .video-ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 11px; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 12px; flex: 1; outline: none; }
         .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 13px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; }
@@ -263,9 +263,9 @@
         }
 
         function setupPeerConnection() {
-            const peerId = `secure_av31_${roomId}_${role}`;
+            const peerId = `secure_av32_${roomId}_${role}`;
             const targetRole = role === 'caller' ? 'receiver' : 'caller';
-            const targetPeerId = `secure_av31_${roomId}_${targetRole}`;
+            const targetPeerId = `secure_av32_${roomId}_${targetRole}`;
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
