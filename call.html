@@ -5,33 +5,31 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Audio Call (2G Data Saver + Auto HD)</title>
+    <title>Secure Node - Audio Call (Single Tap)</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; }
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
         
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
-        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
+        .status { font-size: 12px; margin: 8px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
-        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
+        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
         
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
-        .utility-btn.active { background: #713f12; color: #fde047; }
-
-        /* Single Accept Button Style */
-        .accept-btn { background: #047857; color: #ffffff; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-bottom: 8px; }
-        .accept-btn:hover { background: #059669; }
+        
+        /* સિંગલ એક્સેપ્ટ બટન */
+        .accept-btn { background: #047857; color: #ffffff; border: none; padding: 16px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 15px; outline: none; margin-bottom: 8px; box-shadow: 0 4px 12px rgba(4,120,87,0.4); }
+        .accept-btn:active { background: #065f46; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
-        .end-btn:hover { background: #991b1b; }
-
+        
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
@@ -45,18 +43,18 @@
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         </div>
         
-        <div id="call-status" class="status">Incoming Call... Tap to Answer</div>
+        <div id="call-status" class="status">Incoming Call... Ready</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Audio element with explicit attributes -->
+        <!-- Audio element -->
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <!-- માત્ર એક જ બટન - જે ક્લિક કરતા જ પરમિશન, સાઉન્ડ અનલોક અને કોલ કનેક્ટ કરી દેશે -->
-        <button id="accept-call-btn" class="accept-btn" onclick="acceptAndJoinCall()">📞 Accept & Join Call</button>
+        <!-- આ એકમાત્ર બટન યુઝરે દબાવવાનું રહેશે -->
+        <button id="accept-call-btn" class="accept-btn" onclick="acceptAndConnectCall()">📞 Accept & Join Call</button>
 
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
-        <div class="controls-grid">
+        <div class="controls-grid" id="in-call-controls" style="display:none;">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🎧 Earpiece</button>
             <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
@@ -72,37 +70,28 @@
         const role = urlParams.get('role');
         const redirectUrl = urlParams.get('back');
 
-        window.addEventListener('pageshow', function() {
-            if (window.history.replaceState) {
-                window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
-            }
-        });
-
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
         let isMuted = false;
         let isSpeakerOn = false;
-        let isHDActive = false;
         let isAutoHD = false;
-        let callStarted = false;
-        let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
         let wakeLock = null;
-        let ringTimer = null;
-        let vibrateInterval = null;
         let callTimerInterval = null;
         let callSeconds = 0;
-        let audioCtx = null;
+        let isCombinedLocked = false;
         let lastTapTime = 0;
         let isEnded = false;
         let isReturning = false;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
-        document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
-        document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+        if (!roomId || !role) {
+            document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
+            document.getElementById('accept-call-btn').style.display = 'none';
+        }
 
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
@@ -116,13 +105,11 @@
             if (isCombinedLocked) {
                 const elem = document.documentElement;
                 if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
-                else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
                 shield.classList.add('active');
                 btn.classList.add('active');
                 btn.innerText = "🔓 Unlock Screen";
             } else {
                 if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
                 shield.classList.remove('active');
                 btn.classList.remove('active');
                 btn.innerText = "⛶ Fullscreen & Lock";
@@ -131,59 +118,21 @@
 
         function handleShieldClick() {
             const currentTime = new Date().getTime();
-            if ((currentTime - lastTapTime) < 300 && (currentTime - lastTapTime) > 0) toggleFullscreenAndLock();
+            if ((currentTime - lastTapTime) < 300) toggleFullscreenAndLock();
             lastTapTime = currentTime;
         }
 
-        if (!roomId || !role) {
-            document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
-        } else {
-            startDeviceAlerts();
-            updateAutoHDUI();
-            document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
-            requestWakeLock();
-        }
+        // ---------------- સ્માર્ટ સિંગલ-ક્લિક ફંક્શન ----------------
+        function acceptAndConnectCall() {
+            const btn = document.getElementById('accept-call-btn');
+            btn.disabled = true;
+            btn.innerText = "Connecting...";
+            document.getElementById('call-status').innerText = "Requesting permission & connecting...";
 
-        function startDeviceAlerts() {
-            if (isMobileDevice) {
-                if ('vibrate' in navigator) {
-                    vibrateInterval = setInterval(() => {
-                        try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
-                    }, 2000);
-                }
-            } else {
-                try {
-                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-                    ringTimer = setInterval(() => {
-                        if (!audioCtx) return;
-                        const osc = audioCtx.createOscillator();
-                        const gain = audioCtx.createGain();
-                        osc.type = 'sine';
-                        osc.frequency.setValueAtTime(480, audioCtx.currentTime);
-                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
-                        osc.connect(gain); gain.connect(audioCtx.destination);
-                        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
-                    }, 2500);
-                } catch(e) {}
-            }
-        }
-
-        function stopAlerts() {
-            if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
-            if (vibrateInterval) { clearInterval(vibrateInterval); vibrateInterval = null; }
-            if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
-        }
-
-        // યુઝર માત્ર એક જ વાર અહીં ક્લિક કરશે અને બધું સેટ થઈ જશે
-        function acceptAndJoinCall() {
-            stopAlerts();
-            document.getElementById('accept-call-btn').style.display = 'none';
-            document.getElementById('call-status').innerText = "Connecting...";
-
-            // 1. બ્રાઉઝરની ઓડિયો પોલિસી અનલોક કરવા માટે ઓડિયો પ્લે ટ્રિગર કરો
+            // 1. બ્રાઉઝર ઓડિયો પ્લે પોલિસી અનલોક કરવા માટે
             remoteAudioEl.play().catch(() => {});
 
-            // 2. માઈક્રોફોન પરમિશન મેળવીને PeerJS કનેક્શન શરૂ કરો
+            // 2. માઈક્રોફોન પરમિશન માંગવી અને સાથે જ PeerJS કનેક્ટ કરવું
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -195,16 +144,20 @@
             navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
             .then(stream => {
                 localStream = stream;
-                if (isMuted) {
-                    localStream.getAudioTracks().forEach(track => { track.enabled = false; });
-                }
-                applyAudioOutputMode();
+                
+                // બટન છુપાવો અને ઇન-કોલ કંટ્રોલ્સ બતાવો
+                btn.style.display = 'none';
+                document.getElementById('in-call-controls').style.display = 'grid';
+                document.getElementById('fs-lock-btn').style.display = 'block';
+                
+                requestWakeLock();
                 setupPeerConnection();
             })
-            .catch((err) => {
+            .catch(err => {
                 console.error(err);
-                document.getElementById('call-status').innerText = "Microphone permission denied!";
-                document.getElementById('accept-call-btn').style.display = 'block';
+                btn.disabled = false;
+                btn.innerText = "📞 Accept & Join Call";
+                document.getElementById('call-status').innerText = "Permission Denied! Try Again.";
             });
         }
 
@@ -219,8 +172,8 @@
             });
 
             currentPeer.on('open', () => {
-                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Waiting for peer...";
-                setTimeout(() => tryConnect(targetPeerId), 500);
+                document.getElementById('call-status').innerText = role === 'caller' ? "Calling peer..." : "Waiting for audio...";
+                setTimeout(() => tryConnect(targetPeerId), 600);
             });
 
             currentPeer.on('connection', (conn) => {
@@ -258,7 +211,7 @@
             dataConnection.on('data', (data) => {
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
-                } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
+                } else if (data && data.type === 'AUTO_HD_SYNC') {
                     setAutoHDState(!!data.active, false, false);
                 }
             });
@@ -268,14 +221,12 @@
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
-                document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
-                callStarted = true;
 
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
                 
-                // વનપ્લસ અને અન્ય બ્રાઉઝરમાં અવાજ પ્લે કરવા માટે ફોર્સ પ્લે
+                // વનપ્લસ અને અન્ય બ્રાઉઝરમાં અવાજ પ્લે કરવા માટે
                 remoteAudioEl.play().catch(e => {
                     console.log("Audio play error:", e);
                 });
@@ -296,9 +247,7 @@
         function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
-
             applyAudioOutputMode();
-
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
@@ -314,18 +263,21 @@
 
         function setAutoHDState(enabled, broadcast = true, reinitialize = true) {
             isAutoHD = !!enabled;
-            isHDActive = isAutoHD;
-            updateAutoHDUI();
+            const btn = document.getElementById('auto-hd-btn');
+            const modeText = document.getElementById('mode-text');
+            if (btn) {
+                btn.classList.toggle('active', isAutoHD);
+                btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
+            }
+            if (modeText) {
+                modeText.innerText = isAutoHD ? "Auto HD Active (High Quality)" : "Data Saver Mode (2G Optimized)";
+            }
 
             if (reinitialize && localStream) {
-                // જો સેટિંગ બદલાય તો નવું સ્ટ્રીમ રિફ્રેશ કરો
-                const audioConstraints = {
-                    echoCancellation: true, noiseSuppression: true, autoGainControl: true,
-                    channelCount: { ideal: 1, max: 1 },
-                    sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
-                };
-                navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
-                .then(stream => {
+                navigator.mediaDevices.getUserMedia({ 
+                    audio: { sampleRate: { ideal: isAutoHD ? 48000 : 16000 } }, 
+                    video: false 
+                }).then(stream => {
                     localStream = stream;
                     if (activeCall && activeCall.peerConnection) {
                         const senders = activeCall.peerConnection.getSenders();
@@ -338,24 +290,7 @@
             }
 
             if (broadcast && dataConnection && dataConnection.open) {
-                try {
-                    dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD });
-                } catch (e) {}
-            }
-        }
-
-        function updateAutoHDUI() {
-            const btn = document.getElementById('auto-hd-btn');
-            const modeText = document.getElementById('mode-text');
-            if (!btn) return;
-
-            btn.classList.toggle('active', isAutoHD);
-            btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
-
-            if (modeText) {
-                modeText.innerText = isAutoHD
-                    ? "Auto HD Active (High Quality)"
-                    : "Data Saver Mode (2G Optimized)";
+                try { dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD }); } catch (e) {}
             }
         }
 
@@ -373,7 +308,6 @@
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
-            
             const muteBtn = document.getElementById('mute-btn');
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
@@ -383,57 +317,26 @@
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
-                    setTimeout(() => {
-                        try {
-                            if (dataConnection && dataConnection.open) {
-                                dataConnection.send({ type: 'END_CALL' });
-                            }
-                        } catch (e) {}
-                    }, 120);
                 }
             } catch (e) {}
-
             executeCleanupAndExit(false);
         }
-
-        window.addEventListener('beforeunload', () => {
-            try {
-                if (dataConnection && dataConnection.open) {
-                    dataConnection.send({ type: 'END_CALL' });
-                }
-            } catch (e) {}
-        });
 
         function executeCleanupAndExit(endedByRemote = false) {
             if (isEnded || isReturning) return;
             isEnded = true;
             isReturning = true;
 
-            stopAlerts();
             if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
-
             try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
-            wakeLock = null;
-
             try { if (activeCall) activeCall.close(); } catch(e) {}
             try { if (localStream) localStream.getTracks().forEach(track => track.stop()); } catch(e) {}
-
-            try {
-                remoteAudioEl.pause();
-                remoteAudioEl.srcObject = null;
-            } catch(e) {}
-
-            try { if (dataConnection) dataConnection.close(); } catch(e) {}
+            try { remoteAudioEl.pause(); remoteAudioEl.srcObject = null; } catch(e) {}
             try { if (currentPeer && !currentPeer.destroyed) currentPeer.destroy(); } catch(e) {}
 
             document.getElementById('call-status').innerText = 
                 endedByRemote ? "Call ended by other user. Returning..." : "Call terminated. Returning...";
             
-            try {
-                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
-                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
-            } catch(e) {}
-
             setTimeout(() => {
                 if (redirectUrl) {
                     window.location.replace(redirectUrl);
