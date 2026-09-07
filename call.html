@@ -25,7 +25,7 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
-        /* Accept Call Button Style */
+        /* Single Accept Button Style */
         .accept-btn { background: #047857; color: #ffffff; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-bottom: 8px; }
         .accept-btn:hover { background: #059669; }
 
@@ -45,14 +45,14 @@
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         </div>
         
-        <div id="call-status" class="status">Waiting for action...</div>
+        <div id="call-status" class="status">Incoming Call... Tap to Answer</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Audio element with explicit attributes for mobile autoplay support -->
+        <!-- Audio element with explicit attributes -->
         <audio id="remote-audio" autoplay playsinline></audio>
 
-        <!-- Accept Call Button: OnePlus અને અન્ય બ્રાઉઝરમાં ઓડિયો/માઈક પરમિશન ઓટો-બ્લોક અટકાવવા માટે -->
-        <button id="accept-call-btn" class="accept-btn" onclick="acceptAndStartCall()">📞 Accept & Join Call</button>
+        <!-- માત્ર એક જ બટન - જે ક્લિક કરતા જ પરમિશન, સાઉન્ડ અનલોક અને કોલ કનેક્ટ કરી દેશે -->
+        <button id="accept-call-btn" class="accept-btn" onclick="acceptAndJoinCall()">📞 Accept & Join Call</button>
 
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
@@ -82,9 +82,9 @@
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
         let isMuted = false;
-        let isSpeakerOn = false;             // Default: earpiece / normal call audio
+        let isSpeakerOn = false;
         let isHDActive = false;
-        let isAutoHD = false;             // Default: 2G data-saver quality
+        let isAutoHD = false;
         let callStarted = false;
         let isCombinedLocked = false;
         let currentPeer = null;
@@ -174,19 +174,16 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        // યુઝર જ્યારે "Accept & Join Call" બટન પર ક્લિક કરે ત્યારે જ પરમિશન લેવાશે (વનપ્લસ/મોબાઈલ માટે ખૂબ જરૂરી)
-        function acceptAndStartCall() {
+        // યુઝર માત્ર એક જ વાર અહીં ક્લિક કરશે અને બધું સેટ થઈ જશે
+        function acceptAndJoinCall() {
             stopAlerts();
             document.getElementById('accept-call-btn').style.display = 'none';
-            document.getElementById('call-status').innerText = "Connecting to audio...";
+            document.getElementById('call-status').innerText = "Connecting...";
 
-            // બ્રાઉઝર ઓડિયો પોલિસીને અનલોક કરવા માટે સાઉન્ડ પ્લે કરવા પ્રયત્ન કરો
+            // 1. બ્રાઉઝરની ઓડિયો પોલિસી અનલોક કરવા માટે ઓડિયો પ્લે ટ્રિગર કરો
             remoteAudioEl.play().catch(() => {});
 
-            initMediaCall();
-        }
-
-        function initMediaCall() {
+            // 2. માઈક્રોફોન પરમિશન મેળવીને PeerJS કનેક્શન શરૂ કરો
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -197,23 +194,12 @@
 
             navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
             .then(stream => {
-                if (localStream) {
-                    localStream.getTracks().forEach(track => track.stop());
-                }
-
                 localStream = stream;
-
                 if (isMuted) {
                     localStream.getAudioTracks().forEach(track => { track.enabled = false; });
                 }
-
                 applyAudioOutputMode();
-
-                if (!currentPeer) {
-                    setupPeerConnection();
-                } else if (activeCall) {
-                    replaceStreamInCall(stream);
-                }
+                setupPeerConnection();
             })
             .catch((err) => {
                 console.error(err);
@@ -234,7 +220,7 @@
 
             currentPeer.on('open', () => {
                 document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Waiting for peer...";
-                setTimeout(() => tryConnect(targetPeerId), 800);
+                setTimeout(() => tryConnect(targetPeerId), 500);
             });
 
             currentPeer.on('connection', (conn) => {
@@ -267,16 +253,6 @@
             }
         }
 
-        function replaceStreamInCall(newStream) {
-            if (activeCall && activeCall.peerConnection) {
-                const senders = activeCall.peerConnection.getSenders();
-                newStream.getTracks().forEach(track => {
-                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
-                    if (sender) sender.replaceTrack(track);
-                });
-            }
-        }
-
         function setupDataConnectionEvents() {
             if (!dataConnection) return;
             dataConnection.on('data', (data) => {
@@ -299,7 +275,7 @@
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
                 
-                // વનપ્લસ બ્રાઉઝરમાં સાઉન્ડ પ્લે થવા માટે ખાતરી કરો
+                // વનપ્લસ અને અન્ય બ્રાઉઝરમાં અવાજ પ્લે કરવા માટે ફોર્સ પ્લે
                 remoteAudioEl.play().catch(e => {
                     console.log("Audio play error:", e);
                 });
@@ -311,9 +287,7 @@
         }
 
         function applyAudioOutputMode() {
-            // ઇયરપીસ પ્રાયોરિટી માટે વોલ્યુમ અને સિંક સેટિંગ
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.9;
-
             if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
                 remoteAudioEl.setSinkId('default').catch(() => {});
             }
@@ -344,15 +318,28 @@
             updateAutoHDUI();
 
             if (reinitialize && localStream) {
-                initMediaCall();
+                // જો સેટિંગ બદલાય તો નવું સ્ટ્રીમ રિફ્રેશ કરો
+                const audioConstraints = {
+                    echoCancellation: true, noiseSuppression: true, autoGainControl: true,
+                    channelCount: { ideal: 1, max: 1 },
+                    sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
+                };
+                navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
+                .then(stream => {
+                    localStream = stream;
+                    if (activeCall && activeCall.peerConnection) {
+                        const senders = activeCall.peerConnection.getSenders();
+                        stream.getTracks().forEach(track => {
+                            const sender = senders.find(s => s.track && s.track.kind === track.kind);
+                            if (sender) sender.replaceTrack(track);
+                        });
+                    }
+                }).catch(() => {});
             }
 
             if (broadcast && dataConnection && dataConnection.open) {
                 try {
-                    dataConnection.send({
-                        type: 'AUTO_HD_SYNC',
-                        active: isAutoHD
-                    });
+                    dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD });
                 } catch (e) {}
             }
         }
