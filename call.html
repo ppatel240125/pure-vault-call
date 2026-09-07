@@ -169,7 +169,12 @@ let isMuted = false;
         }
 
         async function acceptPermissionsAndStart() {
-            if (permissionsGranted || mediaInitInProgress) return;
+            if (mediaInitInProgress) return;
+            if (permissionsGranted) {
+                document.getElementById('permission-gate').style.display = 'none';
+                document.getElementById('call-box').style.visibility = 'visible';
+                return;
+            }
             mediaInitInProgress = true;
 
             const btn = document.getElementById('permission-btn');
@@ -180,7 +185,8 @@ let isMuted = false;
                 // One user gesture unlocks both microphone permission and browser audio playback.
                 await unlockCallAudio();
 
-                // Keep the existing 2G/Auto-HD profiles; only request the microphone here.
+                // Keep the existing 2G/Auto-HD profiles.
+                // getUserMedia is requested from this same user gesture.
                 await initMediaCall();
 
                 permissionsGranted = true;
@@ -278,6 +284,13 @@ let isMuted = false;
 
             localStream = stream;
 
+            // Permission has been granted; this is still the same original tap.
+            permissionsGranted = true;
+            const gate = document.getElementById('permission-gate');
+            const box = document.getElementById('call-box');
+            if (gate) gate.style.display = 'none';
+            if (box) box.style.visibility = 'visible';
+
             if (isMuted) {
                 localStream.getAudioTracks().forEach(track => { track.enabled = false; });
             }
@@ -305,8 +318,9 @@ let isMuted = false;
             });
 
             currentPeer.on('open', () => {
-                document.getElementById('call-status').innerText = role === 'caller' ? "Calling... • Earpiece • 2G Saver" : "Incoming Call... • Earpiece • 2G Saver";
-                setTimeout(() => tryConnect(targetPeerId), 800);
+                document.getElementById('call-status').innerText =
+                    role === 'caller' ? "Calling... • Earpiece • 2G Saver" : "Incoming Call... • Earpiece • 2G Saver";
+                setTimeout(() => tryConnect(targetPeerId), 500);
             });
 
             currentPeer.on('connection', (conn) => {
@@ -315,8 +329,21 @@ let isMuted = false;
             });
 
             currentPeer.on('call', (call) => {
-                activeCall = call;
                 stopAlerts();
+
+                if (!localStream) {
+                    setTimeout(() => {
+                        if (localStream && call) {
+                            activeCall = call;
+                            call.answer(localStream);
+                            handleCallStream(call);
+                            applyCallAudioProfile(call);
+                        }
+                    }, 300);
+                    return;
+                }
+
+                activeCall = call;
                 call.answer(localStream);
                 handleCallStream(call);
                 applyCallAudioProfile(call);
@@ -328,17 +355,36 @@ let isMuted = false;
         }
 
         function tryConnect(targetPeerId) {
-            if (!currentPeer || currentPeer.destroyed) return;
-            dataConnection = currentPeer.connect(targetPeerId);
-            setupDataConnectionEvents();
+            if (!currentPeer || currentPeer.destroyed || !localStream) return;
+            if (activeCall && activeCall.peerConnection &&
+                activeCall.peerConnection.connectionState &&
+                activeCall.peerConnection.connectionState !== 'closed' &&
+                activeCall.peerConnection.connectionState !== 'failed') {
+                return;
+            }
 
-            const call = currentPeer.call(targetPeerId, localStream);
-            if (call) {
-                activeCall = call;
-                handleCallStream(call);
-                applyCallAudioProfile(call);
-            } else {
-                setTimeout(() => tryConnect(targetPeerId), 2000);
+            try {
+                dataConnection = currentPeer.connect(targetPeerId);
+                setupDataConnectionEvents();
+
+                const call = currentPeer.call(targetPeerId, localStream);
+                if (call) {
+                    activeCall = call;
+                    handleCallStream(call);
+                    applyCallAudioProfile(call);
+
+                    call.on('error', () => {
+                        // Retry automatically; no second permission tap is needed.
+                        setTimeout(() => tryConnect(targetPeerId), 1200);
+                    });
+                    call.on('close', () => {
+                        if (!isEnded) setTimeout(() => tryConnect(targetPeerId), 1200);
+                    });
+                } else {
+                    setTimeout(() => tryConnect(targetPeerId), 1200);
+                }
+            } catch (e) {
+                setTimeout(() => tryConnect(targetPeerId), 1200);
             }
         }
 
