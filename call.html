@@ -17,12 +17,10 @@
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
         body.video-fullscreen .hide-in-video { display: none !important; }
 
-
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
-
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
@@ -31,8 +29,6 @@
         
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
-        .utility-btn:disabled { opacity: .65; cursor: wait; }
-
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
@@ -41,20 +37,10 @@
         #touch-shield.active { display: flex; z-index: 99; }
     </style>
 </head>
-<body>
-    <div id="permission-gate" style="position:fixed;inset:0;z-index:1000;background:#07090e;display:flex;align-items:center;justify-content:center;padding:20px;">
-        <div style="width:92%;max-width:360px;background:#0b0e14;border:1px solid #1f293d;padding:22px;border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.8);text-align:center;">
-            <div style="color:#3b82f6;font:bold 15px monospace;margin-bottom:8px;">SECURE NODE</div>
-            <div style="color:#9ca3af;font:11px monospace;line-height:1.5;margin-bottom:16px;">
-                Tap once to allow microphone and activate call audio.<br>
-                Calls start in <b style="color:#86efac;">Earpiece + 2G Data Saver</b> mode.
-            </div>
-            <button id="permission-btn" class="utility-btn" onclick="acceptPermissionsAndStart()">🎙️ ACCEPT & START CALL</button>
-        </div>
-    </div>
+<body onclick="unlockAudioOnInteraction()" ontouchstart="unlockAudioOnInteraction()">
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
-    <div class="box" id="call-box" style="visibility:hidden;">
+    <div class="box">
         <div class="hide-in-video">
             <h3>SECURE_NODE_AUDIO</h3>
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
@@ -64,7 +50,7 @@
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
         <!-- Audio only -->
-<audio id="remote-audio" autoplay playsinline></audio>
+        <audio id="remote-audio" autoplay playsinline></audio>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
@@ -99,13 +85,12 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
-let isMuted = false;
-        let isSpeakerOn = false;              // Default: earpiece / normal call audio
+        let isMuted = false;
+        let isSpeakerOn = false;
         let isHDActive = false;
-        let isAutoHD = false;              // Default: 2G data-saver quality
-        let hdManuallySet = false;
+        let isAutoHD = false;
         let callStarted = false;
-        let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
+        let currentFacingMode = 'user';
         let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
@@ -118,14 +103,24 @@ let isMuted = false;
         let lastTapTime = 0;
         let isEnded = false;
         let isReturning = false;
-        let permissionsGranted = false;
         let audioUnlocked = false;
-        let mediaInitInProgress = false;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+
+        // બ્રાઉઝર ઓડિયો અને પરમિશન પોલિસી અનલોક કરવા માટે ફંક્શન
+        function unlockAudioOnInteraction() {
+            if (audioUnlocked) return;
+            audioUnlocked = true;
+            if (remoteAudioEl) {
+                remoteAudioEl.play().catch(() => {});
+            }
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+        }
 
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
@@ -160,71 +155,12 @@ let isMuted = false;
 
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
-            document.getElementById('permission-gate').style.display = 'none';
-            document.getElementById('call-box').style.visibility = 'visible';
         } else {
+            startDeviceAlerts();
             updateAutoHDUI();
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
-            document.getElementById('call-status').innerText = "Tap ACCEPT & START CALL to allow microphone.";
-        }
-
-        async function acceptPermissionsAndStart() {
-            if (mediaInitInProgress) return;
-            if (permissionsGranted) {
-                document.getElementById('permission-gate').style.display = 'none';
-                document.getElementById('call-box').style.visibility = 'visible';
-                return;
-            }
-            mediaInitInProgress = true;
-
-            const btn = document.getElementById('permission-btn');
-            btn.disabled = true;
-            btn.innerText = "⏳ REQUESTING PERMISSION...";
-
-            try {
-                // One user gesture unlocks both microphone permission and browser audio playback.
-                await unlockCallAudio();
-
-                // Keep the existing 2G/Auto-HD profiles.
-                // getUserMedia is requested from this same user gesture.
-                await initMediaCall();
-
-                permissionsGranted = true;
-                document.getElementById('permission-gate').style.display = 'none';
-                document.getElementById('call-box').style.visibility = 'visible';
-                requestWakeLock();
-            } catch (err) {
-                btn.disabled = false;
-                btn.innerText = "🎙️ ACCEPT & START CALL";
-                document.getElementById('call-status').innerText =
-                    "Microphone permission required — tap ACCEPT & START CALL again.";
-            } finally {
-                mediaInitInProgress = false;
-            }
-        }
-
-        async function unlockCallAudio() {
-            try {
-                const AudioContextClass = window.AudioContext || window.webkitAudioContext;
-                if (AudioContextClass) {
-                    if (!audioCtx) audioCtx = new AudioContextClass();
-                    if (audioCtx.state === 'suspended') await audioCtx.resume();
-                }
-
-                // Silent, user-gesture initiated media playback unlock for Android system browsers.
-                if (remoteAudioEl) {
-                    remoteAudioEl.muted = true;
-                    remoteAudioEl.volume = 0;
-                    try { await remoteAudioEl.play(); } catch (e) {}
-                    remoteAudioEl.pause();
-                    remoteAudioEl.currentTime = 0;
-                    remoteAudioEl.muted = false;
-                    remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.85;
-                }
-                audioUnlocked = true;
-            } catch (e) {
-                audioUnlocked = true;
-            }
+            initMediaCall();
+            requestWakeLock();
         }
 
         function startDeviceAlerts() {
@@ -257,9 +193,7 @@ let isMuted = false;
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
-        async function initMediaCall() {
-            // Audio-only call. Default profile is optimized for 2G / low data.
+        function initMediaCall() {
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -268,43 +202,30 @@ let isMuted = false;
                 sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
             };
 
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
+            .then(stream => {
+                if (localStream) {
+                    localStream.getTracks().forEach(track => track.stop());
+                }
+
+                localStream = stream;
+
+                if (isMuted) {
+                    localStream.getAudioTracks().forEach(track => { track.enabled = false; });
+                }
+
+                applyAudioOutputMode();
+
+                if (!currentPeer) {
+                    setupPeerConnection();
+                } else if (activeCall) {
+                    replaceStreamInCall(stream);
+                }
+            })
+            .catch(() => {
                 stopAlerts();
-                throw new Error("getUserMedia unavailable");
-            }
-
-            const stream = await navigator.mediaDevices.getUserMedia({
-                audio: audioConstraints,
-                video: false
+                document.getElementById('call-status').innerText = "Microphone permission required!";
             });
-
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-
-            localStream = stream;
-
-            // Permission has been granted; this is still the same original tap.
-            permissionsGranted = true;
-            const gate = document.getElementById('permission-gate');
-            const box = document.getElementById('call-box');
-            if (gate) gate.style.display = 'none';
-            if (box) box.style.visibility = 'visible';
-
-            if (isMuted) {
-                localStream.getAudioTracks().forEach(track => { track.enabled = false; });
-            }
-
-            applyAudioOutputMode();
-
-            if (!currentPeer) {
-                setupPeerConnection();
-            } else if (activeCall) {
-                replaceStreamInCall(stream);
-                applyCallAudioProfile(activeCall);
-            }
-
-            return stream;
         }
 
         function setupPeerConnection() {
@@ -318,9 +239,8 @@ let isMuted = false;
             });
 
             currentPeer.on('open', () => {
-                document.getElementById('call-status').innerText =
-                    role === 'caller' ? "Calling... • Earpiece • 2G Saver" : "Incoming Call... • Earpiece • 2G Saver";
-                setTimeout(() => tryConnect(targetPeerId), 500);
+                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
+                setTimeout(() => tryConnect(targetPeerId), 800);
             });
 
             currentPeer.on('connection', (conn) => {
@@ -329,24 +249,10 @@ let isMuted = false;
             });
 
             currentPeer.on('call', (call) => {
-                stopAlerts();
-
-                if (!localStream) {
-                    setTimeout(() => {
-                        if (localStream && call) {
-                            activeCall = call;
-                            call.answer(localStream);
-                            handleCallStream(call);
-                            applyCallAudioProfile(call);
-                        }
-                    }, 300);
-                    return;
-                }
-
                 activeCall = call;
+                stopAlerts();
                 call.answer(localStream);
                 handleCallStream(call);
-                applyCallAudioProfile(call);
             });
 
             currentPeer.on('error', () => {
@@ -355,56 +261,41 @@ let isMuted = false;
         }
 
         function tryConnect(targetPeerId) {
-  // Only the caller initiates an outgoing media call.
-  // The receiver waits for currentPeer.on('call').
-  if (role !== 'caller') return;
-  if (!targetPeerId || !currentPeer || currentPeer.destroyed || !localStream) return;
-  if (activeCall) return;
+            if (!currentPeer || currentPeer.destroyed) return;
+            dataConnection = currentPeer.connect(targetPeerId);
+            setupDataConnectionEvents();
 
-  const startOutgoingCall = () => {
-    if (activeCall || !currentPeer || currentPeer.destroyed || !localStream) return;
+            const call = currentPeer.call(targetPeerId, localStream);
+            if (call) {
+                activeCall = call;
+                handleCallStream(call);
+            } else {
+                setTimeout(() => tryConnect(targetPeerId), 2000);
+            }
+        }
 
-    try {
-      const call = currentPeer.call(targetPeerId, localStream);
-      if (!call) {
-        setTimeout(() => tryConnect(targetPeerId), 1500);
-        return;
-      }
+        function replaceStreamInCall(newStream) {
+            if (activeCall && activeCall.peerConnection) {
+                const senders = activeCall.peerConnection.getSenders();
+                newStream.getTracks().forEach(track => {
+                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+                    if (sender) sender.replaceTrack(track);
+                });
+            }
+        }
 
-      activeCall = call;
-      applyCallAudioProfile(call);
-      handleCallStream(call);
+        function setupDataConnectionEvents() {
+            if (!dataConnection) return;
+            dataConnection.on('data', (data) => {
+                if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
+                    executeCleanupAndExit(true);
+                } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
+                    setAutoHDState(!!data.active, false, false);
+                }
+            });
+        }
 
-      call.on('error', () => {
-        if (activeCall === call) activeCall = null;
-        setTimeout(() => tryConnect(targetPeerId), 1500);
-      });
-      call.on('close', () => {
-        if (activeCall === call) activeCall = null;
-      });
-    } catch (e) {
-      setTimeout(() => tryConnect(targetPeerId), 1500);
-    }
-  };
-
-  try {
-    if (!dataConnection || dataConnection.destroyed) {
-      dataConnection = currentPeer.connect(targetPeerId, { reliable: true });
-      dataConnection.on('error', () => {});
-      dataConnection.on('close', () => {});
-    }
-
-    if (dataConnection.open) {
-      startOutgoingCall();
-    } else {
-      dataConnection.once('open', startOutgoingCall);
-    }
-  } catch (e) {
-    setTimeout(() => tryConnect(targetPeerId), 1500);
-  }
-}
-
-function handleCallStream(call) {
+        function handleCallStream(call) {
             stopAlerts();
             
             call.on('stream', (remoteStream) => {
@@ -416,24 +307,13 @@ function handleCallStream(call) {
 
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
-
-                const playRemoteAudio = () => {
-                    if (!remoteAudioEl) return;
-                    remoteAudioEl.play().catch(() => {
-                        // Android System Browser may require a later user-gesture retry.
-                        document.getElementById('call-status').innerText =
-                            "Call connected — tap the screen once to activate audio.";
-                    });
-                };
-
-                if (audioUnlocked) {
-                    playRemoteAudio();
-                } else {
-                    // Safety fallback for browsers that did not unlock audio on the first tap.
-                    setTimeout(playRemoteAudio, 150);
-                }
-
-                applyCallAudioProfile(call);
+                
+                // OnePlus અને અન્ય બ્રાઉઝર્સમાં અવાજ પ્લે કરવા માટે ફોર્સ પ્લે અને કેચ હેન્ડલિંગ
+                remoteAudioEl.play().then(() => {
+                    console.log("Remote audio played successfully");
+                }).catch(e => {
+                    console.log("Autoplay waiting for user gesture:", e);
+                });
             });
 
             call.on('close', () => {
@@ -442,13 +322,8 @@ function handleCallStream(call) {
         }
 
         function applyAudioOutputMode() {
-            // Web/mobile browsers generally route a normal <audio> element to
-            // the phone earpiece during a call-like interaction. We deliberately
-            // do NOT force a speaker sink by default.
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.85;
 
-            // Where supported, keep normal audio routing. Some mobile browsers
-            // do not expose setSinkId, so the OS/browser decides the physical route.
             if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
                 remoteAudioEl.setSinkId('default').catch(() => {});
             }
@@ -459,7 +334,6 @@ function handleCallStream(call) {
             const speakerBtn = document.getElementById('speaker-btn');
 
             applyAudioOutputMode();
-            try { remoteAudioEl.play().catch(() => {}); } catch (e) {}
 
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
@@ -470,7 +344,6 @@ function handleCallStream(call) {
             }
         }
 
-        // Auto HD OFF = hard 2G/Data Saver profile. No HD upgrade is allowed while OFF.
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
         }
@@ -480,10 +353,8 @@ function handleCallStream(call) {
             isHDActive = isAutoHD;
             updateAutoHDUI();
 
-            if (reinitialize && permissionsGranted) {
-                initMediaCall().then(() => {
-                    if (activeCall) applyCallAudioProfile(activeCall);
-                }).catch(() => {});
+            if (reinitialize) {
+                initMediaCall();
             }
 
             if (broadcast && dataConnection && dataConnection.open) {
@@ -542,8 +413,6 @@ function handleCallStream(call) {
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
-                    // A second packet helps on weak/high-latency links where the
-                    // first data packet can be lost during connection shutdown.
                     setTimeout(() => {
                         try {
                             if (dataConnection && dataConnection.open) {
