@@ -355,93 +355,56 @@ let isMuted = false;
         }
 
         function tryConnect(targetPeerId) {
-            if (!currentPeer || currentPeer.destroyed || !localStream) return;
-            if (activeCall && activeCall.peerConnection &&
-                activeCall.peerConnection.connectionState &&
-                activeCall.peerConnection.connectionState !== 'closed' &&
-                activeCall.peerConnection.connectionState !== 'failed') {
-                return;
-            }
+  // Only the caller initiates an outgoing media call.
+  // The receiver waits for currentPeer.on('call').
+  if (role !== 'caller') return;
+  if (!targetPeerId || !currentPeer || currentPeer.destroyed || !localStream) return;
+  if (activeCall) return;
 
-            try {
-                dataConnection = currentPeer.connect(targetPeerId);
-                setupDataConnectionEvents();
+  const startOutgoingCall = () => {
+    if (activeCall || !currentPeer || currentPeer.destroyed || !localStream) return;
 
-                const call = currentPeer.call(targetPeerId, localStream);
-                if (call) {
-                    activeCall = call;
-                    handleCallStream(call);
-                    applyCallAudioProfile(call);
+    try {
+      const call = currentPeer.call(targetPeerId, localStream);
+      if (!call) {
+        setTimeout(() => tryConnect(targetPeerId), 1500);
+        return;
+      }
 
-                    call.on('error', () => {
-                        // Retry automatically; no second permission tap is needed.
-                        setTimeout(() => tryConnect(targetPeerId), 1200);
-                    });
-                    call.on('close', () => {
-                        if (!isEnded) setTimeout(() => tryConnect(targetPeerId), 1200);
-                    });
-                } else {
-                    setTimeout(() => tryConnect(targetPeerId), 1200);
-                }
-            } catch (e) {
-                setTimeout(() => tryConnect(targetPeerId), 1200);
-            }
-        }
+      activeCall = call;
+      applyCallAudioProfile(call);
+      handleCallStream(call);
 
-        function replaceStreamInCall(newStream) {
-            if (activeCall && activeCall.peerConnection) {
-                const senders = activeCall.peerConnection.getSenders();
-                newStream.getTracks().forEach(track => {
-                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
-                    if (sender) sender.replaceTrack(track);
-                });
-            }
-        }
+      call.on('error', () => {
+        if (activeCall === call) activeCall = null;
+        setTimeout(() => tryConnect(targetPeerId), 1500);
+      });
+      call.on('close', () => {
+        if (activeCall === call) activeCall = null;
+      });
+    } catch (e) {
+      setTimeout(() => tryConnect(targetPeerId), 1500);
+    }
+  };
 
-        function setupDataConnectionEvents() {
-            if (!dataConnection) return;
-            dataConnection.on('data', (data) => {
-                if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
-                    executeCleanupAndExit(true);
-                } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
-                    // Compatibility: either signal can synchronize the Auto HD state.
-                    setAutoHDState(!!data.active, false, false);
-                }
-            });
-        }
+  try {
+    if (!dataConnection || dataConnection.destroyed) {
+      dataConnection = currentPeer.connect(targetPeerId, { reliable: true });
+      dataConnection.on('error', () => {});
+      dataConnection.on('close', () => {});
+    }
 
-        // Preserve the existing 2G/Auto-HD behavior while making the WebRTC sender
-        // explicitly prefer efficient Opus settings where the browser exposes them.
-        function applyCallAudioProfile(call) {
-            try {
-                if (!call || !call.peerConnection) return;
+    if (dataConnection.open) {
+      startOutgoingCall();
+    } else {
+      dataConnection.once('open', startOutgoingCall);
+    }
+  } catch (e) {
+    setTimeout(() => tryConnect(targetPeerId), 1500);
+  }
+}
 
-                const pc = call.peerConnection;
-                const senders = pc.getSenders ? pc.getSenders() : [];
-
-                senders.forEach(sender => {
-                    if (!sender || !sender.track || sender.track.kind !== 'audio') return;
-                    if (!sender.getParameters || !sender.setParameters) return;
-
-                    const params = sender.getParameters();
-                    params.encodings = params.encodings || [{}];
-
-                    // 2G default: mono 16 kHz capture + efficient Opus bitrate.
-                    // Auto HD: 48 kHz capture + a higher, still voice-focused bitrate.
-                    const targetBitrate = isAutoHD ? 48000 : 24000;
-                    params.encodings.forEach(enc => {
-                        enc.maxBitrate = targetBitrate;
-                        if (!isAutoHD) {
-                            enc.networkPriority = 'high';
-                        }
-                    });
-
-                    sender.setParameters(params).catch(() => {});
-                });
-            } catch (e) {}
-        }
-
-        function handleCallStream(call) {
+function handleCallStream(call) {
             stopAlerts();
             
             call.on('stream', (remoteStream) => {
