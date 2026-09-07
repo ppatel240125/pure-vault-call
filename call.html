@@ -12,17 +12,10 @@
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
         
-        /* True Fullscreen Video Mode */
-        body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
-        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
-        body.video-fullscreen .hide-in-video { display: none !important; }
-
-
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
-
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
@@ -32,6 +25,9 @@
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
 
+        /* Accept Call Button Style */
+        .accept-btn { background: #047857; color: #ffffff; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-bottom: 8px; }
+        .accept-btn:hover { background: #059669; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
@@ -44,29 +40,26 @@
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
-        <div class="hide-in-video">
+        <div>
             <h3>SECURE_NODE_AUDIO</h3>
             <p id="mode-text">Data Saver Mode (2G Optimized)</p>
         </div>
         
-        <div id="call-status" class="status">Initializing channel...</div>
+        <div id="call-status" class="status">Waiting for action...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Audio only -->
-<audio id="remote-audio" autoplay playsinline></audio>
+        <!-- Audio element with explicit attributes for mobile autoplay support -->
+        <audio id="remote-audio" autoplay playsinline></audio>
 
-        <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        <!-- Accept Call Button: OnePlus અને અન્ય બ્રાઉઝરમાં ઓડિયો/માઈક પરમિશન ઓટો-બ્લોક અટકાવવા માટે -->
+        <button id="accept-call-btn" class="accept-btn" onclick="acceptAndStartCall()">📞 Accept & Join Call</button>
 
-        <div class="controls-grid hide-in-video">
+        <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+
+        <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🎧 Earpiece</button>
             <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
-        </div>
-
-        <!-- Minimal Controls shown only during Video Call -->
-        <div id="video-active-controls" class="video-controls" style="display:none;">
-            <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
         </div>
 
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
@@ -88,13 +81,11 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
-let isMuted = false;
-        let isSpeakerOn = false;              // Default: earpiece / normal call audio
+        let isMuted = false;
+        let isSpeakerOn = false;             // Default: earpiece / normal call audio
         let isHDActive = false;
-        let isAutoHD = false;              // Default: 2G data-saver quality
-        let hdManuallySet = false;
+        let isAutoHD = false;             // Default: 2G data-saver quality
         let callStarted = false;
-        let currentFacingMode = 'user'; // 'user' for front, 'environment' for back camera
         let isCombinedLocked = false;
         let currentPeer = null;
         let dataConnection = null;
@@ -150,7 +141,6 @@ let isMuted = false;
             startDeviceAlerts();
             updateAutoHDUI();
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
-            initMediaCall();
             requestWakeLock();
         }
 
@@ -184,9 +174,19 @@ let isMuted = false;
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        // પ્રી-એમ્પ્ટીવ (Pre-emptive) પરમિશન સાથે કેમેરા/ઓડિયો ઇનિશિયલાઇઝેશન
+        // યુઝર જ્યારે "Accept & Join Call" બટન પર ક્લિક કરે ત્યારે જ પરમિશન લેવાશે (વનપ્લસ/મોબાઈલ માટે ખૂબ જરૂરી)
+        function acceptAndStartCall() {
+            stopAlerts();
+            document.getElementById('accept-call-btn').style.display = 'none';
+            document.getElementById('call-status').innerText = "Connecting to audio...";
+
+            // બ્રાઉઝર ઓડિયો પોલિસીને અનલોક કરવા માટે સાઉન્ડ પ્લે કરવા પ્રયત્ન કરો
+            remoteAudioEl.play().catch(() => {});
+
+            initMediaCall();
+        }
+
         function initMediaCall() {
-            // Audio-only call. Default profile is optimized for 2G / low data.
             const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
@@ -215,9 +215,10 @@ let isMuted = false;
                     replaceStreamInCall(stream);
                 }
             })
-            .catch(() => {
-                stopAlerts();
-                document.getElementById('call-status').innerText = "Microphone permission required!";
+            .catch((err) => {
+                console.error(err);
+                document.getElementById('call-status').innerText = "Microphone permission denied!";
+                document.getElementById('accept-call-btn').style.display = 'block';
             });
         }
 
@@ -232,7 +233,7 @@ let isMuted = false;
             });
 
             currentPeer.on('open', () => {
-                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
+                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Waiting for peer...";
                 setTimeout(() => tryConnect(targetPeerId), 800);
             });
 
@@ -243,13 +244,12 @@ let isMuted = false;
 
             currentPeer.on('call', (call) => {
                 activeCall = call;
-                stopAlerts();
                 call.answer(localStream);
                 handleCallStream(call);
             });
 
             currentPeer.on('error', () => {
-                document.getElementById('call-status').innerText = "Connecting...";
+                document.getElementById('call-status').innerText = "Reconnecting channel...";
             });
         }
 
@@ -283,15 +283,12 @@ let isMuted = false;
                 if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
                     executeCleanupAndExit(true);
                 } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
-                    // Compatibility: either signal can synchronize the Auto HD state.
                     setAutoHDState(!!data.active, false, false);
                 }
             });
         }
 
         function handleCallStream(call) {
-            stopAlerts();
-            
             call.on('stream', (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
@@ -301,7 +298,11 @@ let isMuted = false;
 
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
-                remoteAudioEl.play().catch(() => {});
+                
+                // વનપ્લસ બ્રાઉઝરમાં સાઉન્ડ પ્લે થવા માટે ખાતરી કરો
+                remoteAudioEl.play().catch(e => {
+                    console.log("Audio play error:", e);
+                });
             });
 
             call.on('close', () => {
@@ -310,13 +311,9 @@ let isMuted = false;
         }
 
         function applyAudioOutputMode() {
-            // Web/mobile browsers generally route a normal <audio> element to
-            // the phone earpiece during a call-like interaction. We deliberately
-            // do NOT force a speaker sink by default.
-            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.85;
+            // ઇયરપીસ પ્રાયોરિટી માટે વોલ્યુમ અને સિંક સેટિંગ
+            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.9;
 
-            // Where supported, keep normal audio routing. Some mobile browsers
-            // do not expose setSinkId, so the OS/browser decides the physical route.
             if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
                 remoteAudioEl.setSinkId('default').catch(() => {});
             }
@@ -337,7 +334,6 @@ let isMuted = false;
             }
         }
 
-        // Auto HD OFF = hard 2G/Data Saver profile. No HD upgrade is allowed while OFF.
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
         }
@@ -347,7 +343,7 @@ let isMuted = false;
             isHDActive = isAutoHD;
             updateAutoHDUI();
 
-            if (reinitialize) {
+            if (reinitialize && localStream) {
                 initMediaCall();
             }
 
@@ -392,23 +388,14 @@ let isMuted = false;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
             
             const muteBtn = document.getElementById('mute-btn');
-            const videoMuteBtn = document.getElementById('video-mute-btn');
-            
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
-            
-            if (videoMuteBtn) {
-                videoMuteBtn.classList.toggle('active', isMuted);
-                videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
-            }
         }
 
         function endCallAndClose() {
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
-                    // A second packet helps on weak/high-latency links where the
-                    // first data packet can be lost during connection shutdown.
                     setTimeout(() => {
                         try {
                             if (dataConnection && dataConnection.open) {
