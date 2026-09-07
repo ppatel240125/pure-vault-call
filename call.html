@@ -35,9 +35,12 @@
 
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
+        
+        /* ઓડિયો અનલોક કરવા માટેનું નાનું બેનર જે અવાજ ન આવતો હોય ત્યારે ક્લિક કરવા માટે ઉપયોગી બને */
+        #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
     </style>
 </head>
-<body onclick="unlockAudioOnInteraction()" ontouchstart="unlockAudioOnInteraction()">
+<body onclick="forceUnlockAudio()" ontouchstart="forceUnlockAudio()">
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
@@ -49,7 +52,10 @@
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Audio only -->
+        <!-- અવાજ ન સંભળાય તો આના પર ક્લિક કરીને ફોર્સ અનલોક કરી શકાય -->
+        <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 અવાજ નથી આવતો? અહીં ટચ કરો</div>
+
+        <!-- Audio only - playsinline અને muted એટ્રિબ્યુટ પૉલિસી બાયપાસ કરવા મદદ કરે છે -->
         <audio id="remote-audio" autoplay playsinline></audio>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
@@ -110,15 +116,24 @@
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
-        // બ્રાઉઝર ઓડિયો અને પરમિશન પોલિસી અનલોક કરવા માટે ફંક્શન
-        function unlockAudioOnInteraction() {
-            if (audioUnlocked) return;
-            audioUnlocked = true;
-            if (remoteAudioEl) {
-                remoteAudioEl.play().catch(() => {});
-            }
+        // વનપ્લસ અને અન્ય બ્રાઉઝર્સ માટે યુઝર ટચ થતાં જ ઓડિયો ફોર્સ પ્લે કરવા માટેનું મુખ્ય ફંક્શન
+        function forceUnlockAudio(e) {
+            if (e) e.stopPropagation();
+            
             if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume();
+            }
+
+            if (remoteAudioEl) {
+                remoteAudioEl.muted = false;
+                remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
+                remoteAudioEl.play().then(() => {
+                    audioUnlocked = true;
+                    document.getElementById('audio-fix-banner').style.display = 'none';
+                    console.log("Audio successfully forced and unlocked via user interaction.");
+                }).catch(err => {
+                    console.log("Audio force play failed:", err);
+                });
             }
         }
 
@@ -305,14 +320,18 @@
                 startCallTimer();
                 callStarted = true;
 
+                // જો અવાજ ન આવતો હોય તો યુઝરને બેનર બતાવો જેથી તે ક્લિક કરી શકે
+                document.getElementById('audio-fix-banner').style.display = 'block';
+
                 remoteAudioEl.srcObject = remoteStream;
                 applyAudioOutputMode();
                 
-                // OnePlus અને અન્ય બ્રાઉઝર્સમાં અવાજ પ્લે કરવા માટે ફોર્સ પ્લે અને કેચ હેન્ડલિંગ
+                // ઓટો પ્લે ફોર્સ કરવાનો પ્રયત્ન
                 remoteAudioEl.play().then(() => {
-                    console.log("Remote audio played successfully");
+                    audioUnlocked = true;
+                    document.getElementById('audio-fix-banner').style.display = 'none';
                 }).catch(e => {
-                    console.log("Autoplay waiting for user gesture:", e);
+                    console.log("Autoplay blocked by browser, waiting for touch/click", e);
                 });
             });
 
@@ -322,7 +341,7 @@
         }
 
         function applyAudioOutputMode() {
-            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.85;
+            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
 
             if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
                 remoteAudioEl.setSinkId('default').catch(() => {});
@@ -341,6 +360,11 @@
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🎧 Earpiece";
+            }
+            
+            // સ્પીકર મોડ બદલાય ત્યારે ઓડિયો ફરીથી પ્લે કરો જેથી રૂટીંગ રિફ્રેશ થાય
+            if (remoteAudioEl.srcObject) {
+                remoteAudioEl.play().catch(() => {});
             }
         }
 
