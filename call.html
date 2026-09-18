@@ -12,7 +12,6 @@
         
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
         
-        /* True Fullscreen Video Mode */
         body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
         body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
         body.video-fullscreen .hide-in-video { display: none !important; }
@@ -36,11 +35,14 @@
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
         
-        /* ઓડિયો અનલોક કરવા માટેનું નાનું બેનર જે અવાજ ન આવતો હોય ત્યારે ક્લિક કરવા માટે ઉપયોગી બને */
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
+        
+        /* ડિબગ પેનલ — ફક્ત ટેસ્ટ માટે */
+        #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
+        #debug-panel.active { display: block; }
     </style>
 </head>
-<body onclick="forceUnlockAudio()" ontouchstart="forceUnlockAudio()">
+<body onclick="forceUnlockAudio(event)" ontouchstart="forceUnlockAudio(event)">
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
     <div class="box">
@@ -52,13 +54,18 @@
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- અવાજ ન સંભળાય તો આના પર ક્લિક કરીને ફોર્સ અનલોક કરી શકાય -->
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 અવાજ નથી આવતો? અહીં ટચ કરો</div>
 
-        <!-- Audio only - playsinline અને muted એટ્રિબ્યુટ પૉલિસી બાયપાસ કરવા મદદ કરે છે -->
+        <!-- Audio element (Hidden) -->
         <audio id="remote-audio" autoplay playsinline></audio>
+        
+        <!-- Video element (Hidden) — WebRTC stream માટે શ્રેષ્ઠ routing -->
+        <video id="remote-video-hidden" autoplay playsinline style="display:none;"></video>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        
+        <!-- ઈયરપીસ બટન — મુખ્ય -->
+        <button id="earpiece-btn" class="utility-btn" onclick="switchToEarpiece()" style="background:#1e3a8a; color:#60a5fa;">🎧 Earpiece Mode</button>
 
         <div class="controls-grid hide-in-video">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -66,7 +73,6 @@
             <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
         </div>
 
-        <!-- Minimal Controls shown only during Video Call -->
         <div id="video-active-controls" class="video-controls" style="display:none;">
             <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
@@ -74,6 +80,9 @@
 
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
+    
+    <!-- ડિબગ પેનલ -->
+    <div id="debug-panel"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
@@ -81,6 +90,7 @@
         const roomId = urlParams.get('room');
         const role = urlParams.get('role');
         const redirectUrl = urlParams.get('back');
+        const debugMode = urlParams.get('debug') === '1';
 
         window.addEventListener('pageshow', function() {
             if (window.history.replaceState) {
@@ -91,6 +101,7 @@
         let localStream = null;
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
+        let remoteVideoEl = document.getElementById('remote-video-hidden');
         let isMuted = false;
         let isSpeakerOn = false;
         let isHDActive = false;
@@ -106,41 +117,67 @@
         let callTimerInterval = null;
         let callSeconds = 0;
         let audioCtx = null;
+        let audioCtxRouting = null;
         let lastTapTime = 0;
         let isEnded = false;
         let isReturning = false;
         let audioUnlocked = false;
+        let remoteStreamGlobal = null;
+        let earpieceDeviceId = null;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
-        // વનપ્લસ અને અન્ય બ્રાઉઝર્સ માટે યુઝર ટચ થતાં જ ઓડિયો ફોર્સ પ્લે કરવા માટેનું મુખ્ય ફંક્શન
+        /* ============================================================
+           DEBUG
+           ============================================================ */
+        function debugLog(msg) {
+            console.log(msg);
+            if (debugMode) {
+                const panel = document.getElementById('debug-panel');
+                panel.classList.add('active');
+                panel.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + panel.innerHTML;
+            }
+        }
+
+        /* ============================================================
+           AUDIO UNLOCK
+           ============================================================ */
         function forceUnlockAudio(e) {
             if (e) e.stopPropagation();
             
             if (audioCtx && audioCtx.state === 'suspended') {
                 audioCtx.resume();
             }
+            if (audioCtxRouting && audioCtxRouting.state === 'suspended') {
+                audioCtxRouting.resume();
+            }
 
             if (remoteAudioEl) {
                 remoteAudioEl.muted = false;
-                remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
+                remoteAudioEl.volume = 1.0;
                 remoteAudioEl.play().then(() => {
                     audioUnlocked = true;
                     document.getElementById('audio-fix-banner').style.display = 'none';
-                    console.log("Audio successfully forced and unlocked via user interaction.");
+                    debugLog("✅ Audio unlocked");
                 }).catch(err => {
-                    console.log("Audio force play failed:", err);
+                    debugLog("❌ Audio unlock fail: " + err.message);
                 });
             }
         }
 
+        /* ============================================================
+           WAKE LOCK
+           ============================================================ */
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
 
+        /* ============================================================
+           FULLSCREEN + LOCK
+           ============================================================ */
         function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
             const shield = document.getElementById('touch-shield');
@@ -168,6 +205,112 @@
             lastTapTime = currentTime;
         }
 
+        /* ============================================================
+           EARPIECE — MAIN MAGIC 🎧
+           ============================================================ */
+        async function enumerateAndFindEarpiece() {
+            try {
+                // પહેલા mic permission (labels માટે જરૂરી)
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const outputs = devices.filter(d => d.kind === 'audiooutput');
+                
+                debugLog(`Found ${outputs.length} audio outputs:`);
+                outputs.forEach(d => {
+                    debugLog(`  → "${d.label}" (${d.deviceId.substring(0,8)}...)`);
+                });
+                
+                // ઈયરપીસ શોધો (multiple keywords)
+                const earpiece = outputs.find(d => {
+                    const l = (d.label || '').toLowerCase();
+                    return l.includes('earpiece') || 
+                           l.includes('receiver') || 
+                           l.includes('handset') ||
+                           l.includes('ઇયર') ||
+                           l.includes('inner');
+                });
+                
+                if (earpiece) {
+                    earpieceDeviceId = earpiece.deviceId;
+                    debugLog(`✅ Earpiece found: "${earpiece.label}"`);
+                    return earpiece.deviceId;
+                }
+                
+                // ઈયરપીસ ન મળે તો પણ ટ્રાય 'communications'
+                debugLog(`⚠️ No earpiece label. Trying 'communications'...`);
+                return 'communications';
+                
+            } catch(err) {
+                debugLog(`❌ enumerateAndFindEarpiece: ${err.message}`);
+                return null;
+            }
+        }
+
+        async function switchToEarpiece() {
+            debugLog('🎧 Switching to EARPIECE...');
+            
+            const targetId = earpieceDeviceId || await enumerateAndFindEarpiece();
+            
+            if (!targetId) {
+                debugLog('❌ No earpiece device available');
+                alert('આ ફોનમાં ઈયરપીસ સપોર્ટેડ નથી. Speaker જ વાપરો.');
+                return;
+            }
+            
+            // 1. audio element પર setSinkId
+            if (typeof remoteAudioEl.setSinkId === 'function') {
+                try {
+                    await remoteAudioEl.setSinkId(targetId);
+                    debugLog(`✅ audio el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ audio el setSinkId: ${e.message}`);
+                }
+            } else {
+                debugLog('⚠️ setSinkId not supported on audio element');
+            }
+            
+            // 2. video element પર પણ (WebRTC routing માટે શ્રેષ્ઠ)
+            if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                try {
+                    await remoteVideoEl.setSinkId(targetId);
+                    debugLog(`✅ video el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ video el setSinkId: ${e.message}`);
+                }
+            }
+            
+            // 3. AudioContext પર setSinkId
+            if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                try {
+                    await audioCtxRouting.setSinkId(targetId);
+                    debugLog(`✅ AudioContext → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ AudioContext setSinkId: ${e.message}`);
+                }
+            }
+            
+            // 4. ફરી play કરો routing refresh માટે
+            try {
+                remoteAudioEl.muted = false;
+                await remoteAudioEl.play();
+            } catch(e) {}
+            
+            // 5. UI update
+            isSpeakerOn = false;
+            document.getElementById('speaker-btn').classList.remove('active');
+            document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
+            document.getElementById('earpiece-btn').classList.add('active');
+            document.getElementById('earpiece-btn').style.background = '#713f12';
+            document.getElementById('earpiece-btn').style.color = '#fde047';
+            document.getElementById('earpiece-btn').innerText = "🎧 Earpiece Active";
+            
+            debugLog('✅ Earpiece switch complete');
+        }
+
+        /* ============================================================
+           INIT
+           ============================================================ */
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
@@ -176,6 +319,11 @@
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
             initMediaCall();
             requestWakeLock();
+            
+            // પેજ લોડ થતાં જ permission + earpiece detect
+            setTimeout(async () => {
+                await enumerateAndFindEarpiece();
+            }, 500);
         }
 
         function startDeviceAlerts() {
@@ -208,6 +356,9 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
+        /* ============================================================
+           MEDIA CALL
+           ============================================================ */
         function initMediaCall() {
             const audioConstraints = {
                 echoCancellation: true,
@@ -222,13 +373,10 @@
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
                 }
-
                 localStream = stream;
-
                 if (isMuted) {
                     localStream.getAudioTracks().forEach(track => { track.enabled = false; });
                 }
-
                 applyAudioOutputMode();
 
                 if (!currentPeer) {
@@ -310,29 +458,58 @@
             });
         }
 
+        /* ============================================================
+           CALL STREAM HANDLER — EARPIECE MAGIC HERE
+           ============================================================ */
         function handleCallStream(call) {
             stopAlerts();
             
-            call.on('stream', (remoteStream) => {
+            call.on('stream', async (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
                 callStarted = true;
+                remoteStreamGlobal = remoteStream;
 
-                // જો અવાજ ન આવતો હોય તો યુઝરને બેનર બતાવો જેથી તે ક્લિક કરી શકે
                 document.getElementById('audio-fix-banner').style.display = 'block';
 
+                // બંને elements પર stream મૂકો
                 remoteAudioEl.srcObject = remoteStream;
-                applyAudioOutputMode();
+                remoteAudioEl.muted = false;
+                if (remoteVideoEl) {
+                    remoteVideoEl.srcObject = remoteStream;
+                    remoteVideoEl.muted = false;
+                }
                 
-                // ઓટો પ્લે ફોર્સ કરવાનો પ્રયત્ન
+                // 🎧 EARPIECE ROUTING — તરત જ
+                await applyAudioOutputMode();
+                
+                // AudioContext routing (advanced)
+                try {
+                    if (!audioCtxRouting) {
+                        audioCtxRouting = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    if (audioCtxRouting.state === 'suspended') {
+                        await audioCtxRouting.resume();
+                    }
+                    debugLog('✅ AudioContext ready: ' + audioCtxRouting.state);
+                } catch(e) {
+                    debugLog('❌ AudioContext: ' + e.message);
+                }
+                
+                // Autoplay
                 remoteAudioEl.play().then(() => {
                     audioUnlocked = true;
                     document.getElementById('audio-fix-banner').style.display = 'none';
+                    debugLog('✅ Stream playing');
                 }).catch(e => {
-                    console.log("Autoplay blocked by browser, waiting for touch/click", e);
+                    debugLog('⚠️ Autoplay blocked — touch needed');
                 });
+                
+                if (remoteVideoEl) {
+                    remoteVideoEl.play().catch(() => {});
+                }
             });
 
             call.on('close', () => {
@@ -340,34 +517,105 @@
             });
         }
 
-        function applyAudioOutputMode() {
+        /* ============================================================
+           AUDIO OUTPUT MODE — KEY FUNCTION
+           ============================================================ */
+        async function applyAudioOutputMode() {
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
-
-            if (!isSpeakerOn && typeof remoteAudioEl.setSinkId === 'function') {
-                remoteAudioEl.setSinkId('default').catch(() => {});
+            remoteAudioEl.muted = false;
+            
+            // Speaker mode
+            if (isSpeakerOn) {
+                if (typeof remoteAudioEl.setSinkId === 'function') {
+                    try { await remoteAudioEl.setSinkId('default'); } catch(e) {}
+                }
+                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                    try { await remoteVideoEl.setSinkId('default'); } catch(e) {}
+                }
+                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                    try { await audioCtxRouting.setSinkId('default'); } catch(e) {}
+                }
+                return;
+            }
+            
+            // Earpiece mode
+            let targetId = earpieceDeviceId;
+            if (!targetId) {
+                targetId = await enumerateAndFindEarpiece();
+            }
+            if (!targetId) targetId = 'communications';
+            
+            debugLog(`🎧 Routing to: ${targetId.substring(0,10)}...`);
+            
+            // audio element
+            if (typeof remoteAudioEl.setSinkId === 'function') {
+                try { 
+                    await remoteAudioEl.setSinkId(targetId); 
+                    debugLog('✅ audio el sink set');
+                } catch(e) { 
+                    debugLog('❌ audio el: ' + e.message); 
+                }
+            }
+            
+            // video element (WebRTC routing માટે શ્રેષ્ઠ)
+            if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                try { 
+                    await remoteVideoEl.setSinkId(targetId); 
+                    debugLog('✅ video el sink set');
+                } catch(e) { 
+                    debugLog('❌ video el: ' + e.message); 
+                }
+            }
+            
+            // AudioContext
+            if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                try { 
+                    await audioCtxRouting.setSinkId(targetId); 
+                    debugLog('✅ AudioContext sink set');
+                } catch(e) { 
+                    debugLog('❌ AudioContext: ' + e.message); 
+                }
             }
         }
 
-        function toggleSpeaker() {
+        /* ============================================================
+           TOGGLE SPEAKER
+           ============================================================ */
+        async function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
+            const earpieceBtn = document.getElementById('earpiece-btn');
 
-            applyAudioOutputMode();
+            await applyAudioOutputMode();
 
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
+                earpieceBtn.classList.remove('active');
+                earpieceBtn.style.background = '#1e3a8a';
+                earpieceBtn.style.color = '#60a5fa';
+                earpieceBtn.innerText = "🎧 Earpiece Mode";
             } else {
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🎧 Earpiece";
+                earpieceBtn.classList.add('active');
+                earpieceBtn.style.background = '#713f12';
+                earpieceBtn.style.color = '#fde047';
+                earpieceBtn.innerText = "🎧 Earpiece Active";
             }
             
-            // સ્પીકર મોડ બદલાય ત્યારે ઓડિયો ફરીથી પ્લે કરો જેથી રૂટીંગ રિફ્રેશ થાય
+            // Refresh play
             if (remoteAudioEl.srcObject) {
-                remoteAudioEl.play().catch(() => {});
+                try { await remoteAudioEl.play(); } catch(e) {}
+            }
+            if (remoteVideoEl && remoteVideoEl.srcObject) {
+                try { await remoteVideoEl.play(); } catch(e) {}
             }
         }
 
+        /* ============================================================
+           AUTO HD
+           ============================================================ */
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
         }
@@ -406,6 +654,9 @@
             }
         }
 
+        /* ============================================================
+           CALL TIMER
+           ============================================================ */
         function startCallTimer() {
             if (callTimerInterval) return;
             callTimerInterval = setInterval(() => {
@@ -416,6 +667,9 @@
             }, 1000);
         }
 
+        /* ============================================================
+           MUTE
+           ============================================================ */
         function toggleMute() {
             if (!localStream) return;
             isMuted = !isMuted;
@@ -433,6 +687,9 @@
             }
         }
 
+        /* ============================================================
+           END CALL
+           ============================================================ */
         function endCallAndClose() {
             try {
                 if (dataConnection && dataConnection.open) {
@@ -475,6 +732,10 @@
             try {
                 remoteAudioEl.pause();
                 remoteAudioEl.srcObject = null;
+                if (remoteVideoEl) {
+                    remoteVideoEl.pause();
+                    remoteVideoEl.srcObject = null;
+                }
             } catch(e) {}
 
             try { if (dataConnection) dataConnection.close(); } catch(e) {}
