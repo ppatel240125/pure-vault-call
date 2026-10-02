@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Voice Call (Zangi-Level)</title>
+    <title>Secure Node - Voice Call</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         html, body { touch-action: manipulation; overscroll-behavior: none; }
@@ -53,7 +53,7 @@
     
     <div class="box">
         <h3>SECURE_NODE_VOICE</h3>
-        <p id="mode-text">Earpiece · Zangi Mode</p>
+        <p id="mode-text">Data Saver Mode</p>
         
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
@@ -81,13 +81,13 @@
 
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
         
-        <button id="earpiece-btn" class="utility-btn active" onclick="switchToEarpiece()" style="background:#713f12; color:#fde047;">🎧 Earpiece Active</button>
+        <button id="earpiece-btn" class="utility-btn active" onclick="toggleAudioOutput()" style="background:#713f12; color:#fde047;">🎧 Earpiece Active</button>
 
         <button id="copy-link-btn" class="utility-btn" onclick="copyCallLink()" style="background:#1e3a8a; color:#93c5fd;">📋 Copy Call Link</button>
 
         <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+            <button id="speaker-btn" class="ctrl-btn" onclick="toggleAudioOutput()">🔊 Speaker</button>
             <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
         </div>
 
@@ -366,68 +366,75 @@
         }
 
         /* ============================================================
-           UI UPDATE — FIXED
-           Speaker ON → speaker button "🔊 Speaker ON", earpiece button "🎧 Earpiece"
-           Earpiece ON → speaker button "🔊 Speaker", earpiece button "🎧 Earpiece Active"
+           SWAP UI — Top button = Active mode, Bottom button = Available
            ============================================================ */
         function updateOutputUI() {
-            const speakerBtn = document.getElementById('speaker-btn');
-            const earpieceBtn = document.getElementById('earpiece-btn');
-            if (!speakerBtn || !earpieceBtn) return;
-            
-            debugLog('🎨 UI Update: isSpeakerOn=' + isSpeakerOn);
-            
-            if (isSpeakerOn) {
-                /* SPEAKER MODE ACTIVE */
-                speakerBtn.classList.add('active');
-                speakerBtn.innerText = "🔊 Speaker ON";
-                earpieceBtn.classList.remove('active');
-                earpieceBtn.style.background = '#1e3a8a';
-                earpieceBtn.style.color = '#60a5fa';
-                earpieceBtn.innerText = "🎧 Earpiece";
-                debugLog('  → Speaker button: ACTIVE');
+            const topBtn = document.getElementById('earpiece-btn');      /* TOP button */
+            const bottomBtn = document.getElementById('speaker-btn');    /* BOTTOM button */
+            if (!topBtn || !bottomBtn) return;
+
+            debugLog('🎨 updateOutputUI: isSpeakerOn=' + isSpeakerOn);
+
+            if (isSpeakerOn === true) {
+                /* ============ SPEAKER MODE ACTIVE ============ */
+                topBtn.classList.add('active');
+                topBtn.innerText = "🔊 Speaker Active";
+                topBtn.style.background = "#713f12";
+                topBtn.style.color = "#fde047";
+                topBtn.style.border = "none";
+
+                bottomBtn.classList.remove('active');
+                bottomBtn.innerText = "🎧 Earpiece";
+                bottomBtn.style.background = "#1e3a8a";
+                bottomBtn.style.color = "#60a5fa";
+                bottomBtn.style.border = "1px solid #3b82f6";
+
+                debugLog('  ✅ TOP: Speaker Active | BOTTOM: Earpiece');
             } else {
-                /* EARPIECE MODE ACTIVE */
-                speakerBtn.classList.remove('active');
-                speakerBtn.innerText = "🔊 Speaker";
-                earpieceBtn.classList.add('active');
-                earpieceBtn.style.background = '#713f12';
-                earpieceBtn.style.color = '#fde047';
-                earpieceBtn.innerText = "🎧 Earpiece Active";
-                debugLog('  → Earpiece button: ACTIVE');
+                /* ============ EARPIECE MODE ACTIVE ============ */
+                topBtn.classList.add('active');
+                topBtn.innerText = "🎧 Earpiece Active";
+                topBtn.style.background = "#713f12";
+                topBtn.style.color = "#fde047";
+                topBtn.style.border = "none";
+
+                bottomBtn.classList.remove('active');
+                bottomBtn.innerText = "🔊 Speaker";
+                bottomBtn.style.background = "#1f293d";
+                bottomBtn.style.color = "#d1d5db";
+                bottomBtn.style.border = "none";
+
+                debugLog('  ✅ TOP: Earpiece Active | BOTTOM: Speaker');
             }
         }
 
         /* ============================================================
-           TOGGLE SPEAKER — FIXED ORDER
+           SINGLE TOGGLE — બંને buttons એક જ action
            ============================================================ */
-        async function toggleSpeaker() {
+        async function toggleAudioOutput() {
             isSpeakerOn = !isSpeakerOn;
-            debugLog('🔊 Toggle: isSpeakerOn=' + isSpeakerOn);
+            debugLog('🔄 Toggle: isSpeakerOn=' + isSpeakerOn);
             
-            /* UI update FIRST — instant feedback */
+            /* Step 1: Instant UI */
             updateOutputUI();
             
-            /* Then apply audio routing */
-            try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply output fail: ' + e.message); }
+            /* Step 2: Apply audio routing */
+            try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply fail: ' + e.message); }
             
-            /* Refresh play */
+            /* Step 3: Force refresh */
+            setTimeout(() => { updateOutputUI(); }, 50);
+            
+            /* Step 4: Resume */
             if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
         }
 
-        /* ============================================================
-           SWITCH TO EARPIECE — FIXED ORDER
-           ============================================================ */
+        /* Alias — backward compatibility */
+        async function toggleSpeaker() { return toggleAudioOutput(); }
         async function switchToEarpiece() {
-            debugLog('🎧 Switch to Earpiece');
             isSpeakerOn = false;
-            
-            /* UI update FIRST */
             updateOutputUI();
-            
-            /* Then apply audio routing */
-            try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply fail: ' + e.message); }
-            
+            try { await applyAudioOutputMode(); } catch(e) {}
+            setTimeout(() => { updateOutputUI(); }, 50);
             try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
         }
 
@@ -437,7 +444,7 @@
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
-            debugLog('🌐 ' + (IS_INBUILT ? 'In-built' : 'Chrome/Firefox') + ' | setParams=' + _canSetParams + ' | DTX=' + USE_DTX);
+            debugLog('🌐 ' + (IS_INBUILT ? 'In-built' : 'Chrome/Firefox') + ' | setParams=' + _canSetParams);
             
             if (IS_INBUILT) {
                 document.getElementById('browser-warn').classList.add('active');
@@ -813,7 +820,7 @@
             btn.classList.toggle('active', isAutoHD);
             btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Data Saver";
             if (modeText) {
-                modeText.innerText = isAutoHD ? "Auto HD · Earpiece" : "Zangi Mode · Earpiece";
+                modeText.innerText = isAutoHD ? "Auto HD Active" : "Data Saver Mode";
             }
         }
 
