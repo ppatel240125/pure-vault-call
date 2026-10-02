@@ -39,7 +39,6 @@
         
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
 
-        /* Browser warning for in-built browsers */
         #browser-warn { display: none; background: #7f1d1d; color: #fecaca; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.5; }
         #browser-warn.active { display: block; }
         #browser-warn b { color: #fca5a5; }
@@ -65,7 +64,6 @@
             <span id="stats-text"></span>
         </div>
         
-        <!-- Browser warning -->
         <div id="browser-warn">
             <b>⚠️ Use Chrome or Firefox</b><br>
             In-built browser may not work properly.<br><br>
@@ -145,21 +143,15 @@
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
-        /* ============================================================
-           BROWSER DETECT — Zangi-level optimization
-           Chrome/Firefox: 16 kbps + DTX (Zangi જેટલું ઓછું)
-           In-built: 32 kbps (safe fallback)
-           ============================================================ */
+        /* BROWSER DETECT */
         const _ua = navigator.userAgent;
         const IS_INBUILT = /HeyTap|OPPO|OppoBrowser|vivo|VivoBrowser|Miui|MiBrowser|OnePlus|OxygenOS|SamsungBrowser/i.test(_ua) || /; wv\)/.test(_ua);
         const IS_CHROME_FAMILY = /Chrome|Firefox|Edg|Safari/i.test(_ua) && !IS_INBUILT;
 
-        /* Bitrate config */
-        const BITRATE_SAVER = IS_INBUILT ? 32000 : 16000;   // Chrome: 16k, In-built: 32k
-        const BITRATE_HD    = IS_INBUILT ? 48000 : 32000;   // Chrome: 32k, In-built: 48k
-        const USE_DTX       = !IS_INBUILT;                   // DTX only Chrome/Firefox
+        const BITRATE_SAVER = IS_INBUILT ? 32000 : 16000;
+        const BITRATE_HD    = IS_INBUILT ? 48000 : 32000;
+        const USE_DTX       = !IS_INBUILT;
 
-        /* Check setParameters support */
         let _canSetParams = true;
         try {
             const testPc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection)({ iceServers: [] });
@@ -181,9 +173,6 @@
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
-        /* ============================================================
-           DEBUG
-           ============================================================ */
         function debugLog(msg) {
             console.log(msg);
             if (debugMode) {
@@ -193,9 +182,6 @@
             }
         }
 
-        /* ============================================================
-           AUDIO UNLOCK
-           ============================================================ */
         function forceUnlockAudio(e) {
             if (e) e.stopPropagation();
             if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
@@ -211,16 +197,10 @@
             }
         }
 
-        /* ============================================================
-           WAKE LOCK
-           ============================================================ */
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
 
-        /* ============================================================
-           FULLSCREEN + PORTRAIT LOCK
-           ============================================================ */
         async function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
             const shield = document.getElementById('touch-shield');
@@ -256,9 +236,6 @@
             lastTapTime = currentTime;
         }
 
-        /* ============================================================
-           COPY CALL LINK
-           ============================================================ */
         function copyCallLink() {
             const url = window.location.href;
             debugLog('📋 Copy: ' + url);
@@ -327,9 +304,6 @@
             document.body.appendChild(modal);
         }
 
-        /* ============================================================
-           EARPIECE ENUMERATION
-           ============================================================ */
         async function enumerateAndFindEarpiece() {
             try {
                 await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -371,9 +345,6 @@
             } catch(e) { return 'default'; }
         }
 
-        /* ============================================================
-           AUDIO OUTPUT MODE
-           ============================================================ */
         async function applyAudioOutputMode() {
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
             remoteAudioEl.muted = false;
@@ -394,37 +365,69 @@
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(targetId); } catch(e) {} }
         }
 
+        /* ============================================================
+           UI UPDATE — FIXED
+           Speaker ON → speaker button "🔊 Speaker ON", earpiece button "🎧 Earpiece"
+           Earpiece ON → speaker button "🔊 Speaker", earpiece button "🎧 Earpiece Active"
+           ============================================================ */
         function updateOutputUI() {
             const speakerBtn = document.getElementById('speaker-btn');
             const earpieceBtn = document.getElementById('earpiece-btn');
+            if (!speakerBtn || !earpieceBtn) return;
+            
+            debugLog('🎨 UI Update: isSpeakerOn=' + isSpeakerOn);
+            
             if (isSpeakerOn) {
+                /* SPEAKER MODE ACTIVE */
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
                 earpieceBtn.classList.remove('active');
                 earpieceBtn.style.background = '#1e3a8a';
                 earpieceBtn.style.color = '#60a5fa';
                 earpieceBtn.innerText = "🎧 Earpiece";
+                debugLog('  → Speaker button: ACTIVE');
             } else {
+                /* EARPIECE MODE ACTIVE */
                 speakerBtn.classList.remove('active');
                 speakerBtn.innerText = "🔊 Speaker";
                 earpieceBtn.classList.add('active');
                 earpieceBtn.style.background = '#713f12';
                 earpieceBtn.style.color = '#fde047';
                 earpieceBtn.innerText = "🎧 Earpiece Active";
+                debugLog('  → Earpiece button: ACTIVE');
             }
         }
 
+        /* ============================================================
+           TOGGLE SPEAKER — FIXED ORDER
+           ============================================================ */
         async function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
-            await applyAudioOutputMode();
+            debugLog('🔊 Toggle: isSpeakerOn=' + isSpeakerOn);
+            
+            /* UI update FIRST — instant feedback */
             updateOutputUI();
+            
+            /* Then apply audio routing */
+            try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply output fail: ' + e.message); }
+            
+            /* Refresh play */
             if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
         }
 
+        /* ============================================================
+           SWITCH TO EARPIECE — FIXED ORDER
+           ============================================================ */
         async function switchToEarpiece() {
+            debugLog('🎧 Switch to Earpiece');
             isSpeakerOn = false;
-            await applyAudioOutputMode();
+            
+            /* UI update FIRST */
             updateOutputUI();
+            
+            /* Then apply audio routing */
+            try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply fail: ' + e.message); }
+            
             try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
         }
 
@@ -436,7 +439,6 @@
         } else {
             debugLog('🌐 ' + (IS_INBUILT ? 'In-built' : 'Chrome/Firefox') + ' | setParams=' + _canSetParams + ' | DTX=' + USE_DTX);
             
-            /* Show browser warning if in-built */
             if (IS_INBUILT) {
                 document.getElementById('browser-warn').classList.add('active');
             }
@@ -481,9 +483,6 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
-        /* ============================================================
-           MEDIA CALL
-           ============================================================ */
         function initMediaCall() {
             const audioConstraints = {
                 echoCancellation: true,
@@ -581,9 +580,6 @@
             });
         }
 
-        /* ============================================================
-           ZANGI-LEVEL: Opus Low Bitrate
-           ============================================================ */
         function patchOpusLowBitrate(call) {
             if (!call || !call.peerConnection) return;
             if (!_canSetParams) {
@@ -612,9 +608,6 @@
             try { startStatsMonitor(call.peerConnection); } catch(e) {}
         }
 
-        /* ============================================================
-           ZANGI-LEVEL: Live Stats + Adaptive
-           ============================================================ */
         function startStatsMonitor(pc) {
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
             _statsPc = pc;
@@ -653,7 +646,6 @@
                     if (remoteInbound && remoteInbound.packetsLost !== undefined) loss = remoteInbound.packetsLost;
                     if (inbound && inbound.packetsLost !== undefined) loss = Math.max(loss, inbound.packetsLost);
 
-                    /* Network quality */
                     let prevQuality = _networkQuality;
                     if (rtt > 400 || loss > 15) _networkQuality = 'weak';
                     else if (rtt > 200 || loss > 5) _networkQuality = 'ok';
@@ -673,7 +665,6 @@
 
                     if (!_canSetParams) return;
 
-                    /* Adaptive bitrate — Zangi-level */
                     if (!isAutoHD) {
                         let targetBitrate = BITRATE_SAVER;
                         if (rtt > 400 || loss > 15) targetBitrate = IS_INBUILT ? 24000 : 8000;
@@ -708,9 +699,6 @@
             if (bar) bar.style.display = 'none';
         }
 
-        /* ============================================================
-           CALL STREAM HANDLER
-           ============================================================ */
         function handleCallStream(call) {
             stopAlerts();
             try { patchOpusLowBitrate(call); } catch(e) {}
@@ -782,9 +770,6 @@
             call.on('error', () => { executeCleanupAndExit(); });
         }
 
-        /* ============================================================
-           AUTO HD — Sync both sides
-           ============================================================ */
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
         }
@@ -832,9 +817,6 @@
             }
         }
 
-        /* ============================================================
-           CALL TIMER
-           ============================================================ */
         function startCallTimer() {
             if (callTimerInterval) return;
             callTimerInterval = setInterval(() => {
@@ -845,9 +827,6 @@
             }, 1000);
         }
 
-        /* ============================================================
-           MUTE
-           ============================================================ */
         function toggleMute() {
             if (!localStream) return;
             isMuted = !isMuted;
@@ -857,9 +836,6 @@
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
         }
 
-        /* ============================================================
-           END CALL — AUTO RETURN
-           ============================================================ */
         function endCallAndClose() {
             try {
                 if (dataConnection && dataConnection.open) {
@@ -908,7 +884,6 @@
                 if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
             } catch(e) {}
 
-            /* AUTO RETURN — 3 fallbacks */
             setTimeout(() => {
                 try {
                     if (redirectUrl) {
