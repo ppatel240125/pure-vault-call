@@ -18,7 +18,6 @@
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
 
-        /* Signal + Stats bar */
         #signal-bar { display: none; font-size: 11px; margin: 4px 0 8px 0; color: #9ca3af; font-weight: normal; }
         #signal-icon { font-weight: bold; letter-spacing: 1px; }
         #signal-text { margin-left: 6px; font-weight: bold; font-size: 10px; }
@@ -54,7 +53,6 @@
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Signal + Stats Bar -->
         <div id="signal-bar">
             <span id="signal-icon">▁▁▁▁</span>
             <span id="signal-text">--</span>
@@ -131,13 +129,24 @@
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
         /* ============================================================
-           HYBRID BITRATE SYSTEM
-           Browser + Network + HD mode → auto best bitrate
+           HYBRID BITRATE SYSTEM + BROWSER DETECT
            ============================================================ */
         const _ua = navigator.userAgent;
         const IS_INBUILT = /HeyTap|OPPO|OppoBrowser|vivo|VivoBrowser|Miui|MiBrowser|OnePlus|OxygenOS|SamsungBrowser/i.test(_ua) || /; wv\)/.test(_ua);
         const IS_CHROME_FAMILY = /Chrome|Firefox|Edg|Safari/i.test(_ua) && !IS_INBUILT;
         const BROWSER_TYPE = IS_INBUILT ? 'builtin' : (IS_CHROME_FAMILY ? 'standard' : 'unknown');
+
+        /* Detect setParameters support — in-built browsers often lack it */
+        let _canSetParams = true;
+        try {
+            const testPc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection)({ iceServers: [] });
+            const testSender = testPc.addTransceiver('audio', { direction: 'sendrecv' }).sender;
+            const testParams = testSender.getParameters();
+            _canSetParams = !!(testParams && testParams.encodings && testParams.encodings.length > 0);
+            testPc.close();
+        } catch(e) {
+            _canSetParams = false;
+        }
 
         const HYBRID_TABLE = {
             standard: {
@@ -208,7 +217,7 @@
         }
 
         /* ============================================================
-           FULLSCREEN + LOCK — PORTRAIT
+           FULLSCREEN + PORTRAIT LOCK
            ============================================================ */
         async function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
@@ -268,42 +277,32 @@
                     return ok;
                 } catch(e) { return false; }
             };
-            doCopy().then(() => {
-                showCopyModal(url, true);
-            }).catch(() => {
-                showCopyModal(url, fallbackCopy());
-            });
+            doCopy().then(() => { showCopyModal(url, true); })
+            .catch(() => { showCopyModal(url, fallbackCopy()); });
         }
 
         function showCopyModal(url, copied) {
             const existing = document.getElementById('copy-modal');
             if (existing) existing.remove();
-
             const modal = document.createElement('div');
             modal.id = 'copy-modal';
             modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;';
-
             const card = document.createElement('div');
             card.style.cssText = 'background:#0b0e14;border:1px solid #1f293d;border-radius:16px;padding:20px;max-width:360px;width:100%;color:#d1d5db;font-family:monospace;text-align:left;';
-
             const title = document.createElement('h3');
             title.style.cssText = 'color:#3b82f6;margin:0 0 12px 0;font-size:14px;text-align:center;letter-spacing:1px;';
             title.innerText = copied ? '✅ Link Copied' : '📋 Copy Link';
             card.appendChild(title);
-
             const urlBox = document.createElement('div');
             urlBox.style.cssText = 'background:#07090e;border:1px solid #1f293d;border-radius:8px;padding:10px;font-size:10px;word-break:break-all;color:#38ef7d;margin-bottom:12px;max-height:80px;overflow:auto;';
             urlBox.innerText = url;
             card.appendChild(urlBox);
-
             const hint = document.createElement('div');
             hint.style.cssText = 'background:rgba(34,158,217,0.1);border:1px solid rgba(34,158,217,0.3);border-radius:8px;padding:10px;font-size:11px;color:#93c5fd;line-height:1.5;margin-bottom:14px;';
-            hint.innerText = 'Send this link to peer to join the same call. Open in any browser (Chrome/Firefox/Edge).';
+            hint.innerText = 'Send this link to peer. Open in Chrome/Firefox/Edge for best quality.';
             card.appendChild(hint);
-
             const btnRow = document.createElement('div');
             btnRow.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
-
             const copyBtn = document.createElement('button');
             copyBtn.style.cssText = 'background:#1e3a8a;color:#93c5fd;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:12px;font-family:monospace;';
             copyBtn.innerText = '📋 Copy Again';
@@ -316,20 +315,18 @@
                 } else { prompt('Copy this link:', url); }
             };
             btnRow.appendChild(copyBtn);
-
             const closeBtn = document.createElement('button');
             closeBtn.style.cssText = 'background:#1f293d;color:#d1d5db;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:12px;font-family:monospace;';
             closeBtn.innerText = '✖ Close';
             closeBtn.onclick = () => modal.remove();
             btnRow.appendChild(closeBtn);
-
             card.appendChild(btnRow);
             modal.appendChild(card);
             document.body.appendChild(modal);
         }
 
         /* ============================================================
-           EARPIECE — DEFAULT ON
+           EARPIECE ENUMERATION
            ============================================================ */
         async function enumerateAndFindEarpiece() {
             try {
@@ -337,16 +334,17 @@
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const outputs = devices.filter(d => d.kind === 'audiooutput');
                 debugLog(`Found ${outputs.length} audio outputs`);
+                outputs.forEach(d => debugLog(`  → "${d.label}"`));
                 const earpiece = outputs.find(d => {
                     const l = (d.label || '').toLowerCase();
                     return l.includes('earpiece') || l.includes('receiver') || l.includes('handset') || l.includes('inner');
                 });
                 if (earpiece) {
                     earpieceDeviceId = earpiece.deviceId;
-                    debugLog(`✅ Earpiece found: "${earpiece.label}"`);
+                    debugLog(`✅ Earpiece: "${earpiece.label}"`);
                     return earpiece.deviceId;
                 }
-                debugLog(`⚠️ No earpiece label. Trying 'communications'...`);
+                debugLog(`⚠️ No earpiece label. Using 'communications'`);
                 return 'communications';
             } catch(err) {
                 debugLog(`❌ enumerate: ${err.message}`);
@@ -354,21 +352,81 @@
             }
         }
 
-        async function switchToEarpiece() {
-            debugLog('🎧 Switching to EARPIECE...');
-            const targetId = earpieceDeviceId || await enumerateAndFindEarpiece();
-            if (!targetId) return;
+        async function findSpeakerDevice() {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const outputs = devices.filter(d => d.kind === 'audiooutput');
+                const speaker = outputs.find(d => {
+                    const l = (d.label || '').toLowerCase();
+                    return l.includes('speaker') || l.includes('loudspeaker');
+                });
+                if (speaker) {
+                    debugLog('🔊 Speaker: "' + speaker.label + '"');
+                    return speaker.deviceId;
+                }
+                debugLog('🔊 Using default output (speaker)');
+                return 'default';
+            } catch(e) { return 'default'; }
+        }
+
+        /* ============================================================
+           AUDIO OUTPUT MODE — CORRECT SPEAKER/EARPIECE
+           ============================================================ */
+        async function applyAudioOutputMode() {
+            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
+            remoteAudioEl.muted = false;
+
+            if (isSpeakerOn) {
+                const spkId = await findSpeakerDevice();
+                debugLog('🔊 → Speaker (' + spkId.substring(0,10) + ')');
+                if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId(spkId); } catch(e) {} }
+                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId(spkId); } catch(e) {} }
+                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(spkId); } catch(e) {} }
+                return;
+            }
+
+            let targetId = earpieceDeviceId;
+            if (!targetId) targetId = await enumerateAndFindEarpiece();
+            if (!targetId) targetId = 'communications';
+            debugLog('🎧 → Earpiece (' + targetId.substring(0,10) + ')');
             if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId(targetId); } catch(e) {} }
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId(targetId); } catch(e) {} }
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(targetId); } catch(e) {} }
-            try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
+        }
+
+        function updateOutputUI() {
+            const speakerBtn = document.getElementById('speaker-btn');
+            const earpieceBtn = document.getElementById('earpiece-btn');
+            if (isSpeakerOn) {
+                speakerBtn.classList.add('active');
+                speakerBtn.innerText = "🔊 Speaker ON";
+                earpieceBtn.classList.remove('active');
+                earpieceBtn.style.background = '#1e3a8a';
+                earpieceBtn.style.color = '#60a5fa';
+                earpieceBtn.innerText = "🎧 Earpiece";
+            } else {
+                speakerBtn.classList.remove('active');
+                speakerBtn.innerText = "🔊 Speaker";
+                earpieceBtn.classList.add('active');
+                earpieceBtn.style.background = '#713f12';
+                earpieceBtn.style.color = '#fde047';
+                earpieceBtn.innerText = "🎧 Earpiece Active";
+            }
+        }
+
+        async function toggleSpeaker() {
+            isSpeakerOn = !isSpeakerOn;
+            await applyAudioOutputMode();
+            updateOutputUI();
+            if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
+        }
+
+        async function switchToEarpiece() {
+            debugLog('🎧 Switching to EARPIECE...');
             isSpeakerOn = false;
-            document.getElementById('speaker-btn').classList.remove('active');
-            document.getElementById('speaker-btn').innerText = "🔊 Speaker";
-            document.getElementById('earpiece-btn').classList.add('active');
-            document.getElementById('earpiece-btn').style.background = '#713f12';
-            document.getElementById('earpiece-btn').style.color = '#fde047';
-            document.getElementById('earpiece-btn').innerText = "🎧 Earpiece Active";
+            await applyAudioOutputMode();
+            updateOutputUI();
+            try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
             debugLog('✅ Earpiece active');
         }
 
@@ -378,7 +436,7 @@
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
-            debugLog('🌐 Browser: ' + BROWSER_TYPE + ' | Hybrid mode');
+            debugLog('🌐 Browser: ' + BROWSER_TYPE + ' | setParams=' + _canSetParams);
             startDeviceAlerts();
             updateAutoHDUI();
             initMediaCall();
@@ -517,10 +575,18 @@
         }
 
         /* ============================================================
-           HYBRID: Opus patch — auto bitrate by browser + network
+           HYBRID: Opus patch — skip if browser lacks setParameters
            ============================================================ */
         function patchOpusLowBitrate(call) {
             if (!call || !call.peerConnection) return;
+
+            /* Skip if browser doesn't support setParameters */
+            if (!_canSetParams) {
+                debugLog('⚠️ setParameters not supported — browser default');
+                try { startStatsMonitor(call.peerConnection); } catch(e) {}
+                return;
+            }
+
             try {
                 const senders = call.peerConnection.getSenders();
                 const cfg = getHybridBitrate();
@@ -528,14 +594,17 @@
                     if (sender.track && sender.track.kind === 'audio') {
                         try {
                             const params = sender.getParameters();
-                            if (!params.encodings || params.encodings.length === 0) return;
+                            if (!params.encodings || params.encodings.length === 0) {
+                                debugLog('⚠️ Empty encodings — using default');
+                                return;
+                            }
                             params.encodings[0].maxBitrate = cfg.bitrate;
                             try { params.encodings[0].dtx = cfg.dtx; } catch(e) {}
                             try { params.encodings[0].networkPriority = 'high'; } catch(e) {}
                             sender.setParameters(params).then(() => {
-                                debugLog('✅ Opus: ' + (cfg.bitrate/1000) + 'kbps, DTX=' + cfg.dtx + ' [' + BROWSER_TYPE + '/' + _networkQuality + ']');
+                                debugLog('✅ Opus: ' + (cfg.bitrate/1000) + 'kbps, DTX=' + cfg.dtx);
                             }).catch(e => debugLog('⚠️ setParameters: ' + e.message));
-                        } catch(e) {}
+                        } catch(e) { debugLog('⚠️ Param error: ' + e.message); }
                     }
                 });
             } catch(e) { debugLog('Opus patch: ' + e.message); }
@@ -543,7 +612,7 @@
         }
 
         /* ============================================================
-           HYBRID: Live stats + Auto network detection
+           HYBRID: Live stats + auto network quality
            ============================================================ */
         function startStatsMonitor(pc) {
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
@@ -583,9 +652,6 @@
                     if (remoteInbound && remoteInbound.packetsLost !== undefined) loss = remoteInbound.packetsLost;
                     if (inbound && inbound.packetsLost !== undefined) loss = Math.max(loss, inbound.packetsLost);
 
-                    /* ============================================================
-                       HYBRID: Auto network quality + bitrate re-apply
-                       ============================================================ */
                     let prevQuality = _networkQuality;
                     if (rtt > 400 || loss > 15) _networkQuality = 'weak';
                     else if (rtt > 200 || loss > 5) _networkQuality = 'ok';
@@ -603,7 +669,8 @@
                     if (sigTxt) { sigTxt.textContent = signal.toUpperCase(); sigTxt.style.color = color; }
                     if (statsTxt) { statsTxt.textContent = `↓${kbpsIn} ↑${kbpsOut} kbps · ${rtt}ms`; }
 
-                    /* Apply hybrid bitrate */
+                    if (!_canSetParams) return;
+
                     const cfg = getHybridBitrate();
                     const changed = (prevQuality !== _networkQuality);
                     try {
@@ -704,53 +771,7 @@
         }
 
         /* ============================================================
-           AUDIO OUTPUT MODE
-           ============================================================ */
-        async function applyAudioOutputMode() {
-            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
-            remoteAudioEl.muted = false;
-
-            if (isSpeakerOn) {
-                if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId('default'); } catch(e) {} }
-                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId('default'); } catch(e) {} }
-                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId('default'); } catch(e) {} }
-                return;
-            }
-
-            let targetId = earpieceDeviceId;
-            if (!targetId) targetId = await enumerateAndFindEarpiece();
-            if (!targetId) targetId = 'communications';
-
-            if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId(targetId); } catch(e) {} }
-            if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId(targetId); } catch(e) {} }
-            if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(targetId); } catch(e) {} }
-        }
-
-        async function toggleSpeaker() {
-            isSpeakerOn = !isSpeakerOn;
-            const speakerBtn = document.getElementById('speaker-btn');
-            const earpieceBtn = document.getElementById('earpiece-btn');
-            await applyAudioOutputMode();
-            if (isSpeakerOn) {
-                speakerBtn.classList.add('active');
-                speakerBtn.innerText = "🔊 Speaker ON";
-                earpieceBtn.classList.remove('active');
-                earpieceBtn.style.background = '#1e3a8a';
-                earpieceBtn.style.color = '#60a5fa';
-                earpieceBtn.innerText = "🎧 Earpiece Mode";
-            } else {
-                speakerBtn.classList.remove('active');
-                speakerBtn.innerText = "🔊 Speaker";
-                earpieceBtn.classList.add('active');
-                earpieceBtn.style.background = '#713f12';
-                earpieceBtn.style.color = '#fde047';
-                earpieceBtn.innerText = "🎧 Earpiece Active";
-            }
-            if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
-        }
-
-        /* ============================================================
-           AUTO HD — Sync both sides + Hybrid bitrate
+           AUTO HD — Sync both sides
            ============================================================ */
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
@@ -761,7 +782,7 @@
             isHDActive = isAutoHD;
             updateAutoHDUI();
 
-            if (activeCall && activeCall.peerConnection) {
+            if (_canSetParams && activeCall && activeCall.peerConnection) {
                 try {
                     const cfg = getHybridBitrate();
                     const senders = activeCall.peerConnection.getSenders();
@@ -773,7 +794,7 @@
                                 params.encodings[0].maxBitrate = cfg.bitrate;
                                 try { params.encodings[0].dtx = cfg.dtx; } catch(e) {}
                                 sender.setParameters(params).then(() => {
-                                    debugLog('🔄 HD: ' + (cfg.bitrate/1000) + 'kbps, DTX=' + cfg.dtx);
+                                    debugLog('🔄 HD: ' + (cfg.bitrate/1000) + 'kbps');
                                 }).catch(() => {});
                             } catch(e) {}
                         }
@@ -795,7 +816,7 @@
             btn.classList.toggle('active', isAutoHD);
             btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Data Saver";
             if (modeText) {
-                modeText.innerText = isAutoHD ? "Auto HD Active · Hybrid" : "Data Saver (Hybrid)";
+                modeText.innerText = isAutoHD ? "Auto HD · Hybrid" : "Data Saver (Hybrid)";
             }
         }
 
