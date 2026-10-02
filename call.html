@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Audio/Video Call (Zangi-Level)</title>
+    <title>Secure Node - Audio Call (Zangi-Level Data Saver)</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
@@ -23,7 +23,6 @@
 
         /* Signal + Stats bar */
         #signal-bar { display: none; font-size: 11px; margin: 4px 0 8px 0; color: #9ca3af; font-weight: normal; }
-        #signal-bar.active { display: block; }
         #signal-icon { font-weight: bold; letter-spacing: 1px; }
         #signal-text { margin-left: 6px; font-weight: bold; font-size: 10px; }
         #stats-text { margin-left: 6px; opacity: 0.75; font-size: 10px; }
@@ -35,8 +34,6 @@
         
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
-        .utility-btn.video-on { background: #14532d !important; color: #86efac !important; }
-        .utility-btn.video-off { background: #1e3a8a !important; color: #60a5fa !important; }
 
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
@@ -46,20 +43,7 @@
         
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
         
-        /* Remote video (visible in video mode) */
-        #remote-video { display: none; width: 100%; max-width: 100%; border-radius: 12px; background: #000; margin-bottom: 8px; }
-        body.video-mode #remote-video { display: block; }
-        /* Local video preview (small corner) */
-        #local-video-preview { position: fixed; top: 12px; right: 12px; width: 90px; height: 120px; border-radius: 8px; border: 2px solid #3b82f6; object-fit: cover; background: #000; z-index: 100; display: none; }
-        body.video-mode #local-video-preview { display: block; }
-
-        /* Video mode active controls */
-        #video-active-controls { display: none; gap: 8px; margin-bottom: 8px; }
-        #video-active-controls.active { display: flex !important; }
-        .video-ctrl-btn { flex: 1; background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; outline: none; }
-        .video-ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
-
-        /* ડિબગ પેનલ */
+        /* ડિબગ પેનલ — ફક્ત ટેસ્ટ માટે */
         #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
         #debug-panel.active { display: block; }
     </style>
@@ -76,7 +60,7 @@
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Live Signal + Stats Bar -->
+        <!-- Signal + Stats Bar — Zangi-level live info -->
         <div id="signal-bar">
             <span id="signal-icon">▁▁▁▁</span>
             <span id="signal-text">--</span>
@@ -85,22 +69,16 @@
         
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 અવાજ નથી આવતો? અહીં ટચ કરો</div>
 
-        <!-- Remote video (visible in video mode) -->
-        <video id="remote-video" autoplay playsinline style="display:none;"></video>
-        
         <!-- Audio element (Hidden) -->
         <audio id="remote-audio" autoplay playsinline></audio>
         
-        <!-- Video element (Hidden) — WebRTC stream routing માટે શ્રેષ્ઠ -->
+        <!-- Video element (Hidden) — WebRTC stream routing -->
         <video id="remote-video-hidden" autoplay playsinline style="display:none;"></video>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
         
-        <!-- ઈયરપીસ બટન — મુખ્ય -->
+        <!-- ઈયરપીસ બટન -->
         <button id="earpiece-btn" class="utility-btn" onclick="switchToEarpiece()" style="background:#1e3a8a; color:#60a5fa;">🎧 Earpiece Mode</button>
-
-        <!-- વિડિયો ટોગલ બટન -->
-        <button id="video-toggle-btn" class="utility-btn video-off" onclick="toggleVideoMode()">📹 Start Video</button>
 
         <div class="controls-grid hide-in-video">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -108,7 +86,7 @@
             <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
         </div>
 
-        <div id="video-active-controls">
+        <div id="video-active-controls" class="video-controls" style="display:none;">
             <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
         </div>
@@ -116,10 +94,6 @@
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
     
-    <!-- Local video preview (corner) -->
-    <video id="local-video-preview" autoplay playsinline muted></video>
-
-    <!-- ડિબગ પેનલ -->
     <div id="debug-panel"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -140,8 +114,6 @@
         let activeCall = null;
         let remoteAudioEl = document.getElementById('remote-audio');
         let remoteVideoEl = document.getElementById('remote-video-hidden');
-        let remoteVisibleVideo = document.getElementById('remote-video');
-        let localVideoPreview = document.getElementById('local-video-preview');
         let isMuted = false;
         let isSpeakerOn = false;
         let isHDActive = false;
@@ -164,8 +136,8 @@
         let audioUnlocked = false;
         let remoteStreamGlobal = null;
         let earpieceDeviceId = null;
-        let isVideoMode = false;
-        let localVideoStream = null;
+        
+        /* Zangi-level stats tracking */
         let _statsInterval = null;
         let _lastBytesReceived = 0;
         let _lastBytesSent = 0;
@@ -177,6 +149,9 @@
         document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
         document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
 
+        /* ============================================================
+           DEBUG
+           ============================================================ */
         function debugLog(msg) {
             console.log(msg);
             if (debugMode) {
@@ -186,10 +161,19 @@
             }
         }
 
+        /* ============================================================
+           AUDIO UNLOCK
+           ============================================================ */
         function forceUnlockAudio(e) {
             if (e) e.stopPropagation();
-            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-            if (audioCtxRouting && audioCtxRouting.state === 'suspended') audioCtxRouting.resume();
+            
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            if (audioCtxRouting && audioCtxRouting.state === 'suspended') {
+                audioCtxRouting.resume();
+            }
+
             if (remoteAudioEl) {
                 remoteAudioEl.muted = false;
                 remoteAudioEl.volume = 1.0;
@@ -197,18 +181,27 @@
                     audioUnlocked = true;
                     document.getElementById('audio-fix-banner').style.display = 'none';
                     debugLog("✅ Audio unlocked");
-                }).catch(err => { debugLog("❌ Audio unlock fail: " + err.message); });
+                }).catch(err => {
+                    debugLog("❌ Audio unlock fail: " + err.message);
+                });
             }
         }
 
+        /* ============================================================
+           WAKE LOCK
+           ============================================================ */
         async function requestWakeLock() {
             try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
         }
 
+        /* ============================================================
+           FULLSCREEN + LOCK
+           ============================================================ */
         function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
             const shield = document.getElementById('touch-shield');
             const btn = document.getElementById('fs-lock-btn');
+
             if (isCombinedLocked) {
                 const elem = document.documentElement;
                 if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
@@ -231,24 +224,39 @@
             lastTapTime = currentTime;
         }
 
+        /* ============================================================
+           EARPIECE — MAIN MAGIC 🎧
+           ============================================================ */
         async function enumerateAndFindEarpiece() {
             try {
                 await navigator.mediaDevices.getUserMedia({ audio: true });
+                
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const outputs = devices.filter(d => d.kind === 'audiooutput');
+                
                 debugLog(`Found ${outputs.length} audio outputs:`);
-                outputs.forEach(d => { debugLog(`  → "${d.label}" (${d.deviceId.substring(0,8)}...)`); });
+                outputs.forEach(d => {
+                    debugLog(`  → "${d.label}" (${d.deviceId.substring(0,8)}...)`);
+                });
+                
                 const earpiece = outputs.find(d => {
                     const l = (d.label || '').toLowerCase();
-                    return l.includes('earpiece') || l.includes('receiver') || l.includes('handset') || l.includes('ઇયર') || l.includes('inner');
+                    return l.includes('earpiece') || 
+                           l.includes('receiver') || 
+                           l.includes('handset') ||
+                           l.includes('ઇયર') ||
+                           l.includes('inner');
                 });
+                
                 if (earpiece) {
                     earpieceDeviceId = earpiece.deviceId;
                     debugLog(`✅ Earpiece found: "${earpiece.label}"`);
                     return earpiece.deviceId;
                 }
+                
                 debugLog(`⚠️ No earpiece label. Trying 'communications'...`);
                 return 'communications';
+                
             } catch(err) {
                 debugLog(`❌ enumerateAndFindEarpiece: ${err.message}`);
                 return null;
@@ -257,22 +265,49 @@
 
         async function switchToEarpiece() {
             debugLog('🎧 Switching to EARPIECE...');
+            
             const targetId = earpieceDeviceId || await enumerateAndFindEarpiece();
+            
             if (!targetId) {
                 debugLog('❌ No earpiece device available');
                 alert('આ ફોનમાં ઈયરપીસ સપોર્ટેડ નથી. Speaker જ વાપરો.');
                 return;
             }
+            
             if (typeof remoteAudioEl.setSinkId === 'function') {
-                try { await remoteAudioEl.setSinkId(targetId); debugLog(`✅ audio el → ${targetId.substring(0,8)}...`); } catch(e) { debugLog(`❌ audio el setSinkId: ${e.message}`); }
+                try {
+                    await remoteAudioEl.setSinkId(targetId);
+                    debugLog(`✅ audio el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ audio el setSinkId: ${e.message}`);
+                }
+            } else {
+                debugLog('⚠️ setSinkId not supported on audio element');
             }
+            
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
-                try { await remoteVideoEl.setSinkId(targetId); debugLog(`✅ video el → ${targetId.substring(0,8)}...`); } catch(e) { debugLog(`❌ video el setSinkId: ${e.message}`); }
+                try {
+                    await remoteVideoEl.setSinkId(targetId);
+                    debugLog(`✅ video el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ video el setSinkId: ${e.message}`);
+                }
             }
+            
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
-                try { await audioCtxRouting.setSinkId(targetId); debugLog(`✅ AudioContext → ${targetId.substring(0,8)}...`); } catch(e) { debugLog(`❌ AudioContext setSinkId: ${e.message}`); }
+                try {
+                    await audioCtxRouting.setSinkId(targetId);
+                    debugLog(`✅ AudioContext → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ AudioContext setSinkId: ${e.message}`);
+                }
             }
-            try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
+            
+            try {
+                remoteAudioEl.muted = false;
+                await remoteAudioEl.play();
+            } catch(e) {}
+            
             isSpeakerOn = false;
             document.getElementById('speaker-btn').classList.remove('active');
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
@@ -280,9 +315,13 @@
             document.getElementById('earpiece-btn').style.background = '#713f12';
             document.getElementById('earpiece-btn').style.color = '#fde047';
             document.getElementById('earpiece-btn').innerText = "🎧 Earpiece Active";
+            
             debugLog('✅ Earpiece switch complete');
         }
 
+        /* ============================================================
+           INIT
+           ============================================================ */
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
@@ -291,13 +330,18 @@
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
             initMediaCall();
             requestWakeLock();
-            setTimeout(async () => { await enumerateAndFindEarpiece(); }, 500);
+            
+            setTimeout(async () => {
+                await enumerateAndFindEarpiece();
+            }, 500);
         }
 
         function startDeviceAlerts() {
             if (isMobileDevice) {
                 if ('vibrate' in navigator) {
-                    vibrateInterval = setInterval(() => { try { navigator.vibrate([200, 300, 200, 800]); } catch(e){} }, 2000);
+                    vibrateInterval = setInterval(() => {
+                        try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
+                    }, 2000);
                 }
             } else {
                 try {
@@ -322,6 +366,9 @@
             if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
         }
 
+        /* ============================================================
+           MEDIA CALL
+           ============================================================ */
         function initMediaCall() {
             const audioConstraints = {
                 echoCancellation: true,
@@ -330,14 +377,8 @@
                 channelCount: { ideal: 1, max: 1 },
                 sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
             };
-            const videoConstraints = isVideoMode ? {
-                width: { ideal: isAutoHD ? 640 : 320 },
-                height: { ideal: isAutoHD ? 480 : 240 },
-                frameRate: { ideal: isAutoHD ? 24 : 15, max: 24 },
-                facingMode: currentFacingMode
-            } : false;
 
-            navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: videoConstraints })
+            navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
             .then(stream => {
                 if (localStream) {
                     localStream.getTracks().forEach(track => track.stop());
@@ -347,10 +388,7 @@
                     localStream.getAudioTracks().forEach(track => { track.enabled = false; });
                 }
                 applyAudioOutputMode();
-                if (isVideoMode && localVideoPreview) {
-                    localVideoPreview.srcObject = stream;
-                    localVideoPreview.play().catch(() => {});
-                }
+
                 if (!currentPeer) {
                     setupPeerConnection();
                 } else if (activeCall) {
@@ -370,17 +408,13 @@
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
-                config: {
+                config: { 
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:stun1.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' },
                         { urls: 'stun:stun.cloudflare.com:3478' }
-                    ],
-                    iceCandidatePoolSize: 10,
-                    bundlePolicy: 'max-bundle',
-                    rtcpMuxPolicy: 'require',
-                    iceTransportPolicy: 'all'
+                    ]
                 }
             });
 
@@ -397,7 +431,6 @@
             currentPeer.on('call', (call) => {
                 activeCall = call;
                 stopAlerts();
-                try { patchSDPToLowBitrate(call); } catch(e) { debugLog('SDP patch (recv): ' + e.message); }
                 call.answer(localStream);
                 handleCallStream(call);
             });
@@ -411,10 +444,10 @@
             if (!currentPeer || currentPeer.destroyed) return;
             dataConnection = currentPeer.connect(targetPeerId);
             setupDataConnectionEvents();
+
             const call = currentPeer.call(targetPeerId, localStream);
             if (call) {
                 activeCall = call;
-                try { patchSDPToLowBitrate(call); } catch(e) {}
                 handleCallStream(call);
             } else {
                 setTimeout(() => tryConnect(targetPeerId), 2000);
@@ -442,10 +475,13 @@
             });
         }
 
-        function patchSDPToLowBitrate(call) {
+        /* ============================================================
+           ZANGI-LEVEL: Opus Low Bitrate + DTX (Data Saver)
+           ============================================================ */
+        function patchOpusLowBitrate(call) {
             if (!call || !call.peerConnection) return;
-            const pc = call.peerConnection;
             try {
+                const pc = call.peerConnection;
                 const senders = pc.getSenders();
                 senders.forEach(sender => {
                     if (sender.track && sender.track.kind === 'audio') {
@@ -455,21 +491,17 @@
                         try { params.encodings[0].dtx = !isAutoHD; } catch(e) {}
                         params.encodings[0].networkPriority = 'high';
                         sender.setParameters(params).then(() => {
-                            debugLog('✅ Opus bitrate set: ' + params.encodings[0].maxBitrate + 'bps');
-                        }).catch(e => debugLog('setParameters fail: ' + e.message));
-                    }
-                    if (sender.track && sender.track.kind === 'video') {
-                        const params = sender.getParameters();
-                        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-                        params.encodings[0].maxBitrate = isAutoHD ? 500000 : 200000;
-                        params.encodings[0].networkPriority = 'high';
-                        sender.setParameters(params).catch(() => {});
+                            debugLog('✅ Opus: ' + params.encodings[0].maxBitrate + 'bps, DTX=' + (!isAutoHD));
+                        }).catch(e => debugLog('setParameters: ' + e.message));
                     }
                 });
-            } catch(e) { debugLog('Bitrate set error: ' + e.message); }
-            startStatsMonitor(pc);
+            } catch(e) { debugLog('Opus patch: ' + e.message); }
+            startStatsMonitor(call.peerConnection);
         }
 
+        /* ============================================================
+           ZANGI-LEVEL: Live Stats + Adaptive Bitrate
+           ============================================================ */
         function startStatsMonitor(pc) {
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
             _statsPc = pc;
@@ -477,7 +509,7 @@
             _lastBytesSent = 0;
             _lastStatsTs = 0;
             const bar = document.getElementById('signal-bar');
-            if (bar) bar.classList.add('active');
+            if (bar) bar.style.display = 'block';
             _statsInterval = setInterval(async () => {
                 try {
                     if (!_statsPc || _statsPc.connectionState === 'closed') return;
@@ -526,7 +558,7 @@
                     if (sigTxt) { sigTxt.textContent = signal.toUpperCase(); sigTxt.style.color = color; }
                     if (statsTxt) { statsTxt.textContent = `↓${kbpsIn} ↑${kbpsOut} kbps · ${rtt}ms`; }
 
-                    if (!isAutoHD && !isVideoMode) {
+                    if (!isAutoHD) {
                         let targetBitrate = 16000;
                         if (rtt > 400 || loss > 15) targetBitrate = 8000;
                         else if (rtt > 200 || loss > 5) targetBitrate = 12000;
@@ -554,27 +586,32 @@
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
             _statsPc = null;
             const bar = document.getElementById('signal-bar');
-            if (bar) bar.classList.remove('active');
+            if (bar) bar.style.display = 'none';
         }
 
+        /* ============================================================
+           CALL STREAM HANDLER
+           ============================================================ */
         function handleCallStream(call) {
             stopAlerts();
-            try { patchSDPToLowBitrate(call); } catch(e) { debugLog('SDP patch: ' + e.message); }
+            
+            try { patchOpusLowBitrate(call); } catch(e) { debugLog('Opus apply: ' + e.message); }
+            
             try {
                 if (call.peerConnection) {
                     const pc = call.peerConnection;
                     pc.oniceconnectionstatechange = () => {
                         const st = pc.iceConnectionState;
-                        debugLog('ICE state: ' + st);
+                        debugLog('ICE: ' + st);
                         if (st === 'disconnected' || st === 'failed') {
                             document.getElementById('call-status').innerText = "Reconnecting...";
                             setTimeout(() => {
                                 try {
                                     if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
                                         pc.restartIce();
-                                        debugLog('🔄 ICE restart triggered');
+                                        debugLog('🔄 ICE restart');
                                     }
-                                } catch(e) { debugLog('ICE restart fail: ' + e.message); }
+                                } catch(e) {}
                             }, 1500);
                         } else if (st === 'connected' || st === 'completed') {
                             document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
@@ -582,15 +619,15 @@
                     };
                 }
             } catch(e) {}
-
+            
             call.on('stream', async (remoteStream) => {
-                document.getElementById('call-status').innerText = "Encrypted Call 🔒";
+                document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
                 document.getElementById('call-timer').style.display = 'block';
                 document.getElementById('fs-lock-btn').style.display = 'block';
                 startCallTimer();
                 callStarted = true;
                 remoteStreamGlobal = remoteStream;
-                try { if (call.peerConnection) startStatsMonitor(call.peerConnection); } catch(e) {}
+
                 document.getElementById('audio-fix-banner').style.display = 'block';
 
                 remoteAudioEl.srcObject = remoteStream;
@@ -599,70 +636,105 @@
                     remoteVideoEl.srcObject = remoteStream;
                     remoteVideoEl.muted = false;
                 }
-
-                const hasVideo = remoteStream.getVideoTracks().length > 0;
-                if (hasVideo && remoteVisibleVideo) {
-                    remoteVisibleVideo.srcObject = remoteStream;
-                    remoteVisibleVideo.muted = false;
-                    remoteVisibleVideo.play().catch(() => {});
-                    remoteVisibleVideo.style.display = 'block';
-                    document.body.classList.add('video-mode');
-                    isVideoMode = true;
-                    const vbtn = document.getElementById('video-toggle-btn');
-                    if (vbtn) { vbtn.innerText = '📹 Stop Video'; vbtn.classList.remove('video-off'); vbtn.classList.add('video-on'); }
-                    document.getElementById('video-active-controls').classList.add('active');
-                    debugLog('📹 Remote video detected');
-                }
-
+                
                 await applyAudioOutputMode();
-
+                
                 try {
-                    if (!audioCtxRouting) audioCtxRouting = new (window.AudioContext || window.webkitAudioContext)();
-                    if (audioCtxRouting.state === 'suspended') await audioCtxRouting.resume();
+                    if (!audioCtxRouting) {
+                        audioCtxRouting = new (window.AudioContext || window.webkitAudioContext)();
+                    }
+                    if (audioCtxRouting.state === 'suspended') {
+                        await audioCtxRouting.resume();
+                    }
                     debugLog('✅ AudioContext ready: ' + audioCtxRouting.state);
-                } catch(e) { debugLog('❌ AudioContext: ' + e.message); }
-
+                } catch(e) {
+                    debugLog('❌ AudioContext: ' + e.message);
+                }
+                
                 remoteAudioEl.play().then(() => {
                     audioUnlocked = true;
                     document.getElementById('audio-fix-banner').style.display = 'none';
                     debugLog('✅ Stream playing');
-                }).catch(e => { debugLog('⚠️ Autoplay blocked — touch needed'); });
-
-                if (remoteVideoEl) remoteVideoEl.play().catch(() => {});
+                }).catch(e => {
+                    debugLog('⚠️ Autoplay blocked — touch needed');
+                });
+                
+                if (remoteVideoEl) {
+                    remoteVideoEl.play().catch(() => {});
+                }
             });
 
-            call.on('close', () => { executeCleanupAndExit(); });
+            call.on('close', () => {
+                executeCleanupAndExit();
+            });
         }
 
+        /* ============================================================
+           AUDIO OUTPUT MODE
+           ============================================================ */
         async function applyAudioOutputMode() {
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
             remoteAudioEl.muted = false;
+            
             if (isSpeakerOn) {
-                if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId('default'); } catch(e) {} }
-                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId('default'); } catch(e) {} }
-                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId('default'); } catch(e) {} }
+                if (typeof remoteAudioEl.setSinkId === 'function') {
+                    try { await remoteAudioEl.setSinkId('default'); } catch(e) {}
+                }
+                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                    try { await remoteVideoEl.setSinkId('default'); } catch(e) {}
+                }
+                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                    try { await audioCtxRouting.setSinkId('default'); } catch(e) {}
+                }
                 return;
             }
+            
             let targetId = earpieceDeviceId;
-            if (!targetId) { targetId = await enumerateAndFindEarpiece(); }
+            if (!targetId) {
+                targetId = await enumerateAndFindEarpiece();
+            }
             if (!targetId) targetId = 'communications';
+            
             debugLog(`🎧 Routing to: ${targetId.substring(0,10)}...`);
+            
             if (typeof remoteAudioEl.setSinkId === 'function') {
-                try { await remoteAudioEl.setSinkId(targetId); debugLog('✅ audio el sink set'); } catch(e) { debugLog('❌ audio el: ' + e.message); }
+                try { 
+                    await remoteAudioEl.setSinkId(targetId); 
+                    debugLog('✅ audio el sink set');
+                } catch(e) { 
+                    debugLog('❌ audio el: ' + e.message); 
+                }
             }
+            
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
-                try { await remoteVideoEl.setSinkId(targetId); debugLog('✅ video el sink set'); } catch(e) { debugLog('❌ video el: ' + e.message); }
+                try { 
+                    await remoteVideoEl.setSinkId(targetId); 
+                    debugLog('✅ video el sink set');
+                } catch(e) { 
+                    debugLog('❌ video el: ' + e.message); 
+                }
             }
+            
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
-                try { await audioCtxRouting.setSinkId(targetId); debugLog('✅ AudioContext sink set'); } catch(e) { debugLog('❌ AudioContext: ' + e.message); }
+                try { 
+                    await audioCtxRouting.setSinkId(targetId); 
+                    debugLog('✅ AudioContext sink set');
+                } catch(e) { 
+                    debugLog('❌ AudioContext: ' + e.message); 
+                }
             }
         }
 
+        /* ============================================================
+           TOGGLE SPEAKER
+           ============================================================ */
         async function toggleSpeaker() {
             isSpeakerOn = !isSpeakerOn;
             const speakerBtn = document.getElementById('speaker-btn');
             const earpieceBtn = document.getElementById('earpiece-btn');
+
             await applyAudioOutputMode();
+
             if (isSpeakerOn) {
                 speakerBtn.classList.add('active');
                 speakerBtn.innerText = "🔊 Speaker ON";
@@ -678,10 +750,18 @@
                 earpieceBtn.style.color = '#fde047';
                 earpieceBtn.innerText = "🎧 Earpiece Active";
             }
-            if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
-            if (remoteVideoEl && remoteVideoEl.srcObject) { try { await remoteVideoEl.play(); } catch(e) {} }
+            
+            if (remoteAudioEl.srcObject) {
+                try { await remoteAudioEl.play(); } catch(e) {}
+            }
+            if (remoteVideoEl && remoteVideoEl.srcObject) {
+                try { await remoteVideoEl.play(); } catch(e) {}
+            }
         }
 
+        /* ============================================================
+           AUTO HD
+           ============================================================ */
         function toggleAutoHD() {
             setAutoHDState(!isAutoHD, true, true);
         }
@@ -690,10 +770,11 @@
             isAutoHD = !!enabled;
             isHDActive = isAutoHD;
             updateAutoHDUI();
+
+            /* Zangi-level: bitrate તરત બદલો */
             if (activeCall && activeCall.peerConnection) {
                 try {
-                    const pc = activeCall.peerConnection;
-                    const senders = pc.getSenders();
+                    const senders = activeCall.peerConnection.getSenders();
                     senders.forEach(sender => {
                         if (sender.track && sender.track.kind === 'audio') {
                             const params = sender.getParameters();
@@ -702,19 +783,22 @@
                             try { params.encodings[0].dtx = !isAutoHD; } catch(e) {}
                             sender.setParameters(params).catch(() => {});
                         }
-                        if (sender.track && sender.track.kind === 'video') {
-                            const params = sender.getParameters();
-                            if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-                            params.encodings[0].maxBitrate = isAutoHD ? 500000 : 200000;
-                            sender.setParameters(params).catch(() => {});
-                        }
                     });
-                    debugLog('🔄 HD mode: ' + (isAutoHD ? 'HD' : 'Saver + DTX'));
+                    debugLog('🔄 HD: ' + (isAutoHD ? '32k HD' : '16k + DTX'));
                 } catch(e) {}
             }
-            if (reinitialize) initMediaCall();
+
+            if (reinitialize) {
+                initMediaCall();
+            }
+
             if (broadcast && dataConnection && dataConnection.open) {
-                try { dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD }); } catch (e) {}
+                try {
+                    dataConnection.send({
+                        type: 'AUTO_HD_SYNC',
+                        active: isAutoHD
+                    });
+                } catch (e) {}
             }
         }
 
@@ -722,94 +806,20 @@
             const btn = document.getElementById('auto-hd-btn');
             const modeText = document.getElementById('mode-text');
             if (!btn) return;
+
             btn.classList.toggle('active', isAutoHD);
             btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
+
             if (modeText) {
-                modeText.innerText = isAutoHD ? "Auto HD Active (High Quality)" : "Data Saver Mode (2G Optimized)";
+                modeText.innerText = isAutoHD
+                    ? "Auto HD Active (High Quality)"
+                    : "Data Saver Mode (2G Optimized)";
             }
         }
 
-        async function toggleVideoMode() {
-            isVideoMode = !isVideoMode;
-            const btn = document.getElementById('video-toggle-btn');
-            document.body.classList.toggle('video-mode', isVideoMode);
-            if (btn) {
-                btn.innerText = isVideoMode ? '📹 Stop Video' : '📹 Start Video';
-                btn.classList.toggle('video-off', !isVideoMode);
-                btn.classList.toggle('video-on', isVideoMode);
-            }
-            const vc = document.getElementById('video-active-controls');
-            if (vc) vc.classList.toggle('active', isVideoMode);
-
-            if (isVideoMode) {
-                try {
-                    const videoStream = await navigator.mediaDevices.getUserMedia({
-                        video: {
-                            width: { ideal: isAutoHD ? 640 : 320 },
-                            height: { ideal: isAutoHD ? 480 : 240 },
-                            frameRate: { ideal: isAutoHD ? 24 : 15, max: 24 },
-                            facingMode: currentFacingMode
-                        }
-                    });
-                    localVideoStream = videoStream;
-                    const videoTrack = videoStream.getVideoTracks()[0];
-
-                    if (activeCall && activeCall.peerConnection) {
-                        const pc = activeCall.peerConnection;
-                        const senders = pc.getSenders();
-                        const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                        if (videoSender) {
-                            videoSender.replaceTrack(videoTrack);
-                        } else {
-                            pc.addTrack(videoTrack, localStream || videoStream);
-                        }
-                        if (localStream) localStream.addTrack(videoTrack);
-                    } else if (localStream) {
-                        localStream.addTrack(videoTrack);
-                        if (activeCall) replaceStreamInCall(localStream);
-                    }
-
-                    if (localVideoPreview) {
-                        localVideoPreview.srcObject = videoStream;
-                        localVideoPreview.play().catch(() => {});
-                    }
-                    if (remoteVisibleVideo) remoteVisibleVideo.style.display = 'block';
-                    setTimeout(() => { try { patchSDPToLowBitrate(activeCall); } catch(e) {} }, 500);
-                    debugLog('📹 Video ON');
-                } catch(e) {
-                    debugLog('❌ Video start fail: ' + e.message);
-                    isVideoMode = false;
-                    document.body.classList.remove('video-mode');
-                    if (btn) { btn.innerText = '📹 Start Video'; btn.classList.remove('video-on'); btn.classList.add('video-off'); }
-                    if (vc) vc.classList.remove('active');
-                }
-            } else {
-                if (localVideoStream) { localVideoStream.getTracks().forEach(t => t.stop()); localVideoStream = null; }
-                if (activeCall && activeCall.peerConnection) {
-                    const pc = activeCall.peerConnection;
-                    const senders = pc.getSenders();
-                    const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-                    if (videoSender) videoSender.replaceTrack(null);
-                }
-                if (localStream) {
-                    localStream.getVideoTracks().forEach(t => { localStream.removeTrack(t); t.stop(); });
-                }
-                if (remoteVisibleVideo) remoteVisibleVideo.style.display = 'none';
-                if (localVideoPreview) { localVideoPreview.srcObject = null; }
-                debugLog('📹 Video OFF');
-            }
-        }
-
-        function switchCamera() {
-            if (!localVideoStream) { debugLog('No video stream to switch'); return; }
-            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-            const videoTrack = localVideoStream.getVideoTracks()[0];
-            if (videoTrack) {
-                videoTrack.applyConstraints({ facingMode: currentFacingMode }).catch(e => { debugLog('Switch cam fail: ' + e.message); });
-            }
-            debugLog('📹 Camera: ' + currentFacingMode);
-        }
-
+        /* ============================================================
+           CALL TIMER
+           ============================================================ */
         function startCallTimer() {
             if (callTimerInterval) return;
             callTimerInterval = setInterval(() => {
@@ -820,66 +830,97 @@
             }, 1000);
         }
 
+        /* ============================================================
+           MUTE
+           ============================================================ */
         function toggleMute() {
             if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            
             const muteBtn = document.getElementById('mute-btn');
             const videoMuteBtn = document.getElementById('video-mute-btn');
+            
             muteBtn.classList.toggle('active', isMuted);
             muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            
             if (videoMuteBtn) {
                 videoMuteBtn.classList.toggle('active', isMuted);
                 videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
             }
         }
 
+        /* ============================================================
+           END CALL
+           ============================================================ */
         function endCallAndClose() {
             try {
                 if (dataConnection && dataConnection.open) {
                     dataConnection.send({ type: 'END_CALL' });
                     setTimeout(() => {
-                        try { if (dataConnection && dataConnection.open) dataConnection.send({ type: 'END_CALL' }); } catch (e) {}
+                        try {
+                            if (dataConnection && dataConnection.open) {
+                                dataConnection.send({ type: 'END_CALL' });
+                            }
+                        } catch (e) {}
                     }, 120);
                 }
             } catch (e) {}
+
             executeCleanupAndExit(false);
         }
 
         window.addEventListener('beforeunload', () => {
-            try { if (dataConnection && dataConnection.open) dataConnection.send({ type: 'END_CALL' }); } catch (e) {}
+            try {
+                if (dataConnection && dataConnection.open) {
+                    dataConnection.send({ type: 'END_CALL' });
+                }
+            } catch (e) {}
         });
 
         function executeCleanupAndExit(endedByRemote = false) {
             if (isEnded || isReturning) return;
             isEnded = true;
             isReturning = true;
+
             stopAlerts();
             try { stopStatsMonitor(); } catch(e) {}
             if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+
             try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
             wakeLock = null;
+
             try { if (activeCall) activeCall.close(); } catch(e) {}
             try { if (localStream) localStream.getTracks().forEach(track => track.stop()); } catch(e) {}
-            try { if (localVideoStream) localVideoStream.getTracks().forEach(track => track.stop()); } catch(e) {}
+
             try {
                 remoteAudioEl.pause();
                 remoteAudioEl.srcObject = null;
-                if (remoteVideoEl) { remoteVideoEl.pause(); remoteVideoEl.srcObject = null; }
-                if (remoteVisibleVideo) { remoteVisibleVideo.pause(); remoteVisibleVideo.srcObject = null; }
-                if (localVideoPreview) { localVideoPreview.pause(); localVideoPreview.srcObject = null; }
+                if (remoteVideoEl) {
+                    remoteVideoEl.pause();
+                    remoteVideoEl.srcObject = null;
+                }
             } catch(e) {}
+
             try { if (dataConnection) dataConnection.close(); } catch(e) {}
             try { if (currentPeer && !currentPeer.destroyed) currentPeer.destroy(); } catch(e) {}
-            document.getElementById('call-status').innerText = endedByRemote ? "Call ended by other user. Returning..." : "Call terminated. Returning...";
+
+            document.getElementById('call-status').innerText = 
+                endedByRemote ? "Call ended by other user. Returning..." : "Call terminated. Returning...";
+            
             try {
                 if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
                 else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
             } catch(e) {}
+
             setTimeout(() => {
-                if (redirectUrl) window.location.replace(redirectUrl);
-                else if (window.history.length > 1) window.history.back();
-                else window.close();
+                if (redirectUrl) {
+                    window.location.replace(redirectUrl);
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.close();
+                }
             }, 300);
         }
     </script>
