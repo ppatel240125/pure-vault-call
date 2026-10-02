@@ -197,10 +197,37 @@
             }
         }
 
+        /* ============================================================
+           WAKE LOCK — with visibility handling (Battery save)
+           ============================================================ */
         async function requestWakeLock() {
-            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+            try {
+                if ('wakeLock' in navigator && !wakeLock) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => { wakeLock = null; });
+                }
+            } catch (err) {}
         }
 
+        document.addEventListener('visibilitychange', async () => {
+            if (document.hidden) {
+                /* Tab hidden → pause stats + release wake lock (save CPU/battery) */
+                if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; debugLog('⏸️ Stats paused (hidden)'); }
+                if (wakeLock) { try { await wakeLock.release(); } catch(e) {} wakeLock = null; debugLog('⏸️ Wake lock released'); }
+            } else {
+                /* Tab visible → resume */
+                if (callStarted && _statsPc && !_statsInterval) {
+                    try { startStatsMonitor(_statsPc); debugLog('▶️ Stats resumed'); } catch(e) {}
+                }
+                if (callStarted && !wakeLock) {
+                    try { await requestWakeLock(); } catch(e) {}
+                }
+            }
+        });
+
+        /* ============================================================
+           FULLSCREEN + PORTRAIT LOCK
+           ============================================================ */
         async function toggleFullscreenAndLock() {
             isCombinedLocked = !isCombinedLocked;
             const shield = document.getElementById('touch-shield');
@@ -236,6 +263,9 @@
             lastTapTime = currentTime;
         }
 
+        /* ============================================================
+           COPY CALL LINK
+           ============================================================ */
         function copyCallLink() {
             const url = window.location.href;
             debugLog('📋 Copy: ' + url);
@@ -304,6 +334,9 @@
             document.body.appendChild(modal);
         }
 
+        /* ============================================================
+           EARPIECE ENUMERATION
+           ============================================================ */
         async function enumerateAndFindEarpiece() {
             try {
                 await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -366,17 +399,16 @@
         }
 
         /* ============================================================
-           SWAP UI — Top button = Active mode, Bottom button = Available
+           SWAP UI
            ============================================================ */
         function updateOutputUI() {
-            const topBtn = document.getElementById('earpiece-btn');      /* TOP button */
-            const bottomBtn = document.getElementById('speaker-btn');    /* BOTTOM button */
+            const topBtn = document.getElementById('earpiece-btn');
+            const bottomBtn = document.getElementById('speaker-btn');
             if (!topBtn || !bottomBtn) return;
 
             debugLog('🎨 updateOutputUI: isSpeakerOn=' + isSpeakerOn);
 
             if (isSpeakerOn === true) {
-                /* ============ SPEAKER MODE ACTIVE ============ */
                 topBtn.classList.add('active');
                 topBtn.innerText = "🔊 Speaker Active";
                 topBtn.style.background = "#713f12";
@@ -388,10 +420,7 @@
                 bottomBtn.style.background = "#1e3a8a";
                 bottomBtn.style.color = "#60a5fa";
                 bottomBtn.style.border = "1px solid #3b82f6";
-
-                debugLog('  ✅ TOP: Speaker Active | BOTTOM: Earpiece');
             } else {
-                /* ============ EARPIECE MODE ACTIVE ============ */
                 topBtn.classList.add('active');
                 topBtn.innerText = "🎧 Earpiece Active";
                 topBtn.style.background = "#713f12";
@@ -403,33 +432,18 @@
                 bottomBtn.style.background = "#1f293d";
                 bottomBtn.style.color = "#d1d5db";
                 bottomBtn.style.border = "none";
-
-                debugLog('  ✅ TOP: Earpiece Active | BOTTOM: Speaker');
             }
         }
 
-        /* ============================================================
-           SINGLE TOGGLE — બંને buttons એક જ action
-           ============================================================ */
         async function toggleAudioOutput() {
             isSpeakerOn = !isSpeakerOn;
             debugLog('🔄 Toggle: isSpeakerOn=' + isSpeakerOn);
-            
-            /* Step 1: Instant UI */
             updateOutputUI();
-            
-            /* Step 2: Apply audio routing */
             try { await applyAudioOutputMode(); } catch(e) { debugLog('Apply fail: ' + e.message); }
-            
-            /* Step 3: Force refresh */
             setTimeout(() => { updateOutputUI(); }, 50);
-            
-            /* Step 4: Resume */
             if (remoteAudioEl.srcObject) { try { await remoteAudioEl.play(); } catch(e) {} }
         }
 
-        /* Alias — backward compatibility */
-        async function toggleSpeaker() { return toggleAudioOutput(); }
         async function switchToEarpiece() {
             isSpeakerOn = false;
             updateOutputUI();
@@ -523,14 +537,12 @@
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
                 config: {
+                    /* 2 STUN servers only — save CPU */
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:stun2.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' },
                         { urls: 'stun:stun.cloudflare.com:3478' }
                     ],
-                    iceCandidatePoolSize: 10
+                    iceCandidatePoolSize: 5
                 }
             });
             currentPeer.on('open', () => {
@@ -615,6 +627,9 @@
             try { startStatsMonitor(call.peerConnection); } catch(e) {}
         }
 
+        /* ============================================================
+           STATS MONITOR — 5 sec interval (CPU save)
+           ============================================================ */
         function startStatsMonitor(pc) {
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
             _statsPc = pc;
@@ -626,6 +641,8 @@
             _statsInterval = setInterval(async () => {
                 try {
                     if (!_statsPc || _statsPc.connectionState === 'closed') return;
+                    /* Skip when tab hidden */
+                    if (document.hidden) return;
                     const stats = await _statsPc.getStats();
                     let inbound = null, outbound = null, remoteInbound = null, candidatePair = null;
                     stats.forEach(r => {
@@ -696,7 +713,7 @@
                         } catch(e) {}
                     }
                 } catch(e) {}
-            }, 2500);
+            }, 5000);
         }
 
         function stopStatsMonitor() {
@@ -824,9 +841,14 @@
             }
         }
 
+        /* ============================================================
+           CALL TIMER — skip UI update when hidden (CPU save)
+           ============================================================ */
         function startCallTimer() {
             if (callTimerInterval) return;
             callTimerInterval = setInterval(() => {
+                /* Skip UI update when tab hidden */
+                if (document.hidden) { callSeconds++; return; }
                 callSeconds++;
                 let mins = Math.floor(callSeconds / 60).toString().padStart(2, '0');
                 let secs = (callSeconds % 60).toString().padStart(2, '0');
