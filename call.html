@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Voice Call</title>
+    <title>Secure Node - Voice Call (Zangi-Level)</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         html, body { touch-action: manipulation; overscroll-behavior: none; }
@@ -39,6 +39,12 @@
         
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
 
+        /* Browser warning for in-built browsers */
+        #browser-warn { display: none; background: #7f1d1d; color: #fecaca; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.5; }
+        #browser-warn.active { display: block; }
+        #browser-warn b { color: #fca5a5; }
+        #browser-warn button { background: #dc2626; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 6px; font-size: 11px; }
+
         #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
         #debug-panel.active { display: block; }
     </style>
@@ -48,7 +54,7 @@
     
     <div class="box">
         <h3>SECURE_NODE_VOICE</h3>
-        <p id="mode-text">Earpiece · Hybrid Mode</p>
+        <p id="mode-text">Earpiece · Zangi Mode</p>
         
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
@@ -57,6 +63,17 @@
             <span id="signal-icon">▁▁▁▁</span>
             <span id="signal-text">--</span>
             <span id="stats-text"></span>
+        </div>
+        
+        <!-- Browser warning -->
+        <div id="browser-warn">
+            <b>⚠️ Use Chrome or Firefox</b><br>
+            In-built browser may not work properly.<br><br>
+            <b>For best call quality:</b><br>
+            ✅ Chrome<br>
+            ✅ Firefox<br>
+            ✅ Edge<br><br>
+            <button onclick="copyCallLink()">📋 Copy link & open in Chrome</button>
         </div>
         
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 No sound? Tap here</div>
@@ -129,14 +146,20 @@
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
         /* ============================================================
-           HYBRID BITRATE SYSTEM + BROWSER DETECT
+           BROWSER DETECT — Zangi-level optimization
+           Chrome/Firefox: 16 kbps + DTX (Zangi જેટલું ઓછું)
+           In-built: 32 kbps (safe fallback)
            ============================================================ */
         const _ua = navigator.userAgent;
         const IS_INBUILT = /HeyTap|OPPO|OppoBrowser|vivo|VivoBrowser|Miui|MiBrowser|OnePlus|OxygenOS|SamsungBrowser/i.test(_ua) || /; wv\)/.test(_ua);
         const IS_CHROME_FAMILY = /Chrome|Firefox|Edg|Safari/i.test(_ua) && !IS_INBUILT;
-        const BROWSER_TYPE = IS_INBUILT ? 'builtin' : (IS_CHROME_FAMILY ? 'standard' : 'unknown');
 
-        /* Detect setParameters support — in-built browsers often lack it */
+        /* Bitrate config */
+        const BITRATE_SAVER = IS_INBUILT ? 32000 : 16000;   // Chrome: 16k, In-built: 32k
+        const BITRATE_HD    = IS_INBUILT ? 48000 : 32000;   // Chrome: 32k, In-built: 48k
+        const USE_DTX       = !IS_INBUILT;                   // DTX only Chrome/Firefox
+
+        /* Check setParameters support */
         let _canSetParams = true;
         try {
             const testPc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection)({ iceServers: [] });
@@ -144,35 +167,14 @@
             const testParams = testSender.getParameters();
             _canSetParams = !!(testParams && testParams.encodings && testParams.encodings.length > 0);
             testPc.close();
-        } catch(e) {
-            _canSetParams = false;
-        }
-
-        const HYBRID_TABLE = {
-            standard: {
-                good:  { saver: 16000, hd: 32000, dtx: true },
-                ok:    { saver: 20000, hd: 36000, dtx: true },
-                weak:  { saver: 12000, hd: 24000, dtx: true }
-            },
-            builtin: {
-                good:  { saver: 32000, hd: 48000, dtx: false },
-                ok:    { saver: 40000, hd: 56000, dtx: false },
-                weak:  { saver: 24000, hd: 32000, dtx: false }
-            },
-            unknown: {
-                good:  { saver: 24000, hd: 40000, dtx: false },
-                ok:    { saver: 28000, hd: 44000, dtx: false },
-                weak:  { saver: 16000, hd: 24000, dtx: false }
-            }
-        };
+        } catch(e) { _canSetParams = false; }
 
         let _networkQuality = 'good';
 
-        function getHybridBitrate() {
-            const row = HYBRID_TABLE[BROWSER_TYPE][_networkQuality];
+        function getBitrate() {
             return {
-                bitrate: isAutoHD ? row.hd : row.saver,
-                dtx: row.dtx
+                bitrate: isAutoHD ? BITRATE_HD : BITRATE_SAVER,
+                dtx: USE_DTX
             };
         }
 
@@ -277,8 +279,8 @@
                     return ok;
                 } catch(e) { return false; }
             };
-            doCopy().then(() => { showCopyModal(url, true); })
-            .catch(() => { showCopyModal(url, fallbackCopy()); });
+            doCopy().then(() => showCopyModal(url, true))
+            .catch(() => showCopyModal(url, fallbackCopy()));
         }
 
         function showCopyModal(url, copied) {
@@ -299,7 +301,7 @@
             card.appendChild(urlBox);
             const hint = document.createElement('div');
             hint.style.cssText = 'background:rgba(34,158,217,0.1);border:1px solid rgba(34,158,217,0.3);border-radius:8px;padding:10px;font-size:11px;color:#93c5fd;line-height:1.5;margin-bottom:14px;';
-            hint.innerText = 'Send this link to peer. Open in Chrome/Firefox/Edge for best quality.';
+            hint.innerText = 'Open this link in Chrome or Firefox for best quality.';
             card.appendChild(hint);
             const btnRow = document.createElement('div');
             btnRow.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -364,13 +366,13 @@
                     debugLog('🔊 Speaker: "' + speaker.label + '"');
                     return speaker.deviceId;
                 }
-                debugLog('🔊 Using default output (speaker)');
+                debugLog('🔊 Using default output');
                 return 'default';
             } catch(e) { return 'default'; }
         }
 
         /* ============================================================
-           AUDIO OUTPUT MODE — CORRECT SPEAKER/EARPIECE
+           AUDIO OUTPUT MODE
            ============================================================ */
         async function applyAudioOutputMode() {
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
@@ -378,7 +380,6 @@
 
             if (isSpeakerOn) {
                 const spkId = await findSpeakerDevice();
-                debugLog('🔊 → Speaker (' + spkId.substring(0,10) + ')');
                 if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId(spkId); } catch(e) {} }
                 if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId(spkId); } catch(e) {} }
                 if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(spkId); } catch(e) {} }
@@ -388,7 +389,6 @@
             let targetId = earpieceDeviceId;
             if (!targetId) targetId = await enumerateAndFindEarpiece();
             if (!targetId) targetId = 'communications';
-            debugLog('🎧 → Earpiece (' + targetId.substring(0,10) + ')');
             if (typeof remoteAudioEl.setSinkId === 'function') { try { await remoteAudioEl.setSinkId(targetId); } catch(e) {} }
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') { try { await remoteVideoEl.setSinkId(targetId); } catch(e) {} }
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) { try { await audioCtxRouting.setSinkId(targetId); } catch(e) {} }
@@ -422,12 +422,10 @@
         }
 
         async function switchToEarpiece() {
-            debugLog('🎧 Switching to EARPIECE...');
             isSpeakerOn = false;
             await applyAudioOutputMode();
             updateOutputUI();
             try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
-            debugLog('✅ Earpiece active');
         }
 
         /* ============================================================
@@ -436,7 +434,13 @@
         if (!roomId || !role) {
             document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
         } else {
-            debugLog('🌐 Browser: ' + BROWSER_TYPE + ' | setParams=' + _canSetParams);
+            debugLog('🌐 ' + (IS_INBUILT ? 'In-built' : 'Chrome/Firefox') + ' | setParams=' + _canSetParams + ' | DTX=' + USE_DTX);
+            
+            /* Show browser warning if in-built */
+            if (IS_INBUILT) {
+                document.getElementById('browser-warn').classList.add('active');
+            }
+            
             startDeviceAlerts();
             updateAutoHDUI();
             initMediaCall();
@@ -492,6 +496,8 @@
             .then(stream => {
                 if (localStream) localStream.getTracks().forEach(track => track.stop());
                 localStream = stream;
+                const audioTracks = stream.getAudioTracks();
+                debugLog('🎤 Mic: ' + audioTracks.length + ' track(s)');
                 if (isMuted) localStream.getAudioTracks().forEach(track => { track.enabled = false; });
                 applyAudioOutputMode();
                 if (!currentPeer) setupPeerConnection();
@@ -514,6 +520,7 @@
                     iceServers: [
                         { urls: 'stun:stun.l.google.com:19302' },
                         { urls: 'stun:stun1.l.google.com:19302' },
+                        { urls: 'stun:stun2.l.google.com:19302' },
                         { urls: 'stun:global.stun.twilio.com:3478' },
                         { urls: 'stun:stun.cloudflare.com:3478' }
                     ],
@@ -575,36 +582,30 @@
         }
 
         /* ============================================================
-           HYBRID: Opus patch — skip if browser lacks setParameters
+           ZANGI-LEVEL: Opus Low Bitrate
            ============================================================ */
         function patchOpusLowBitrate(call) {
             if (!call || !call.peerConnection) return;
-
-            /* Skip if browser doesn't support setParameters */
             if (!_canSetParams) {
-                debugLog('⚠️ setParameters not supported — browser default');
+                debugLog('⚠️ setParameters not supported');
                 try { startStatsMonitor(call.peerConnection); } catch(e) {}
                 return;
             }
-
             try {
                 const senders = call.peerConnection.getSenders();
-                const cfg = getHybridBitrate();
+                const cfg = getBitrate();
                 senders.forEach(sender => {
                     if (sender.track && sender.track.kind === 'audio') {
                         try {
                             const params = sender.getParameters();
-                            if (!params.encodings || params.encodings.length === 0) {
-                                debugLog('⚠️ Empty encodings — using default');
-                                return;
-                            }
+                            if (!params.encodings || params.encodings.length === 0) return;
                             params.encodings[0].maxBitrate = cfg.bitrate;
                             try { params.encodings[0].dtx = cfg.dtx; } catch(e) {}
                             try { params.encodings[0].networkPriority = 'high'; } catch(e) {}
                             sender.setParameters(params).then(() => {
                                 debugLog('✅ Opus: ' + (cfg.bitrate/1000) + 'kbps, DTX=' + cfg.dtx);
                             }).catch(e => debugLog('⚠️ setParameters: ' + e.message));
-                        } catch(e) { debugLog('⚠️ Param error: ' + e.message); }
+                        } catch(e) {}
                     }
                 });
             } catch(e) { debugLog('Opus patch: ' + e.message); }
@@ -612,7 +613,7 @@
         }
 
         /* ============================================================
-           HYBRID: Live stats + auto network quality
+           ZANGI-LEVEL: Live Stats + Adaptive
            ============================================================ */
         function startStatsMonitor(pc) {
             if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
@@ -652,6 +653,7 @@
                     if (remoteInbound && remoteInbound.packetsLost !== undefined) loss = remoteInbound.packetsLost;
                     if (inbound && inbound.packetsLost !== undefined) loss = Math.max(loss, inbound.packetsLost);
 
+                    /* Network quality */
                     let prevQuality = _networkQuality;
                     if (rtt > 400 || loss > 15) _networkQuality = 'weak';
                     else if (rtt > 200 || loss > 5) _networkQuality = 'ok';
@@ -671,27 +673,30 @@
 
                     if (!_canSetParams) return;
 
-                    const cfg = getHybridBitrate();
-                    const changed = (prevQuality !== _networkQuality);
-                    try {
-                        const senders = _statsPc.getSenders();
-                        senders.forEach(sender => {
-                            if (sender.track && sender.track.kind === 'audio') {
-                                try {
-                                    const params = sender.getParameters();
-                                    if (params.encodings && params.encodings[0]) {
-                                        if (params.encodings[0].maxBitrate !== cfg.bitrate) {
-                                            params.encodings[0].maxBitrate = cfg.bitrate;
-                                            try { params.encodings[0].dtx = cfg.dtx; } catch(e) {}
-                                            sender.setParameters(params).then(() => {
-                                                if (changed) debugLog('🔄 Hybrid: ' + _networkQuality + ' → ' + (cfg.bitrate/1000) + 'kbps');
-                                            }).catch(() => {});
+                    /* Adaptive bitrate — Zangi-level */
+                    if (!isAutoHD) {
+                        let targetBitrate = BITRATE_SAVER;
+                        if (rtt > 400 || loss > 15) targetBitrate = IS_INBUILT ? 24000 : 8000;
+                        else if (rtt > 200 || loss > 5) targetBitrate = IS_INBUILT ? 28000 : 12000;
+                        try {
+                            const senders = _statsPc.getSenders();
+                            senders.forEach(sender => {
+                                if (sender.track && sender.track.kind === 'audio') {
+                                    try {
+                                        const params = sender.getParameters();
+                                        if (params.encodings && params.encodings[0]) {
+                                            if (params.encodings[0].maxBitrate !== targetBitrate) {
+                                                params.encodings[0].maxBitrate = targetBitrate;
+                                                try { params.encodings[0].dtx = USE_DTX; } catch(e) {}
+                                                sender.setParameters(params).catch(() => {});
+                                                if (prevQuality !== _networkQuality) debugLog('🔄 Adaptive: ' + (targetBitrate/1000) + 'kbps');
+                                            }
                                         }
-                                    }
-                                } catch(e) {}
-                            }
-                        });
-                    } catch(e) {}
+                                    } catch(e) {}
+                                }
+                            });
+                        } catch(e) {}
+                    }
                 } catch(e) {}
             }, 2500);
         }
@@ -713,20 +718,27 @@
             try {
                 if (call.peerConnection) {
                     const pc = call.peerConnection;
+                    let _iceRestartCount = 0;
                     pc.oniceconnectionstatechange = () => {
                         const st = pc.iceConnectionState;
                         debugLog('ICE: ' + st);
                         if (st === 'disconnected' || st === 'failed') {
                             document.getElementById('call-status').innerText = "Reconnecting...";
-                            setTimeout(() => {
-                                try {
-                                    if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
-                                        pc.restartIce();
-                                        debugLog('🔄 ICE restart');
-                                    }
-                                } catch(e) {}
-                            }, 1500);
+                            if (_iceRestartCount < 2) {
+                                _iceRestartCount++;
+                                setTimeout(() => {
+                                    try {
+                                        if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
+                                            pc.restartIce();
+                                            debugLog('🔄 ICE restart #' + _iceRestartCount);
+                                        }
+                                    } catch(e) {}
+                                }, 2000);
+                            } else {
+                                document.getElementById('call-status').innerText = "Connection unstable";
+                            }
                         } else if (st === 'connected' || st === 'completed') {
+                            _iceRestartCount = 0;
                             document.getElementById('call-status').innerText = "Encrypted Voice Call 🔒";
                         }
                     };
@@ -784,7 +796,7 @@
 
             if (_canSetParams && activeCall && activeCall.peerConnection) {
                 try {
-                    const cfg = getHybridBitrate();
+                    const cfg = getBitrate();
                     const senders = activeCall.peerConnection.getSenders();
                     senders.forEach(sender => {
                         if (sender.track && sender.track.kind === 'audio') {
@@ -816,7 +828,7 @@
             btn.classList.toggle('active', isAutoHD);
             btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Data Saver";
             if (modeText) {
-                modeText.innerText = isAutoHD ? "Auto HD · Hybrid" : "Data Saver (Hybrid)";
+                modeText.innerText = isAutoHD ? "Auto HD · Earpiece" : "Zangi Mode · Earpiece";
             }
         }
 
@@ -896,6 +908,7 @@
                 if (screen.orientation && screen.orientation.unlock) screen.orientation.unlock();
             } catch(e) {}
 
+            /* AUTO RETURN — 3 fallbacks */
             setTimeout(() => {
                 try {
                     if (redirectUrl) {
