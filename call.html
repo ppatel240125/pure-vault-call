@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <meta name="referrer" content="no-referrer">
     <meta name="robots" content="noindex, nofollow, noarchive">
-    <title>Secure Node - Audio Call (Zangi-Level Data Saver)</title>
+    <title>Secure Node - Audio Call (2G Data Saver + Auto HD)</title>
     <style>
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
@@ -20,12 +20,6 @@
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
-
-        /* Signal + Stats bar */
-        #signal-bar { display: none; font-size: 11px; margin: 4px 0 8px 0; color: #9ca3af; font-weight: normal; }
-        #signal-icon { font-weight: bold; letter-spacing: 1px; }
-        #signal-text { margin-left: 6px; font-weight: bold; font-size: 10px; }
-        #stats-text { margin-left: 6px; opacity: 0.75; font-size: 10px; }
 
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
         #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
@@ -60,24 +54,17 @@
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
         
-        <!-- Signal + Stats Bar — Zangi-level live info -->
-        <div id="signal-bar">
-            <span id="signal-icon">▁▁▁▁</span>
-            <span id="signal-text">--</span>
-            <span id="stats-text"></span>
-        </div>
-        
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 અવાજ નથી આવતો? અહીં ટચ કરો</div>
 
         <!-- Audio element (Hidden) -->
         <audio id="remote-audio" autoplay playsinline></audio>
         
-        <!-- Video element (Hidden) — WebRTC stream routing -->
+        <!-- Video element (Hidden) — WebRTC stream માટે શ્રેષ્ઠ routing -->
         <video id="remote-video-hidden" autoplay playsinline style="display:none;"></video>
 
         <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
         
-        <!-- ઈયરપીસ બટન -->
+        <!-- ઈયરપીસ બટન — મુખ્ય -->
         <button id="earpiece-btn" class="utility-btn" onclick="switchToEarpiece()" style="background:#1e3a8a; color:#60a5fa;">🎧 Earpiece Mode</button>
 
         <div class="controls-grid hide-in-video">
@@ -94,6 +81,7 @@
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
     
+    <!-- ડિબગ પેનલ -->
     <div id="debug-panel"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -136,13 +124,6 @@
         let audioUnlocked = false;
         let remoteStreamGlobal = null;
         let earpieceDeviceId = null;
-        
-        /* Zangi-level stats tracking */
-        let _statsInterval = null;
-        let _lastBytesReceived = 0;
-        let _lastBytesSent = 0;
-        let _lastStatsTs = 0;
-        let _statsPc = null;
 
         const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
@@ -229,6 +210,7 @@
            ============================================================ */
         async function enumerateAndFindEarpiece() {
             try {
+                // પહેલા mic permission (labels માટે જરૂરી)
                 await navigator.mediaDevices.getUserMedia({ audio: true });
                 
                 const devices = await navigator.mediaDevices.enumerateDevices();
@@ -239,6 +221,7 @@
                     debugLog(`  → "${d.label}" (${d.deviceId.substring(0,8)}...)`);
                 });
                 
+                // ઈયરપીસ શોધો (multiple keywords)
                 const earpiece = outputs.find(d => {
                     const l = (d.label || '').toLowerCase();
                     return l.includes('earpiece') || 
@@ -254,6 +237,7 @@
                     return earpiece.deviceId;
                 }
                 
+                // ઈયરપીસ ન મળે તો પણ ટ્રાય 'communications'
                 debugLog(`⚠️ No earpiece label. Trying 'communications'...`);
                 return 'communications';
                 
@@ -274,6 +258,7 @@
                 return;
             }
             
+            // 1. audio element પર setSinkId
             if (typeof remoteAudioEl.setSinkId === 'function') {
                 try {
                     await remoteAudioEl.setSinkId(targetId);
@@ -285,6 +270,7 @@
                 debugLog('⚠️ setSinkId not supported on audio element');
             }
             
+            // 2. video element પર પણ (WebRTC routing માટે શ્રેષ્ઠ)
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
                 try {
                     await remoteVideoEl.setSinkId(targetId);
@@ -294,6 +280,7 @@
                 }
             }
             
+            // 3. AudioContext પર setSinkId
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
                 try {
                     await audioCtxRouting.setSinkId(targetId);
@@ -303,11 +290,13 @@
                 }
             }
             
+            // 4. ફરી play કરો routing refresh માટે
             try {
                 remoteAudioEl.muted = false;
                 await remoteAudioEl.play();
             } catch(e) {}
             
+            // 5. UI update
             isSpeakerOn = false;
             document.getElementById('speaker-btn').classList.remove('active');
             document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
@@ -331,6 +320,7 @@
             initMediaCall();
             requestWakeLock();
             
+            // પેજ લોડ થતાં જ permission + earpiece detect
             setTimeout(async () => {
                 await enumerateAndFindEarpiece();
             }, 500);
@@ -408,14 +398,7 @@
 
             currentPeer = new Peer(peerId, {
                 host: '0.peerjs.com', port: 443, path: '/', secure: true,
-                config: { 
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' },
-                        { urls: 'stun:global.stun.twilio.com:3478' },
-                        { urls: 'stun:stun.cloudflare.com:3478' }
-                    ]
-                }
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
             });
 
             currentPeer.on('open', () => {
@@ -476,149 +459,10 @@
         }
 
         /* ============================================================
-           ZANGI-LEVEL: Opus Low Bitrate + DTX (Data Saver)
-           ============================================================ */
-        function patchOpusLowBitrate(call) {
-            if (!call || !call.peerConnection) return;
-            try {
-                const pc = call.peerConnection;
-                const senders = pc.getSenders();
-                senders.forEach(sender => {
-                    if (sender.track && sender.track.kind === 'audio') {
-                        const params = sender.getParameters();
-                        if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-                        params.encodings[0].maxBitrate = isAutoHD ? 32000 : 16000;
-                        try { params.encodings[0].dtx = !isAutoHD; } catch(e) {}
-                        params.encodings[0].networkPriority = 'high';
-                        sender.setParameters(params).then(() => {
-                            debugLog('✅ Opus: ' + params.encodings[0].maxBitrate + 'bps, DTX=' + (!isAutoHD));
-                        }).catch(e => debugLog('setParameters: ' + e.message));
-                    }
-                });
-            } catch(e) { debugLog('Opus patch: ' + e.message); }
-            startStatsMonitor(call.peerConnection);
-        }
-
-        /* ============================================================
-           ZANGI-LEVEL: Live Stats + Adaptive Bitrate
-           ============================================================ */
-        function startStatsMonitor(pc) {
-            if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
-            _statsPc = pc;
-            _lastBytesReceived = 0;
-            _lastBytesSent = 0;
-            _lastStatsTs = 0;
-            const bar = document.getElementById('signal-bar');
-            if (bar) bar.style.display = 'block';
-            _statsInterval = setInterval(async () => {
-                try {
-                    if (!_statsPc || _statsPc.connectionState === 'closed') return;
-                    const stats = await _statsPc.getStats();
-                    let inbound = null, outbound = null, remoteInbound = null, candidatePair = null;
-                    stats.forEach(r => {
-                        if (r.type === 'inbound-rtp' && r.kind === 'audio') inbound = r;
-                        else if (r.type === 'outbound-rtp' && r.kind === 'audio') outbound = r;
-                        else if (r.type === 'remote-inbound-rtp' && r.kind === 'audio') remoteInbound = r;
-                        else if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) candidatePair = r;
-                    });
-                    const now = Date.now();
-                    if (_lastStatsTs === 0) { _lastStatsTs = now; }
-                    const dt = (now - _lastStatsTs) / 1000;
-                    let kbpsIn = 0, kbpsOut = 0;
-                    if (inbound && inbound.bytesReceived && dt > 0) {
-                        kbpsIn = Math.round(((inbound.bytesReceived - _lastBytesReceived) * 8 / 1000) / dt);
-                        _lastBytesReceived = inbound.bytesReceived;
-                    }
-                    if (outbound && outbound.bytesSent && dt > 0) {
-                        kbpsOut = Math.round(((outbound.bytesSent - _lastBytesSent) * 8 / 1000) / dt);
-                        _lastBytesSent = outbound.bytesSent;
-                    }
-                    _lastStatsTs = now;
-
-                    let rtt = 0, loss = 0;
-                    if (candidatePair && candidatePair.currentRoundTripTime !== undefined) {
-                        rtt = Math.round(candidatePair.currentRoundTripTime * 1000);
-                    }
-                    if (remoteInbound && remoteInbound.packetsLost !== undefined) {
-                        loss = remoteInbound.packetsLost;
-                    }
-                    if (inbound && inbound.packetsLost !== undefined) {
-                        loss = Math.max(loss, inbound.packetsLost);
-                    }
-
-                    let signal = 'good', icon = '▁▃▅▇', color = '#38ef7d';
-                    if (rtt > 400 || loss > 20) { signal = 'weak'; icon = '▁▁▁▁'; color = '#ea0038'; }
-                    else if (rtt > 200 || loss > 8) { signal = 'fair'; icon = '▁▃▅▁'; color = '#ffb74d'; }
-                    else if (rtt > 100 || loss > 3) { signal = 'ok'; icon = '▁▃▅▇'; color = '#60a5fa'; }
-
-                    const sigIcon = document.getElementById('signal-icon');
-                    const sigTxt = document.getElementById('signal-text');
-                    const statsTxt = document.getElementById('stats-text');
-                    if (sigIcon) { sigIcon.textContent = icon; sigIcon.style.color = color; }
-                    if (sigTxt) { sigTxt.textContent = signal.toUpperCase(); sigTxt.style.color = color; }
-                    if (statsTxt) { statsTxt.textContent = `↓${kbpsIn} ↑${kbpsOut} kbps · ${rtt}ms`; }
-
-                    if (!isAutoHD) {
-                        let targetBitrate = 16000;
-                        if (rtt > 400 || loss > 15) targetBitrate = 8000;
-                        else if (rtt > 200 || loss > 5) targetBitrate = 12000;
-                        try {
-                            const senders = _statsPc.getSenders();
-                            senders.forEach(sender => {
-                                if (sender.track && sender.track.kind === 'audio') {
-                                    const params = sender.getParameters();
-                                    if (params.encodings && params.encodings[0]) {
-                                        if (params.encodings[0].maxBitrate !== targetBitrate) {
-                                            params.encodings[0].maxBitrate = targetBitrate;
-                                            sender.setParameters(params).catch(() => {});
-                                            debugLog('🔄 Adaptive: ' + targetBitrate + 'bps');
-                                        }
-                                    }
-                                }
-                            });
-                        } catch(e) {}
-                    }
-                } catch(e) {}
-            }, 2500);
-        }
-
-        function stopStatsMonitor() {
-            if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
-            _statsPc = null;
-            const bar = document.getElementById('signal-bar');
-            if (bar) bar.style.display = 'none';
-        }
-
-        /* ============================================================
-           CALL STREAM HANDLER
+           CALL STREAM HANDLER — EARPIECE MAGIC HERE
            ============================================================ */
         function handleCallStream(call) {
             stopAlerts();
-            
-            try { patchOpusLowBitrate(call); } catch(e) { debugLog('Opus apply: ' + e.message); }
-            
-            try {
-                if (call.peerConnection) {
-                    const pc = call.peerConnection;
-                    pc.oniceconnectionstatechange = () => {
-                        const st = pc.iceConnectionState;
-                        debugLog('ICE: ' + st);
-                        if (st === 'disconnected' || st === 'failed') {
-                            document.getElementById('call-status').innerText = "Reconnecting...";
-                            setTimeout(() => {
-                                try {
-                                    if (pc.iceConnectionState !== 'connected' && pc.iceConnectionState !== 'completed') {
-                                        pc.restartIce();
-                                        debugLog('🔄 ICE restart');
-                                    }
-                                } catch(e) {}
-                            }, 1500);
-                        } else if (st === 'connected' || st === 'completed') {
-                            document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
-                        }
-                    };
-                }
-            } catch(e) {}
             
             call.on('stream', async (remoteStream) => {
                 document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
@@ -630,6 +474,7 @@
 
                 document.getElementById('audio-fix-banner').style.display = 'block';
 
+                // બંને elements પર stream મૂકો
                 remoteAudioEl.srcObject = remoteStream;
                 remoteAudioEl.muted = false;
                 if (remoteVideoEl) {
@@ -637,8 +482,10 @@
                     remoteVideoEl.muted = false;
                 }
                 
+                // 🎧 EARPIECE ROUTING — તરત જ
                 await applyAudioOutputMode();
                 
+                // AudioContext routing (advanced)
                 try {
                     if (!audioCtxRouting) {
                         audioCtxRouting = new (window.AudioContext || window.webkitAudioContext)();
@@ -651,6 +498,7 @@
                     debugLog('❌ AudioContext: ' + e.message);
                 }
                 
+                // Autoplay
                 remoteAudioEl.play().then(() => {
                     audioUnlocked = true;
                     document.getElementById('audio-fix-banner').style.display = 'none';
@@ -670,12 +518,13 @@
         }
 
         /* ============================================================
-           AUDIO OUTPUT MODE
+           AUDIO OUTPUT MODE — KEY FUNCTION
            ============================================================ */
         async function applyAudioOutputMode() {
             remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
             remoteAudioEl.muted = false;
             
+            // Speaker mode
             if (isSpeakerOn) {
                 if (typeof remoteAudioEl.setSinkId === 'function') {
                     try { await remoteAudioEl.setSinkId('default'); } catch(e) {}
@@ -689,6 +538,7 @@
                 return;
             }
             
+            // Earpiece mode
             let targetId = earpieceDeviceId;
             if (!targetId) {
                 targetId = await enumerateAndFindEarpiece();
@@ -697,6 +547,7 @@
             
             debugLog(`🎧 Routing to: ${targetId.substring(0,10)}...`);
             
+            // audio element
             if (typeof remoteAudioEl.setSinkId === 'function') {
                 try { 
                     await remoteAudioEl.setSinkId(targetId); 
@@ -706,6 +557,7 @@
                 }
             }
             
+            // video element (WebRTC routing માટે શ્રેષ્ઠ)
             if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
                 try { 
                     await remoteVideoEl.setSinkId(targetId); 
@@ -715,6 +567,7 @@
                 }
             }
             
+            // AudioContext
             if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
                 try { 
                     await audioCtxRouting.setSinkId(targetId); 
@@ -751,6 +604,7 @@
                 earpieceBtn.innerText = "🎧 Earpiece Active";
             }
             
+            // Refresh play
             if (remoteAudioEl.srcObject) {
                 try { await remoteAudioEl.play(); } catch(e) {}
             }
@@ -770,23 +624,6 @@
             isAutoHD = !!enabled;
             isHDActive = isAutoHD;
             updateAutoHDUI();
-
-            /* Zangi-level: bitrate તરત બદલો */
-            if (activeCall && activeCall.peerConnection) {
-                try {
-                    const senders = activeCall.peerConnection.getSenders();
-                    senders.forEach(sender => {
-                        if (sender.track && sender.track.kind === 'audio') {
-                            const params = sender.getParameters();
-                            if (!params.encodings || params.encodings.length === 0) params.encodings = [{}];
-                            params.encodings[0].maxBitrate = isAutoHD ? 32000 : 16000;
-                            try { params.encodings[0].dtx = !isAutoHD; } catch(e) {}
-                            sender.setParameters(params).catch(() => {});
-                        }
-                    });
-                    debugLog('🔄 HD: ' + (isAutoHD ? '32k HD' : '16k + DTX'));
-                } catch(e) {}
-            }
 
             if (reinitialize) {
                 initMediaCall();
@@ -884,7 +721,6 @@
             isReturning = true;
 
             stopAlerts();
-            try { stopStatsMonitor(); } catch(e) {}
             if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
 
             try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
