@@ -1,796 +1,764 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<meta name="referrer" content="no-referrer">
-<title>Secure Voice Call</title>
-<style>
-* { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-html, body { touch-action: manipulation; overscroll-behavior: none; }
-body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; }
-.box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); }
-h3 { color: #3b82f6; margin: 0 0 4px; font-size: 14px; letter-spacing: 1px; }
-p { font-size: 10px; color: #9ca3af; margin: 0 0 8px; }
-.status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
-.timer { font-size: 14px; color: #60a5fa; margin: 4px 0; font-weight: bold; letter-spacing: 2px; }
-#signal-bar { display: none; font-size: 11px; margin: 4px 0 8px; color: #9ca3af; }
-#signal-icon { font-weight: bold; }
-#stats-text { margin-left: 6px; opacity: 0.7; font-size: 10px; }
-.controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-.ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; outline: none; transition: 0.2s; }
-.ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
-#auto-hd-btn { grid-column: 1 / -1; padding: 14px 8px; min-height: 50px; font-size: 14px; }
-.utility-btn { background: #713f12; color: #fde047; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
-.end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px; outline: none; }
-#permission-banner { background: #7f1d1d; color: #fca5a5; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: none; font-weight: bold; }
-#permission-banner.active { display: block; }
-#audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
-#debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 100px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
-#debug-panel.active { display: block; }
-</style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="referrer" content="no-referrer">
+    <meta name="robots" content="noindex, nofollow, noarchive">
+    <title>Secure Node - Audio Call (2G Data Saver + Auto HD)</title>
+    <style>
+        * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+        body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
+        
+        .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
+        
+        body.video-fullscreen { background: #000; justify-content: space-between; padding: 10px; }
+        body.video-fullscreen .box { max-width: 100%; width: 100%; height: 100vh; border: none; border-radius: 0; padding: 10px; display: flex; flex-direction: column; justify-content: space-between; background: #07090e; }
+        body.video-fullscreen .hide-in-video { display: none !important; }
+
+        h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
+        p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
+        .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
+        .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
+
+        .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
+        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
+        .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
+        .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
+        
+        .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
+        .utility-btn.active { background: #713f12; color: #fde047; }
+
+        .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
+        .end-btn:hover { background: #991b1b; }
+
+        #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
+        #touch-shield.active { display: flex; z-index: 99; }
+        
+        #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
+        
+        /* ડિબગ પેનલ — ફક્ત ટેસ્ટ માટે */
+        #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
+        #debug-panel.active { display: block; }
+    </style>
 </head>
-<body>
-<div class="box">
-    <h3>SECURE_NODE_VOICE</h3>
-    <p id="mode-text">Data Saver · 12kbps</p>
-    <div id="permission-banner" onclick="requestMicPermission()">⚠️ Tap to grant microphone</div>
-    <div id="call-status" class="status">Initializing...</div>
-    <div id="call-timer" class="timer" style="display:none;">00:00</div>
-    <div id="signal-bar">
-        <span id="signal-icon">▁▃▅▇</span>
-        <span id="stats-text"></span>
-    </div>
-    <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 No sound? Tap here</div>
-    <audio id="remote-audio" autoplay playsinline></audio>
-    <button class="utility-btn" onclick="toggleAudioOutput()" id="output-btn">🎧 Earpiece</button>
-    <div class="controls-grid">
-        <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
-        <button id="speaker-btn" class="ctrl-btn" onclick="toggleAudioOutput()">🔊 Speaker</button>
-        <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">🪶 Data Saver</button>
-    </div>
-    <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
-</div>
-<div id="debug-panel"></div>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
-<script>
-/* ============================================================
-   PARAMS
-   ============================================================ */
-const P = new URLSearchParams(location.search);
-const roomId = (P.get('room') || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
-const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
-const debugMode = P.get('debug') === '1';
-
-let redirectUrl = null;
-try {
-    const raw = P.get('back');
-    if (raw) {
-        const u = new URL(raw, location.origin);
-        if ((u.protocol === 'http:' || u.protocol === 'https:') && u.origin === location.origin) {
-            redirectUrl = u.href;
-        }
-    }
-} catch(e) {}
-
-history.replaceState(null, document.title, location.pathname + location.search);
-
-/* ============================================================
-   STATE
-   ============================================================ */
-let localStream = null, activeCall = null, dataConn = null, peer = null;
-let isMuted = false, isSpeakerOn = false, isAutoHD = false;
-let callStarted = false, isEnded = false;
-let vibrateTimer = null, ringTimer = null, callTimer = null, statsTimer = null;
-let callSeconds = 0, connectTimeout = null, retryCount = 0;
-let audioCtx = null, _canSetParams = true, _netQuality = 'good';
-let _pc = null, _lastRx = 0, _lastTx = 0, _lastTs = 0;
-let lastTapTime = 0, wakeLock = null;
-
-const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-
-// Zangi bitrates
-const B_SAVER = 12000, B_HD = 16000, B_WEAK = 10000;
-
-const remoteAudio = document.getElementById('remote-audio');
-
-/* ============================================================
-   DEBUG LOG
-   ============================================================ */
-function log(msg) {
-    console.log(msg);
-    if (debugMode) {
-        const p = document.getElementById('debug-panel');
-        p.classList.add('active');
-        p.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + p.innerHTML;
-    }
-}
-
-/* ============================================================
-   SDP MUNGING — Zangi 12kbps clear voice
-   ============================================================ */
-const _origOffer = RTCPeerConnection.prototype.createOffer;
-const _origAnswer = RTCPeerConnection.prototype.createAnswer;
-
-function mungeSDP(sdp) {
-    if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
-    const lines = sdp.split('\r\n');
-    let pt = null;
-    for (const l of lines) {
-        const m = l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
-        if (m) { pt = m[1]; break; }
-    }
-    if (!pt) return sdp;
-
-    let bitrate = isAutoHD ? B_HD : B_SAVER;
-    if (_netQuality === 'weak') bitrate = B_WEAK;
-
-    const out = [];
-    for (const l of lines) {
-        const pre = 'a=fmtp:' + pt + ' ';
-        if (l.startsWith(pre)) {
-            let parts = l.substring(pre.length).split(';').map(s => s.trim()).filter(Boolean);
-            const set = (k, v) => {
-                const i = parts.findIndex(p => p.startsWith(k + '='));
-                if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
-            };
-            set('useinbandfec', '1');
-            set('usedtx', '1');
-            set('stereo', '0');
-            set('sprop-stereo', '0');
-            set('maxaveragebitrate', String(bitrate));
-            set('maxplaybackrate', '12000');
-            set('sprop-maxcapturerate', '12000');
-            set('minptime', '40');
-            set('ptime', '40');
-            set('cbr', '0');
-            set('application', 'voip');
-            out.push(pre + parts.join(';'));
-        } else out.push(l);
-    }
-    return out.join('\r\n');
-}
-
-RTCPeerConnection.prototype.createOffer = async function(...a) {
-    const o = await _origOffer.apply(this, a);
-    if (o && o.sdp) o.sdp = mungeSDP(o.sdp);
-    return o;
-};
-RTCPeerConnection.prototype.createAnswer = async function(...a) {
-    const x = await _origAnswer.apply(this, a);
-    if (x && x.sdp) x.sdp = mungeSDP(x.sdp);
-    return x;
-};
-
-/* ============================================================
-   SINK SUPPORT CHECK
-   ============================================================ */
-const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
-log('🔊 setSinkId supported: ' + SINK_SUPPORTED);
-
-/* ============================================================
-   INIT
-   ============================================================ */
-if (!roomId || !role) {
-    document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
-} else {
-    startInit();
-}
-
-function startInit() {
-    updateAutoHDUI();
-    startAlerts();
-    startConnectTimeout();
-    initMic();
-    requestWakeLock();
-}
-
-/* ============================================================
-   MIC PERMISSION
-   ============================================================ */
-let micRetry = 0;
-async function initMic() {
-    if (localStream && localStream.active) return localStream;
+<body onclick="forceUnlockAudio(event)" ontouchstart="forceUnlockAudio(event)">
+    <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
     
-    try {
-        localStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
+    <div class="box">
+        <div class="hide-in-video">
+            <h3>SECURE_NODE_AUDIO</h3>
+            <p id="mode-text">Data Saver Mode (2G Optimized)</p>
+        </div>
+        
+        <div id="call-status" class="status">Initializing channel...</div>
+        <div id="call-timer" class="timer" style="display:none;">00:00</div>
+        
+        <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 અવાજ નથી આવતો? અહીં ટચ કરો</div>
+
+        <!-- Audio element (Hidden) -->
+        <audio id="remote-audio" autoplay playsinline></audio>
+        
+        <!-- Video element (Hidden) — WebRTC stream માટે શ્રેષ્ઠ routing -->
+        <video id="remote-video-hidden" autoplay playsinline style="display:none;"></video>
+
+        <button id="fs-lock-btn" class="utility-btn hide-in-video" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
+        
+        <!-- ઈયરપીસ બટન — મુખ્ય -->
+        <button id="earpiece-btn" class="utility-btn" onclick="switchToEarpiece()" style="background:#1e3a8a; color:#60a5fa;">🎧 Earpiece Mode</button>
+
+        <div class="controls-grid hide-in-video">
+            <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+            <button id="speaker-btn" class="ctrl-btn" onclick="toggleSpeaker()">🔊 Speaker</button>
+            <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
+        </div>
+
+        <div id="video-active-controls" class="video-controls" style="display:none;">
+            <button id="video-mute-btn" class="video-ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
+            <button class="video-ctrl-btn" onclick="switchCamera()">🔄 Flip Cam</button>
+        </div>
+
+        <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
+    </div>
+    
+    <!-- ડિબગ પેનલ -->
+    <div id="debug-panel"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+    <script>
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('room');
+        const role = urlParams.get('role');
+        const redirectUrl = urlParams.get('back');
+        const debugMode = urlParams.get('debug') === '1';
+
+        window.addEventListener('pageshow', function() {
+            if (window.history.replaceState) {
+                window.history.replaceState(null, document.title, window.location.pathname + window.location.search);
+            }
+        });
+
+        let localStream = null;
+        let activeCall = null;
+        let remoteAudioEl = document.getElementById('remote-audio');
+        let remoteVideoEl = document.getElementById('remote-video-hidden');
+        let isMuted = false;
+        let isSpeakerOn = false;
+        let isHDActive = false;
+        let isAutoHD = false;
+        let callStarted = false;
+        let currentFacingMode = 'user';
+        let isCombinedLocked = false;
+        let currentPeer = null;
+        let dataConnection = null;
+        let wakeLock = null;
+        let ringTimer = null;
+        let vibrateInterval = null;
+        let callTimerInterval = null;
+        let callSeconds = 0;
+        let audioCtx = null;
+        let audioCtxRouting = null;
+        let lastTapTime = 0;
+        let isEnded = false;
+        let isReturning = false;
+        let audioUnlocked = false;
+        let remoteStreamGlobal = null;
+        let earpieceDeviceId = null;
+
+        const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
+
+        document.addEventListener('gesturestart', function (e) { e.preventDefault(); });
+        document.addEventListener('dblclick', function (e) { e.preventDefault(); }, { passive: false });
+
+        /* ============================================================
+           DEBUG
+           ============================================================ */
+        function debugLog(msg) {
+            console.log(msg);
+            if (debugMode) {
+                const panel = document.getElementById('debug-panel');
+                panel.classList.add('active');
+                panel.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + panel.innerHTML;
+            }
+        }
+
+        /* ============================================================
+           AUDIO UNLOCK
+           ============================================================ */
+        function forceUnlockAudio(e) {
+            if (e) e.stopPropagation();
+            
+            if (audioCtx && audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            if (audioCtxRouting && audioCtxRouting.state === 'suspended') {
+                audioCtxRouting.resume();
+            }
+
+            if (remoteAudioEl) {
+                remoteAudioEl.muted = false;
+                remoteAudioEl.volume = 1.0;
+                remoteAudioEl.play().then(() => {
+                    audioUnlocked = true;
+                    document.getElementById('audio-fix-banner').style.display = 'none';
+                    debugLog("✅ Audio unlocked");
+                }).catch(err => {
+                    debugLog("❌ Audio unlock fail: " + err.message);
+                });
+            }
+        }
+
+        /* ============================================================
+           WAKE LOCK
+           ============================================================ */
+        async function requestWakeLock() {
+            try { if ('wakeLock' in navigator) wakeLock = await navigator.wakeLock.request('screen'); } catch (err) {}
+        }
+
+        /* ============================================================
+           FULLSCREEN + LOCK
+           ============================================================ */
+        function toggleFullscreenAndLock() {
+            isCombinedLocked = !isCombinedLocked;
+            const shield = document.getElementById('touch-shield');
+            const btn = document.getElementById('fs-lock-btn');
+
+            if (isCombinedLocked) {
+                const elem = document.documentElement;
+                if (elem.requestFullscreen) elem.requestFullscreen().catch(() => {});
+                else if (elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+                shield.classList.add('active');
+                btn.classList.add('active');
+                btn.innerText = "🔓 Unlock Screen";
+            } else {
+                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+                shield.classList.remove('active');
+                btn.classList.remove('active');
+                btn.innerText = "⛶ Fullscreen & Lock";
+            }
+        }
+
+        function handleShieldClick() {
+            const currentTime = new Date().getTime();
+            if ((currentTime - lastTapTime) < 300 && (currentTime - lastTapTime) > 0) toggleFullscreenAndLock();
+            lastTapTime = currentTime;
+        }
+
+        /* ============================================================
+           EARPIECE — MAIN MAGIC 🎧
+           ============================================================ */
+        async function enumerateAndFindEarpiece() {
+            try {
+                // પહેલા mic permission (labels માટે જરૂરી)
+                await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const outputs = devices.filter(d => d.kind === 'audiooutput');
+                
+                debugLog(`Found ${outputs.length} audio outputs:`);
+                outputs.forEach(d => {
+                    debugLog(`  → "${d.label}" (${d.deviceId.substring(0,8)}...)`);
+                });
+                
+                // ઈયરપીસ શોધો (multiple keywords)
+                const earpiece = outputs.find(d => {
+                    const l = (d.label || '').toLowerCase();
+                    return l.includes('earpiece') || 
+                           l.includes('receiver') || 
+                           l.includes('handset') ||
+                           l.includes('ઇયર') ||
+                           l.includes('inner');
+                });
+                
+                if (earpiece) {
+                    earpieceDeviceId = earpiece.deviceId;
+                    debugLog(`✅ Earpiece found: "${earpiece.label}"`);
+                    return earpiece.deviceId;
+                }
+                
+                // ઈયરપીસ ન મળે તો પણ ટ્રાય 'communications'
+                debugLog(`⚠️ No earpiece label. Trying 'communications'...`);
+                return 'communications';
+                
+            } catch(err) {
+                debugLog(`❌ enumerateAndFindEarpiece: ${err.message}`);
+                return null;
+            }
+        }
+
+        async function switchToEarpiece() {
+            debugLog('🎧 Switching to EARPIECE...');
+            
+            const targetId = earpieceDeviceId || await enumerateAndFindEarpiece();
+            
+            if (!targetId) {
+                debugLog('❌ No earpiece device available');
+                alert('આ ફોનમાં ઈયરપીસ સપોર્ટેડ નથી. Speaker જ વાપરો.');
+                return;
+            }
+            
+            // 1. audio element પર setSinkId
+            if (typeof remoteAudioEl.setSinkId === 'function') {
+                try {
+                    await remoteAudioEl.setSinkId(targetId);
+                    debugLog(`✅ audio el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ audio el setSinkId: ${e.message}`);
+                }
+            } else {
+                debugLog('⚠️ setSinkId not supported on audio element');
+            }
+            
+            // 2. video element પર પણ (WebRTC routing માટે શ્રેષ્ઠ)
+            if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                try {
+                    await remoteVideoEl.setSinkId(targetId);
+                    debugLog(`✅ video el → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ video el setSinkId: ${e.message}`);
+                }
+            }
+            
+            // 3. AudioContext પર setSinkId
+            if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                try {
+                    await audioCtxRouting.setSinkId(targetId);
+                    debugLog(`✅ AudioContext → ${targetId.substring(0,8)}...`);
+                } catch(e) {
+                    debugLog(`❌ AudioContext setSinkId: ${e.message}`);
+                }
+            }
+            
+            // 4. ફરી play કરો routing refresh માટે
+            try {
+                remoteAudioEl.muted = false;
+                await remoteAudioEl.play();
+            } catch(e) {}
+            
+            // 5. UI update
+            isSpeakerOn = false;
+            document.getElementById('speaker-btn').classList.remove('active');
+            document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
+            document.getElementById('earpiece-btn').classList.add('active');
+            document.getElementById('earpiece-btn').style.background = '#713f12';
+            document.getElementById('earpiece-btn').style.color = '#fde047';
+            document.getElementById('earpiece-btn').innerText = "🎧 Earpiece Active";
+            
+            debugLog('✅ Earpiece switch complete');
+        }
+
+        /* ============================================================
+           INIT
+           ============================================================ */
+        if (!roomId || !role) {
+            document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
+        } else {
+            startDeviceAlerts();
+            updateAutoHDUI();
+            document.getElementById('speaker-btn').innerText = "🎧 Earpiece";
+            initMediaCall();
+            requestWakeLock();
+            
+            // પેજ લોડ થતાં જ permission + earpiece detect
+            setTimeout(async () => {
+                await enumerateAndFindEarpiece();
+            }, 500);
+        }
+
+        function startDeviceAlerts() {
+            if (isMobileDevice) {
+                if ('vibrate' in navigator) {
+                    vibrateInterval = setInterval(() => {
+                        try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
+                    }, 2000);
+                }
+            } else {
+                try {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    ringTimer = setInterval(() => {
+                        if (!audioCtx) return;
+                        const osc = audioCtx.createOscillator();
+                        const gain = audioCtx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(480, audioCtx.currentTime);
+                        gain.gain.setValueAtTime(0.1, audioCtx.currentTime);
+                        osc.connect(gain); gain.connect(audioCtx.destination);
+                        osc.start(); osc.stop(audioCtx.currentTime + 0.5);
+                    }, 2500);
+                } catch(e) {}
+            }
+        }
+
+        function stopAlerts() {
+            if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
+            if (vibrateInterval) { clearInterval(vibrateInterval); vibrateInterval = null; }
+            if ('vibrate' in navigator) { try { navigator.vibrate(0); } catch(e){} }
+        }
+
+        /* ============================================================
+           MEDIA CALL
+           ============================================================ */
+        function initMediaCall() {
+            const audioConstraints = {
                 echoCancellation: true,
                 noiseSuppression: true,
                 autoGainControl: true,
-                channelCount: 1,
-                sampleRate: 12000
-            },
-            video: false
-        });
-        
-        document.getElementById('permission-banner').classList.remove('active');
-        micRetry = 0;
-        
-        const track = localStream.getAudioTracks()[0];
-        if (track) {
-            try { track.contentHint = 'speech'; } catch(e) {}
-            track.onended = () => {
-                if (!isEnded && micRetry < 3) {
-                    micRetry++;
-                    setTimeout(initMic, 1000);
-                }
+                channelCount: { ideal: 1, max: 1 },
+                sampleRate: { ideal: isAutoHD ? 48000 : 16000 }
             };
-        }
-        
-        if (isMuted) track.enabled = false;
-        log('✅ Mic ready');
-        
-        if (!peer) setupPeer();
-        else if (activeCall) replaceStream(localStream);
-        
-        return localStream;
-    } catch(err) {
-        log('❌ Mic err: ' + err.name);
-        const banner = document.getElementById('permission-banner');
-        banner.classList.add('active');
-        if (err.name === 'NotAllowedError') {
-            banner.innerText = "⛔ Mic blocked. Click 🔒 → Allow → Tap here";
-        } else {
-            banner.innerText = "⚠️ Mic error. Tap to retry";
-        }
-        
-        // Auto-retry once after 2s
-        if (micRetry < 2) {
-            micRetry++;
-            setTimeout(initMic, 2000);
-        }
-        return null;
-    }
-}
 
-function requestMicPermission() {
-    micRetry = 0;
-    initMic();
-}
-
-/* ============================================================
-   ALERTS
-   ============================================================ */
-function startAlerts() {
-    if (isMobile && 'vibrate' in navigator) {
-        vibrateTimer = setInterval(() => {
-            if (callStarted || isEnded) { stopAlerts(); return; }
-            try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
-        }, 2000);
-    } else {
-        try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            ringTimer = setInterval(() => {
-                if (callStarted || isEnded) { stopAlerts(); return; }
-                if (!audioCtx) return;
-                const o = audioCtx.createOscillator();
-                const g = audioCtx.createGain();
-                o.frequency.value = 480;
-                g.gain.value = 0.1;
-                o.connect(g).connect(audioCtx.destination);
-                o.start();
-                o.stop(audioCtx.currentTime + 0.4);
-            }, 2500);
-        } catch(e) {}
-    }
-}
-
-function stopAlerts() {
-    if (vibrateTimer) { clearInterval(vibrateTimer); vibrateTimer = null; }
-    if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
-    if ('vibrate' in navigator) try { navigator.vibrate(0); } catch(e){}
-}
-
-function startConnectTimeout() {
-    clearTimeout(connectTimeout);
-    connectTimeout = setTimeout(() => {
-        if (!callStarted && !isEnded) {
-            stopAlerts();
-            document.getElementById('call-status').innerText = "No answer. Tap END.";
-        }
-    }, 60000);
-}
-
-/* ============================================================
-   PEER SETUP
-   ============================================================ */
-const ICE = [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: 'stun:stun1.l.google.com:19302' },
-    { urls: 'stun:stun.cloudflare.com:3478' },
-    { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
-    { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-];
-
-function setupPeer() {
-    const myId = `secure_av25_${roomId}_${role}`;
-    const targetId = `secure_av25_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
-
-    if (peer && !peer.destroyed) try { peer.destroy(); } catch(e) {}
-
-    peer = new Peer(myId, {
-        host: '0.peerjs.com', port: 443, path: '/', secure: true,
-        config: {
-            iceServers: ICE,
-            iceCandidatePoolSize: 4,
-            bundlePolicy: 'max-bundle',
-            rtcpMuxPolicy: 'require'
-        },
-        debug: 0
-    });
-
-    peer.on('open', () => {
-        log('✅ Peer open');
-        document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming...";
-        if (role === 'caller') {
-            setTimeout(() => {
-                try {
-                    dataConn = peer.connect(targetId, { reliable: true });
-                    setupDataConn();
-                } catch(e) {}
-                startCall(targetId);
-            }, 1500);
-        }
-    });
-
-    peer.on('connection', c => { dataConn = c; setupDataConn(); });
-
-    peer.on('call', call => {
-        log('📞 Incoming call');
-        activeCall = call;
-        clearTimeout(connectTimeout);
-        stopAlerts();
-        if (localStream) {
-            call.answer(localStream);
-            handleStream(call);
-        } else {
-            // Wait for mic
-            const w = setInterval(() => {
+            navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
+            .then(stream => {
                 if (localStream) {
-                    clearInterval(w);
-                    call.answer(localStream);
-                    handleStream(call);
+                    localStream.getTracks().forEach(track => track.stop());
                 }
-            }, 100);
-            setTimeout(() => clearInterval(w), 15000);
-        }
-    });
+                localStream = stream;
+                if (isMuted) {
+                    localStream.getAudioTracks().forEach(track => { track.enabled = false; });
+                }
+                applyAudioOutputMode();
 
-    peer.on('disconnected', () => { try { peer.reconnect(); } catch(e) {} });
-    peer.on('close', () => { if (!isEnded) cleanup(); });
-    peer.on('error', err => {
-        log('Peer err: ' + (err.type || err.message));
-        if (err.type === 'peer-unavailable') {
-            if (retryCount < 15) {
-                retryCount++;
-                document.getElementById('call-status').innerText = "Waiting... (try " + retryCount + ")";
-                setTimeout(() => startCall(targetId), 3000);
-            } else {
+                if (!currentPeer) {
+                    setupPeerConnection();
+                } else if (activeCall) {
+                    replaceStreamInCall(stream);
+                }
+            })
+            .catch(() => {
                 stopAlerts();
-                document.getElementById('call-status').innerText = "Peer offline. Tap END.";
-            }
-        } else if (err.type === 'unavailable-id') {
-            setTimeout(() => { try { peer.destroy(); } catch(e){} peer = null; setupPeer(); }, 3000);
-        } else if (err.type === 'network' || err.type === 'server-error') {
-            setTimeout(() => { try { peer.destroy(); } catch(e){} peer = null; setupPeer(); }, 4000);
-        }
-    });
-}
-
-function startCall(targetId) {
-    if (!peer || peer.destroyed || isEnded) return;
-    if (!localStream) {
-        setTimeout(() => startCall(targetId), 1500);
-        return;
-    }
-    try {
-        activeCall = peer.call(targetId, localStream);
-        if (activeCall) handleStream(activeCall);
-        else {
-            retryCount++;
-            setTimeout(() => startCall(targetId), 3000);
-        }
-    } catch(e) {
-        retryCount++;
-        if (retryCount < 15) setTimeout(() => startCall(targetId), 3000);
-    }
-}
-
-function replaceStream(newStream) {
-    if (activeCall && activeCall.peerConnection) {
-        const senders = activeCall.peerConnection.getSenders();
-        newStream.getTracks().forEach(t => {
-            const s = senders.find(x => x.track && x.track.kind === t.kind);
-            if (s) s.replaceTrack(t);
-        });
-    }
-}
-
-function setupDataConn() {
-    if (!dataConn) return;
-    dataConn.on('open', () => {
-        try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
-    });
-    dataConn.on('data', d => {
-        if (d === 'END_CALL' || (d && d.type === 'END_CALL')) cleanup(true);
-        else if (d && d.type === 'MODE') setAutoHD(d.active, false);
-    });
-}
-
-/* ============================================================
-   HANDLE STREAM
-   ============================================================ */
-function handleStream(call) {
-    stopAlerts();
-    clearTimeout(connectTimeout);
-    applyBitrate(call.peerConnection);
-    startStats(call.peerConnection);
-
-    if (call.peerConnection) {
-        call.peerConnection.oniceconnectionstatechange = () => {
-            const s = call.peerConnection.iceConnectionState;
-            log('ICE: ' + s);
-            if (s === 'connected' || s === 'completed') {
-                document.getElementById('call-status').innerText = "Encrypted Call 🔒";
-                clearTimeout(connectTimeout);
-                applyBitrate(call.peerConnection);
-            } else if (s === 'failed' || s === 'disconnected') {
-                document.getElementById('call-status').innerText = "Reconnecting...";
-            }
-        };
-    }
-
-    call.on('stream', async stream => {
-        document.getElementById('call-status').innerText = "Encrypted Call 🔒";
-        document.getElementById('call-timer').style.display = 'block';
-        startCallTimer();
-        callStarted = true;
-
-        remoteAudio.srcObject = stream;
-        remoteAudio.muted = false;
-        remoteAudio.volume = 1.0;
-
-        // 🔥 Aggressive play for mobile
-        let played = false;
-        for (let i = 0; i < 5; i++) {
-            try {
-                await remoteAudio.play();
-                played = true;
-                log('✅ Playing (attempt ' + (i+1) + ')');
-                break;
-            } catch(e) {
-                await new Promise(r => setTimeout(r, 200));
-            }
-        }
-        if (!played) {
-            document.getElementById('audio-fix-banner').style.display = 'block';
-        } else {
-            document.getElementById('audio-fix-banner').style.display = 'none';
-        }
-        
-        // Apply sink (earpiece/speaker)
-        await applyOutput();
-    });
-
-    call.on('close', () => cleanup());
-    call.on('error', () => cleanup());
-}
-
-/* ============================================================
-   AUDIO OUTPUT — Universal (setSinkId optional)
-   ============================================================ */
-async function applyOutput() {
-    remoteAudio.volume = isSpeakerOn ? 1.0 : 0.95;
-    remoteAudio.muted = false;
-    
-    // If setSinkId not supported — browser decides routing (mobile)
-    if (!SINK_SUPPORTED) {
-        log('⚠️ setSinkId unavailable — using default');
-        return;
-    }
-    
-    let target = 'default';
-    
-    if (isSpeakerOn) {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const spk = devices.find(d => 
-                d.kind === 'audiooutput' && 
-                /speaker|loudspeaker/i.test(d.label || '')
-            );
-            target = spk ? spk.deviceId : 'default';
-        } catch(e) { target = 'default'; }
-    } else {
-        // Try earpiece
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const ear = devices.find(d => 
-                d.kind === 'audiooutput' && 
-                /earpiece|receiver|handset|inner/i.test(d.label || '')
-            );
-            if (ear) target = ear.deviceId;
-            else target = 'communications';  // Android earpiece
-        } catch(e) { target = 'communications'; }
-    }
-    
-    try {
-        await remoteAudio.setSinkId(target);
-        log('🎧 Output: ' + target);
-    } catch(e) {
-        // Fallback to default
-        try { await remoteAudio.setSinkId('default'); } catch(_) {}
-    }
-}
-
-function toggleAudioOutput() {
-    isSpeakerOn = !isSpeakerOn;
-    updateOutputUI();
-    applyOutput();
-}
-
-function updateOutputUI() {
-    const btn = document.getElementById('output-btn');
-    const spk = document.getElementById('speaker-btn');
-    if (isSpeakerOn) {
-        btn.innerText = "🔊 Speaker Active";
-        spk.classList.add('active');
-    } else {
-        btn.innerText = "🎧 Earpiece";
-        spk.classList.remove('active');
-    }
-}
-
-function forceUnlockAudio(e) {
-    if (e) e.stopPropagation();
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
-    remoteAudio.play().catch(() => {});
-    document.getElementById('audio-fix-banner').style.display = 'none';
-}
-
-/* ============================================================
-   AUTO HD ⇄ DATA SAVER
-   ============================================================ */
-function toggleAutoHD() {
-    setAutoHD(!isAutoHD, true);
-}
-
-function setAutoHD(enabled, broadcast = true) {
-    isAutoHD = !!enabled;
-    updateAutoHDUI();
-    const target = isAutoHD ? B_HD : B_SAVER;
-    if (activeCall && activeCall.peerConnection) {
-        applyBitrate(activeCall.peerConnection, target);
-    }
-    if (broadcast && dataConn && dataConn.open) {
-        try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
-    }
-    log('🎚️ Mode: ' + (isAutoHD ? 'HD 16k' : 'Saver 12k'));
-}
-
-function updateAutoHDUI() {
-    const btn = document.getElementById('auto-hd-btn');
-    const mode = document.getElementById('mode-text');
-    btn.classList.toggle('active', isAutoHD);
-    if (isAutoHD) {
-        btn.innerText = "🎧 Auto HD · 16kbps";
-        mode.innerText = "Auto HD Mode";
-    } else {
-        btn.innerText = "🪶 Data Saver · 12kbps";
-        mode.innerText = "Data Saver · 12kbps";
-    }
-}
-
-/* ============================================================
-   BITRATE
-   ============================================================ */
-try {
-    const tpc = new RTCPeerConnection({ iceServers: [] });
-    const ts = tpc.addTransceiver('audio', { direction: 'sendrecv' }).sender;
-    const tp = ts.getParameters();
-    _canSetParams = !!(tp && tp.encodings && tp.encodings.length > 0);
-    tpc.close();
-} catch(e) { _canSetParams = false; }
-
-function applyBitrate(pc, bitrate) {
-    if (!_canSetParams || !pc) return;
-    const target = bitrate || (isAutoHD ? B_HD : B_SAVER);
-    try {
-        pc.getSenders().forEach(s => {
-            if (!s.track || s.track.kind !== 'audio') return;
-            try {
-                const p = s.getParameters();
-                if (!p.encodings || !p.encodings[0]) return;
-                p.encodings[0].maxBitrate = target;
-                p.encodings[0].dtx = true;
-                p.encodings[0].networkPriority = 'high';
-                s.setParameters(p).catch(() => {});
-            } catch(e) {}
-        });
-    } catch(e) {}
-}
-
-/* ============================================================
-   STATS — battery-friendly 10s interval
-   ============================================================ */
-function startStats(pc) {
-    if (statsTimer) clearInterval(statsTimer);
-    _pc = pc; _lastRx = 0; _lastTx = 0; _lastTs = 0;
-    document.getElementById('signal-bar').style.display = 'block';
-    
-    statsTimer = setInterval(async () => {
-        try {
-            if (!_pc || _pc.connectionState === 'closed' || document.hidden) return;
-            const stats = await _pc.getStats();
-            let inb = null, outb = null, pair = null;
-            stats.forEach(r => {
-                if (r.type === 'inbound-rtp' && r.kind === 'audio') inb = r;
-                else if (r.type === 'outbound-rtp' && r.kind === 'audio') outb = r;
-                else if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) pair = r;
+                document.getElementById('call-status').innerText = "Microphone permission required!";
             });
-            
-            const now = Date.now();
-            if (!_lastTs) _lastTs = now;
-            const dt = (now - _lastTs) / 1000 || 1;
-            
-            let kbpsIn = 0, kbpsOut = 0;
-            if (inb && inb.bytesReceived) {
-                kbpsIn = Math.round((inb.bytesReceived - _lastRx) * 8 / 1000 / dt);
-                _lastRx = inb.bytesReceived;
-            }
-            if (outb && outb.bytesSent) {
-                kbpsOut = Math.round((outb.bytesSent - _lastTx) * 8 / 1000 / dt);
-                _lastTx = outb.bytesSent;
-            }
-            _lastTs = now;
-            
-            let rtt = pair && pair.currentRoundTripTime ? Math.round(pair.currentRoundTripTime * 1000) : 0;
-            
-            // Quality classification
-            let lossPct = 0;
-            if (inb && inb.packetsLost && inb.packetsReceived) {
-                lossPct = inb.packetsLost / (inb.packetsLost + inb.packetsReceived) * 100;
-            }
-            
-            const prev = _netQuality;
-            if (rtt > 700 || lossPct > 15) _netQuality = 'weak';
-            else if (rtt > 350 || lossPct > 6) _netQuality = 'ok';
-            else _netQuality = 'good';
-            
-            let icon = '▁▃▅▇', color = '#38ef7d';
-            if (_netQuality === 'weak') { icon = '▁▁▁▁'; color = '#ea0038'; }
-            else if (_netQuality === 'ok') { icon = '▁▃▅▁'; color = '#ffb74d'; }
-            
-            const si = document.getElementById('signal-icon');
-            const ss = document.getElementById('stats-text');
-            si.textContent = icon;
-            si.style.color = color;
-            ss.textContent = `↓${kbpsIn}↑${kbpsOut}kbps · ${rtt}ms`;
-            
-            // Adaptive (only if not user-locked)
-            if (_canSetParams && prev !== _netQuality) {
-                let target = isAutoHD ? B_HD : B_SAVER;
-                if (_netQuality === 'weak') target = B_WEAK;
-                applyBitrate(_pc, target);
-            }
-        } catch(e) {}
-    }, 10000);
-}
-
-function stopStats() {
-    if (statsTimer) { clearInterval(statsTimer); statsTimer = null; }
-    _pc = null;
-    document.getElementById('signal-bar').style.display = 'none';
-}
-
-/* ============================================================
-   TIMER
-   ============================================================ */
-function startCallTimer() {
-    if (callTimer) return;
-    callTimer = setInterval(() => {
-        callSeconds++;
-        const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
-        const s = String(callSeconds % 60).padStart(2, '0');
-        document.getElementById('call-timer').innerText = `${m}:${s}`;
-    }, 1000);
-}
-
-/* ============================================================
-   CONTROLS
-   ============================================================ */
-function toggleMute() {
-    if (!localStream) return;
-    isMuted = !isMuted;
-    localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
-    const b = document.getElementById('mute-btn');
-    b.classList.toggle('active', isMuted);
-    b.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
-}
-
-function endCallAndClose() {
-    try { if (dataConn && dataConn.open) dataConn.send({ type: 'END_CALL' }); } catch(e) {}
-    cleanup(false);
-}
-
-window.addEventListener('beforeunload', () => {
-    try { if (dataConn && dataConn.open) dataConn.send({ type: 'END_CALL' }); } catch(e) {}
-});
-
-/* ============================================================
-   WAKE LOCK
-   ============================================================ */
-async function requestWakeLock() {
-    try {
-        if ('wakeLock' in navigator) {
-            wakeLock = await navigator.wakeLock.request('screen');
-            wakeLock.addEventListener('release', () => { wakeLock = null; });
         }
-    } catch(e) {}
-}
 
-document.addEventListener('visibilitychange', () => {
-    if (!document.hidden && callStarted && !wakeLock) requestWakeLock();
-    if (document.hidden && statsTimer) { clearInterval(statsTimer); statsTimer = null; }
-    if (!document.hidden && callStarted && _pc && !statsTimer) startStats(_pc);
-});
+        function setupPeerConnection() {
+            const peerId = `secure_av25_${roomId}_${role}`;
+            const targetRole = role === 'caller' ? 'receiver' : 'caller';
+            const targetPeerId = `secure_av25_${roomId}_${targetRole}`;
 
-/* ============================================================
-   CLEANUP + CHAT RETURN
-   ============================================================ */
-function cleanup(byRemote = false) {
-    if (isEnded) return;
-    isEnded = true;
-    
-    clearTimeout(connectTimeout);
-    stopAlerts();
-    stopStats();
-    if (callTimer) { clearInterval(callTimer); callTimer = null; }
-    try { if (wakeLock) wakeLock.release(); } catch(e) {}
-    
-    try { if (activeCall) activeCall.close(); } catch(e) {}
-    try { if (localStream) localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
-    try {
-        remoteAudio.pause();
-        remoteAudio.srcObject = null;
-    } catch(e) {}
-    try { if (dataConn) dataConn.close(); } catch(e) {}
-    try { if (peer && !peer.destroyed) peer.destroy(); } catch(e) {}
-    
-    document.getElementById('call-status').innerText = byRemote ? "Ended. Returning..." : "Closed. Returning...";
-    
-    setTimeout(() => {
-        try {
-            if (redirectUrl) {
-                location.replace(redirectUrl);
-                return;
+            currentPeer = new Peer(peerId, {
+                host: '0.peerjs.com', port: 443, path: '/', secure: true,
+                config: { 'iceServers': [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }] }
+            });
+
+            currentPeer.on('open', () => {
+                document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
+                setTimeout(() => tryConnect(targetPeerId), 800);
+            });
+
+            currentPeer.on('connection', (conn) => {
+                dataConnection = conn;
+                setupDataConnectionEvents();
+            });
+
+            currentPeer.on('call', (call) => {
+                activeCall = call;
+                stopAlerts();
+                call.answer(localStream);
+                handleCallStream(call);
+            });
+
+            currentPeer.on('error', () => {
+                document.getElementById('call-status').innerText = "Connecting...";
+            });
+        }
+
+        function tryConnect(targetPeerId) {
+            if (!currentPeer || currentPeer.destroyed) return;
+            dataConnection = currentPeer.connect(targetPeerId);
+            setupDataConnectionEvents();
+
+            const call = currentPeer.call(targetPeerId, localStream);
+            if (call) {
+                activeCall = call;
+                handleCallStream(call);
+            } else {
+                setTimeout(() => tryConnect(targetPeerId), 2000);
             }
-            if (history.length > 1) {
-                history.back();
-                setTimeout(() => {
-                    if (!document.hidden && document.referrer && document.referrer !== location.href) {
-                        location.replace(document.referrer);
-                    } else if (!document.hidden) {
-                        try { window.close(); } catch(e) {}
+        }
+
+        function replaceStreamInCall(newStream) {
+            if (activeCall && activeCall.peerConnection) {
+                const senders = activeCall.peerConnection.getSenders();
+                newStream.getTracks().forEach(track => {
+                    const sender = senders.find(s => s.track && s.track.kind === track.kind);
+                    if (sender) sender.replaceTrack(track);
+                });
+            }
+        }
+
+        function setupDataConnectionEvents() {
+            if (!dataConnection) return;
+            dataConnection.on('data', (data) => {
+                if (data === 'END_CALL' || (data && data.type === 'END_CALL')) {
+                    executeCleanupAndExit(true);
+                } else if (data && (data.type === 'AUTO_HD_SYNC' || data.type === 'HD_SYNC')) {
+                    setAutoHDState(!!data.active, false, false);
+                }
+            });
+        }
+
+        /* ============================================================
+           CALL STREAM HANDLER — EARPIECE MAGIC HERE
+           ============================================================ */
+        function handleCallStream(call) {
+            stopAlerts();
+            
+            call.on('stream', async (remoteStream) => {
+                document.getElementById('call-status').innerText = "Encrypted Audio Call 🔒";
+                document.getElementById('call-timer').style.display = 'block';
+                document.getElementById('fs-lock-btn').style.display = 'block';
+                startCallTimer();
+                callStarted = true;
+                remoteStreamGlobal = remoteStream;
+
+                document.getElementById('audio-fix-banner').style.display = 'block';
+
+                // બંને elements પર stream મૂકો
+                remoteAudioEl.srcObject = remoteStream;
+                remoteAudioEl.muted = false;
+                if (remoteVideoEl) {
+                    remoteVideoEl.srcObject = remoteStream;
+                    remoteVideoEl.muted = false;
+                }
+                
+                // 🎧 EARPIECE ROUTING — તરત જ
+                await applyAudioOutputMode();
+                
+                // AudioContext routing (advanced)
+                try {
+                    if (!audioCtxRouting) {
+                        audioCtxRouting = new (window.AudioContext || window.webkitAudioContext)();
                     }
-                }, 600);
-                return;
-            }
-            if (document.referrer && document.referrer !== location.href) {
-                location.replace(document.referrer);
-                return;
-            }
-            window.close();
-            setTimeout(() => {
-                document.getElementById('call-status').innerText = "Closed. Close this tab.";
-            }, 500);
-        } catch(e) {
-            try { window.close(); } catch(_) {}
+                    if (audioCtxRouting.state === 'suspended') {
+                        await audioCtxRouting.resume();
+                    }
+                    debugLog('✅ AudioContext ready: ' + audioCtxRouting.state);
+                } catch(e) {
+                    debugLog('❌ AudioContext: ' + e.message);
+                }
+                
+                // Autoplay
+                remoteAudioEl.play().then(() => {
+                    audioUnlocked = true;
+                    document.getElementById('audio-fix-banner').style.display = 'none';
+                    debugLog('✅ Stream playing');
+                }).catch(e => {
+                    debugLog('⚠️ Autoplay blocked — touch needed');
+                });
+                
+                if (remoteVideoEl) {
+                    remoteVideoEl.play().catch(() => {});
+                }
+            });
+
+            call.on('close', () => {
+                executeCleanupAndExit();
+            });
         }
-    }, 400);
-}
-</script>
+
+        /* ============================================================
+           AUDIO OUTPUT MODE — KEY FUNCTION
+           ============================================================ */
+        async function applyAudioOutputMode() {
+            remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
+            remoteAudioEl.muted = false;
+            
+            // Speaker mode
+            if (isSpeakerOn) {
+                if (typeof remoteAudioEl.setSinkId === 'function') {
+                    try { await remoteAudioEl.setSinkId('default'); } catch(e) {}
+                }
+                if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                    try { await remoteVideoEl.setSinkId('default'); } catch(e) {}
+                }
+                if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                    try { await audioCtxRouting.setSinkId('default'); } catch(e) {}
+                }
+                return;
+            }
+            
+            // Earpiece mode
+            let targetId = earpieceDeviceId;
+            if (!targetId) {
+                targetId = await enumerateAndFindEarpiece();
+            }
+            if (!targetId) targetId = 'communications';
+            
+            debugLog(`🎧 Routing to: ${targetId.substring(0,10)}...`);
+            
+            // audio element
+            if (typeof remoteAudioEl.setSinkId === 'function') {
+                try { 
+                    await remoteAudioEl.setSinkId(targetId); 
+                    debugLog('✅ audio el sink set');
+                } catch(e) { 
+                    debugLog('❌ audio el: ' + e.message); 
+                }
+            }
+            
+            // video element (WebRTC routing માટે શ્રેષ્ઠ)
+            if (remoteVideoEl && typeof remoteVideoEl.setSinkId === 'function') {
+                try { 
+                    await remoteVideoEl.setSinkId(targetId); 
+                    debugLog('✅ video el sink set');
+                } catch(e) { 
+                    debugLog('❌ video el: ' + e.message); 
+                }
+            }
+            
+            // AudioContext
+            if (audioCtxRouting && 'setSinkId' in audioCtxRouting) {
+                try { 
+                    await audioCtxRouting.setSinkId(targetId); 
+                    debugLog('✅ AudioContext sink set');
+                } catch(e) { 
+                    debugLog('❌ AudioContext: ' + e.message); 
+                }
+            }
+        }
+
+        /* ============================================================
+           TOGGLE SPEAKER
+           ============================================================ */
+        async function toggleSpeaker() {
+            isSpeakerOn = !isSpeakerOn;
+            const speakerBtn = document.getElementById('speaker-btn');
+            const earpieceBtn = document.getElementById('earpiece-btn');
+
+            await applyAudioOutputMode();
+
+            if (isSpeakerOn) {
+                speakerBtn.classList.add('active');
+                speakerBtn.innerText = "🔊 Speaker ON";
+                earpieceBtn.classList.remove('active');
+                earpieceBtn.style.background = '#1e3a8a';
+                earpieceBtn.style.color = '#60a5fa';
+                earpieceBtn.innerText = "🎧 Earpiece Mode";
+            } else {
+                speakerBtn.classList.remove('active');
+                speakerBtn.innerText = "🎧 Earpiece";
+                earpieceBtn.classList.add('active');
+                earpieceBtn.style.background = '#713f12';
+                earpieceBtn.style.color = '#fde047';
+                earpieceBtn.innerText = "🎧 Earpiece Active";
+            }
+            
+            // Refresh play
+            if (remoteAudioEl.srcObject) {
+                try { await remoteAudioEl.play(); } catch(e) {}
+            }
+            if (remoteVideoEl && remoteVideoEl.srcObject) {
+                try { await remoteVideoEl.play(); } catch(e) {}
+            }
+        }
+
+        /* ============================================================
+           AUTO HD
+           ============================================================ */
+        function toggleAutoHD() {
+            setAutoHDState(!isAutoHD, true, true);
+        }
+
+        function setAutoHDState(enabled, broadcast = true, reinitialize = true) {
+            isAutoHD = !!enabled;
+            isHDActive = isAutoHD;
+            updateAutoHDUI();
+
+            if (reinitialize) {
+                initMediaCall();
+            }
+
+            if (broadcast && dataConnection && dataConnection.open) {
+                try {
+                    dataConnection.send({
+                        type: 'AUTO_HD_SYNC',
+                        active: isAutoHD
+                    });
+                } catch (e) {}
+            }
+        }
+
+        function updateAutoHDUI() {
+            const btn = document.getElementById('auto-hd-btn');
+            const modeText = document.getElementById('mode-text');
+            if (!btn) return;
+
+            btn.classList.toggle('active', isAutoHD);
+            btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Auto HD OFF";
+
+            if (modeText) {
+                modeText.innerText = isAutoHD
+                    ? "Auto HD Active (High Quality)"
+                    : "Data Saver Mode (2G Optimized)";
+            }
+        }
+
+        /* ============================================================
+           CALL TIMER
+           ============================================================ */
+        function startCallTimer() {
+            if (callTimerInterval) return;
+            callTimerInterval = setInterval(() => {
+                callSeconds++;
+                let mins = Math.floor(callSeconds / 60).toString().padStart(2, '0');
+                let secs = (callSeconds % 60).toString().padStart(2, '0');
+                document.getElementById('call-timer').innerText = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        /* ============================================================
+           MUTE
+           ============================================================ */
+        function toggleMute() {
+            if (!localStream) return;
+            isMuted = !isMuted;
+            localStream.getAudioTracks().forEach(track => { track.enabled = !isMuted; });
+            
+            const muteBtn = document.getElementById('mute-btn');
+            const videoMuteBtn = document.getElementById('video-mute-btn');
+            
+            muteBtn.classList.toggle('active', isMuted);
+            muteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            
+            if (videoMuteBtn) {
+                videoMuteBtn.classList.toggle('active', isMuted);
+                videoMuteBtn.innerText = isMuted ? "🔇 Unmute" : "🎙️ Mute";
+            }
+        }
+
+        /* ============================================================
+           END CALL
+           ============================================================ */
+        function endCallAndClose() {
+            try {
+                if (dataConnection && dataConnection.open) {
+                    dataConnection.send({ type: 'END_CALL' });
+                    setTimeout(() => {
+                        try {
+                            if (dataConnection && dataConnection.open) {
+                                dataConnection.send({ type: 'END_CALL' });
+                            }
+                        } catch (e) {}
+                    }, 120);
+                }
+            } catch (e) {}
+
+            executeCleanupAndExit(false);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            try {
+                if (dataConnection && dataConnection.open) {
+                    dataConnection.send({ type: 'END_CALL' });
+                }
+            } catch (e) {}
+        });
+
+        function executeCleanupAndExit(endedByRemote = false) {
+            if (isEnded || isReturning) return;
+            isEnded = true;
+            isReturning = true;
+
+            stopAlerts();
+            if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+
+            try { if (wakeLock !== null) wakeLock.release().catch(() => {}); } catch(e) {}
+            wakeLock = null;
+
+            try { if (activeCall) activeCall.close(); } catch(e) {}
+            try { if (localStream) localStream.getTracks().forEach(track => track.stop()); } catch(e) {}
+
+            try {
+                remoteAudioEl.pause();
+                remoteAudioEl.srcObject = null;
+                if (remoteVideoEl) {
+                    remoteVideoEl.pause();
+                    remoteVideoEl.srcObject = null;
+                }
+            } catch(e) {}
+
+            try { if (dataConnection) dataConnection.close(); } catch(e) {}
+            try { if (currentPeer && !currentPeer.destroyed) currentPeer.destroy(); } catch(e) {}
+
+            document.getElementById('call-status').innerText = 
+                endedByRemote ? "Call ended by other user. Returning..." : "Call terminated. Returning...";
+            
+            try {
+                if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+                else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+            } catch(e) {}
+
+            setTimeout(() => {
+                if (redirectUrl) {
+                    window.location.replace(redirectUrl);
+                } else if (window.history.length > 1) {
+                    window.history.back();
+                } else {
+                    window.close();
+                }
+            }, 300);
+        }
+    </script>
 </body>
 </html>
