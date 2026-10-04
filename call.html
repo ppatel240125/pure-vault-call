@@ -39,11 +39,6 @@
 
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
 
-        #browser-warn { display: none; background: #7f1d1d; color: #fecaca; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 10px; text-align: left; line-height: 1.5; }
-        #browser-warn.active { display: block; }
-        #browser-warn b { color: #fca5a5; }
-        #browser-warn button { background: #dc2626; color: #fff; border: none; padding: 8px 12px; border-radius: 6px; font-weight: bold; cursor: pointer; width: 100%; margin-top: 6px; font-size: 11px; }
-
         #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
         #debug-panel.active { display: block; }
     </style>
@@ -64,16 +59,6 @@
             <span id="stats-text"></span>
         </div>
 
-        <div id="browser-warn">
-            <b>⚠️ Use Chrome or Firefox</b><br>
-            In-built browser may not work properly.<br><br>
-            <b>For best call quality:</b><br>
-            ✅ Chrome<br>
-            ✅ Firefox<br>
-            ✅ Edge<br><br>
-            <button onclick="copyCallLink()">📋 Copy link & open in Chrome</button>
-        </div>
-
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 No sound? Tap here</div>
 
         <audio id="remote-audio" autoplay playsinline></audio>
@@ -82,8 +67,6 @@
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
 
         <button id="earpiece-btn" class="utility-btn active" onclick="toggleAudioOutput()" style="background:#713f12; color:#fde047;">🎧 Earpiece Active</button>
-
-        <button id="copy-link-btn" class="utility-btn" onclick="copyCallLink()" style="background:#1e3a8a; color:#93c5fd;">📋 Copy Call Link</button>
 
         <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
@@ -206,11 +189,9 @@
     let _reconnectRetries = 0;
 
     const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
-    const _ua = navigator.userAgent;
-    const IS_INBUILT = /HeyTap|OPPO|OppoBrowser|vivo|VivoBrowser|Miui|MiBrowser|OnePlus|OxygenOS|SamsungBrowser/i.test(_ua) || /; wv\)/.test(_ua);
 
-    const BITRATE_SAVER = IS_INBUILT ? 20000 : 16000;
-    const BITRATE_HD    = IS_INBUILT ? 28000 : 24000;
+    const BITRATE_SAVER = 16000;
+    const BITRATE_HD    = 24000;
     const BITRATE_WEAK  = 8000;
 
     let _canSetParams = true;
@@ -301,69 +282,6 @@
         const t = Date.now();
         if ((t - lastTapTime) < 300 && (t - lastTapTime) > 0) toggleFullscreenAndLock();
         lastTapTime = t;
-    }
-
-    /* ============================================================
-       COPY LINK
-       ============================================================ */
-    function copyCallLink() {
-        const url = window.location.href;
-        const doCopy = () => {
-            if (navigator.clipboard && navigator.clipboard.writeText) return navigator.clipboard.writeText(url);
-            return Promise.reject('no-api');
-        };
-        const fallbackCopy = () => {
-            try {
-                const ta = document.createElement('textarea');
-                ta.value = url; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-                document.body.appendChild(ta); ta.focus(); ta.select();
-                const ok = document.execCommand('copy');
-                document.body.removeChild(ta); return ok;
-            } catch(e) { return false; }
-        };
-        doCopy().then(() => showCopyModal(url, true)).catch(() => showCopyModal(url, fallbackCopy()));
-    }
-
-    function showCopyModal(url, copied) {
-        const old = document.getElementById('copy-modal'); if (old) old.remove();
-        const modal = document.createElement('div');
-        modal.id = 'copy-modal';
-        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.9);z-index:999999;display:flex;align-items:center;justify-content:center;padding:16px;';
-        const card = document.createElement('div');
-        card.style.cssText = 'background:#0b0e14;border:1px solid #1f293d;border-radius:16px;padding:20px;max-width:360px;width:100%;color:#d1d5db;font-family:monospace;text-align:left;';
-        const title = document.createElement('h3');
-        title.style.cssText = 'color:#3b82f6;margin:0 0 12px 0;font-size:14px;text-align:center;letter-spacing:1px;';
-        title.innerText = copied ? '✅ Link Copied' : '📋 Copy Link';
-        card.appendChild(title);
-        const urlBox = document.createElement('div');
-        urlBox.style.cssText = 'background:#07090e;border:1px solid #1f293d;border-radius:8px;padding:10px;font-size:10px;word-break:break-all;color:#38ef7d;margin-bottom:12px;max-height:80px;overflow:auto;';
-        urlBox.innerText = url;
-        card.appendChild(urlBox);
-        const hint = document.createElement('div');
-        hint.style.cssText = 'background:rgba(34,158,217,0.1);border:1px solid rgba(34,158,217,0.3);border-radius:8px;padding:10px;font-size:11px;color:#93c5fd;line-height:1.5;margin-bottom:14px;';
-        hint.innerText = 'Open this link in Chrome or Firefox for best quality.';
-        card.appendChild(hint);
-        const row = document.createElement('div');
-        row.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
-        const cb = document.createElement('button');
-        cb.style.cssText = 'background:#1e3a8a;color:#93c5fd;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:12px;font-family:monospace;';
-        cb.innerText = '📋 Copy Again';
-        cb.onclick = () => {
-            if (navigator.clipboard && navigator.clipboard.writeText) {
-                navigator.clipboard.writeText(url).then(() => {
-                    cb.innerText = '✅ Copied!'; setTimeout(() => cb.innerText = '📋 Copy Again', 1500);
-                }).catch(() => prompt('Copy this link:', url));
-            } else prompt('Copy this link:', url);
-        };
-        row.appendChild(cb);
-        const close = document.createElement('button');
-        close.style.cssText = 'background:#1f293d;color:#d1d5db;border:none;padding:12px;border-radius:8px;font-weight:bold;cursor:pointer;font-size:12px;font-family:monospace;';
-        close.innerText = '✖ Close';
-        close.onclick = () => modal.remove();
-        row.appendChild(close);
-        card.appendChild(row);
-        modal.appendChild(card);
-        document.body.appendChild(modal);
     }
 
     /* ============================================================
@@ -460,8 +378,7 @@
     if (!roomId || !role) {
         document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
     } else {
-        debugLog('🌐 ' + (IS_INBUILT ? 'In-built' : 'Chrome/Firefox') + ' | setParams=' + _canSetParams);
-        if (IS_INBUILT) document.getElementById('browser-warn').classList.add('active');
+        debugLog('🌐 setParams=' + _canSetParams);
         startDeviceAlerts();
         updateAutoHDUI();
         initMediaCall();
