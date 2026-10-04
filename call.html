@@ -10,79 +10,63 @@
         * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
         html, body { touch-action: manipulation; overscroll-behavior: none; }
         body { background: #07090e; color: #00ff66; font-family: monospace; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; text-align: center; overflow: hidden; position: relative; transition: all 0.3s ease; }
-
         .box { background: #0b0e14; border: 1px solid #1f293d; padding: 20px; border-radius: 16px; width: 92%; max-width: 360px; box-shadow: 0 10px 30px rgba(0,0,0,0.8); position: relative; z-index: 2; }
-
         h3 { color: #3b82f6; margin-bottom: 2px; font-size: 14px; letter-spacing: 1px; }
         p { font-size: 10px; color: #9ca3af; margin-bottom: 6px; }
         .status { font-size: 12px; margin: 4px 0; color: #ffb74d; font-weight: bold; }
         .timer { font-size: 14px; color: #60a5fa; margin-bottom: 6px; font-weight: bold; letter-spacing: 2px; }
-
         #signal-bar { display: none; font-size: 11px; margin: 4px 0 8px 0; color: #9ca3af; font-weight: normal; }
         #signal-icon { font-weight: bold; letter-spacing: 1px; }
         #signal-text { margin-left: 6px; font-weight: bold; font-size: 10px; }
         #stats-text { margin-left: 6px; opacity: 0.75; font-size: 10px; }
-
         .controls-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 8px; }
-        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 15px; border-radius: 10px; letter-spacing: 0.4px; }
+        #auto-hd-btn { grid-column: 1 / -1; padding: 16px 8px; min-height: 54px; font-size: 14px; border-radius: 10px; letter-spacing: 0.4px; }
         .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; transition: 0.2s; outline: none; }
         .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
-
         .utility-btn { background: #14532d; color: #86efac; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
         .utility-btn.active { background: #713f12; color: #fde047; }
-
         .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; outline: none; margin-top: 4px; }
         .end-btn:hover { background: #991b1b; }
-
         #touch-shield { position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; display: none; background: rgba(0,0,0,0.7); align-items: center; justify-content: center; color: #fde047; font-size: 14px; font-weight: bold; }
         #touch-shield.active { display: flex; z-index: 99; }
-
         #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
-
         #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 120px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
         #debug-panel.active { display: block; }
+        #voice-indicator { display: inline-block; font-size: 10px; margin-left: 6px; color: #38ef7d; font-weight: bold; }
     </style>
 </head>
-<body onclick="forceUnlockAudio(event)" ontouchstart="forceUnlockAudio(event)">
+<body>
     <div id="touch-shield" onclick="handleShieldClick()">🔒 Fullscreen & Touch Locked<br><span style="font-size:11px; color:#9ca3af; font-weight:normal; display:block; margin-top:6px;">(Double tap anywhere to unlock)</span></div>
 
     <div class="box">
         <h3>SECURE_NODE_VOICE</h3>
-        <p id="mode-text">Data Saver Mode</p>
-
+        <p id="mode-text">Zangi Mode · Clear + Low Data</p>
         <div id="call-status" class="status">Initializing channel...</div>
         <div id="call-timer" class="timer" style="display:none;">00:00</div>
-
         <div id="signal-bar">
             <span id="signal-icon">▁▁▁▁</span>
             <span id="signal-text">--</span>
             <span id="stats-text"></span>
         </div>
-
         <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 No sound? Tap here</div>
-
         <audio id="remote-audio" autoplay playsinline></audio>
         <video id="remote-video-hidden" autoplay playsinline style="display:none;"></video>
-
         <button id="fs-lock-btn" class="utility-btn" onclick="toggleFullscreenAndLock()" style="display:none;">⛶ Fullscreen & Lock</button>
-
         <button id="earpiece-btn" class="utility-btn active" onclick="toggleAudioOutput()" style="background:#713f12; color:#fde047;">🎧 Earpiece Active</button>
-
         <div class="controls-grid">
             <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
             <button id="speaker-btn" class="ctrl-btn" onclick="toggleAudioOutput()">🔊 Speaker</button>
-            <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">⚡ Auto HD ON</button>
+            <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">🪶 Clear Voice (~12kbps)</button>
         </div>
-
         <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
     </div>
-
     <div id="debug-panel"></div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
     /* ============================================================
-       SDP MUNGING — Opus FEC + DTX + mono + bitrate cap
+       SDP MUNGING — ZANGI-STYLE: clear voice + low data
+       10-14 kbps, 12kHz, 40ms frames, FEC + DTX + VBR
        ============================================================ */
     const _origCreateOffer = RTCPeerConnection.prototype.createOffer;
     const _origCreateAnswer = RTCPeerConnection.prototype.createAnswer;
@@ -96,7 +80,12 @@
             if (m) { opusPT = m[1]; break; }
         }
         if (!opusPT) return sdp;
-        const targetBitrate = (typeof isAutoHD !== 'undefined' && isAutoHD) ? 24000 : 16000;
+
+        // ZANGI-STYLE: clear voice + low data
+        const targetBitrate =
+            _netQuality === 'weak' ? 10000 :
+            _netQuality === 'ok'   ? 12000 : 14000;
+
         const out = [];
         for (const l of lines) {
             const prefix = 'a=fmtp:' + opusPT + ' ';
@@ -111,7 +100,13 @@
                 set('stereo', '0');
                 set('sprop-stereo', '0');
                 set('maxaveragebitrate', String(targetBitrate));
-                set('maxplaybackrate', '16000');
+                set('maxplaybackrate', '12000');
+                set('sprop-maxcapturerate', '12000');
+                set('minptime', '40');
+                set('ptime', '40');
+                set('cbr', '0');
+                set('application', 'voip');
+                set('plc', '1');
                 out.push(prefix + parts.join(';'));
             } else {
                 out.push(l);
@@ -187,12 +182,16 @@
     let _statsPc = null;
     let _netQuality = 'good';
     let _reconnectRetries = 0;
+    let _connectTimeout = null;
+    let _peerRetryTimeout = null;
 
     const isMobileDevice = /Mobi|Android/i.test(navigator.userAgent) || 'vibrate' in navigator;
 
-    const BITRATE_SAVER = 16000;
-    const BITRATE_HD    = 24000;
-    const BITRATE_WEAK  = 8000;
+    // ZANGI-STYLE: clear voice + low data
+    const BITRATE_SAVER = 12000;   // 12 kbps — Zangi default
+    const BITRATE_HD    = 16000;   // 16 kbps — extra clarity
+    const BITRATE_WEAK  = 10000;   // 10 kbps — still clear
+    const BITRATE_MIN   = 8000;    // 8 kbps — floor
 
     let _canSetParams = true;
     try {
@@ -230,7 +229,7 @@
     }
 
     /* ============================================================
-       WAKE LOCK + visibility
+       WAKE LOCK
        ============================================================ */
     async function requestWakeLock() {
         try {
@@ -285,7 +284,7 @@
     }
 
     /* ============================================================
-       EARPIECE ENUMERATION — no mic leak
+       EARPIECE ENUMERATION
        ============================================================ */
     async function enumerateAndFindEarpiece() {
         let probe = null;
@@ -321,6 +320,18 @@
     async function applyAudioOutputMode() {
         remoteAudioEl.volume = isSpeakerOn ? 1.0 : 0.95;
         remoteAudioEl.muted = false;
+
+        // Speaker mode = aggressive echo cancel
+        if (isSpeakerOn && localStream) {
+            const track = localStream.getAudioTracks()[0];
+            if (track) {
+                track.applyConstraints({
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true
+                }).catch(() => {});
+            }
+        }
 
         if (typeof remoteAudioEl.setSinkId !== 'function') return;
 
@@ -369,7 +380,7 @@
         updateOutputUI();
         try { await applyAudioOutputMode(); } catch(e) {}
         setTimeout(updateOutputUI, 50);
-        try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {}
+        try { remoteAudioEl.muted = false; await remoteAudioEl.play(); } catch(e) {} }
     }
 
     /* ============================================================
@@ -378,8 +389,9 @@
     if (!roomId || !role) {
         document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
     } else {
-        debugLog('🌐 setParams=' + _canSetParams);
+        debugLog('🌐 Zangi-mode init (setParams=' + _canSetParams + ')');
         startDeviceAlerts();
+        startConnectTimeout();
         updateAutoHDUI();
         initMediaCall();
         requestWakeLock();
@@ -389,15 +401,40 @@
         }, 500);
     }
 
+    /* ============================================================
+       CONNECT TIMEOUT WATCHDOG
+       ============================================================ */
+    function startConnectTimeout() {
+        if (_connectTimeout) clearTimeout(_connectTimeout);
+        _connectTimeout = setTimeout(() => {
+            if (!callStarted && !isEnded) {
+                debugLog('⏱️ Connect timeout — stopping alerts');
+                stopAlerts();
+                document.getElementById('call-status').innerText = "No answer. Tap END to exit.";
+            }
+        }, 45000);
+    }
+
+    function clearConnectTimeout() {
+        if (_connectTimeout) { clearTimeout(_connectTimeout); _connectTimeout = null; }
+    }
+
+    /* ============================================================
+       ALERTS (auto-stop when connected/ended)
+       ============================================================ */
     function startDeviceAlerts() {
         if (isMobileDevice) {
             if ('vibrate' in navigator) {
-                vibrateInterval = setInterval(() => { try { navigator.vibrate([200, 300, 200, 800]); } catch(e){} }, 2000);
+                vibrateInterval = setInterval(() => {
+                    if (callStarted || isEnded) { stopAlerts(); return; }
+                    try { navigator.vibrate([200, 300, 200, 800]); } catch(e){}
+                }, 2000);
             }
         } else {
             try {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
                 ringTimer = setInterval(() => {
+                    if (callStarted || isEnded) { stopAlerts(); return; }
                     if (!audioCtx) return;
                     const o = audioCtx.createOscillator();
                     const g = audioCtx.createGain();
@@ -417,56 +454,222 @@
     }
 
     /* ============================================================
-       MIC — 16 kHz for CPU + data savings
+       MIC — ZANGI-GRADE constraints (12kHz, NS, AEC, AGC)
        ============================================================ */
     function initMediaCall() {
         const audioConstraints = {
-            echoCancellation: true,
-            noiseSuppression: true,
-            autoGainControl: true,
+            echoCancellation: { ideal: true },
+            noiseSuppression: { ideal: true },
+            autoGainControl:  { ideal: true },
             channelCount: { ideal: 1, max: 1 },
-            sampleRate: { ideal: 16000 }
+            sampleRate:   { ideal: 12000, max: 16000 },
+            sampleSize:   { ideal: 16 },
+            latency: { ideal: 0.01, max: 0.04 },
+            advanced: [
+                { googEchoCancellation: true },
+                { googEchoCancellation2: true },
+                { googAutoGainControl: true },
+                { googAutoGainControl2: true },
+                { googNoiseSuppression: true },
+                { googNoiseSuppression2: true },
+                { googHighpassFilter: true },
+                { googTypingNoiseDetection: true },
+                { googAudioMirroring: false }
+            ]
         };
+
         navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false })
         .then(stream => {
             if (localStream) localStream.getTracks().forEach(t => t.stop());
             localStream = stream;
+
+            const track = localStream.getAudioTracks()[0];
+            if (track) {
+                try {
+                    track.applyConstraints({
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true,
+                        channelCount: 1,
+                        sampleRate: 12000
+                    }).catch(() => {});
+                } catch(e) {}
+                try { track.contentHint = 'speech'; } catch(e) {}
+            }
+
             if (isMuted) localStream.getAudioTracks().forEach(t => { t.enabled = false; });
             applyAudioOutputMode();
+            setupNoiseGateAndVAD();
+
             if (!currentPeer) setupPeerConnection();
             else if (activeCall) replaceStreamInCall(stream);
         })
         .catch(err => {
             stopAlerts();
+            clearConnectTimeout();
             document.getElementById('call-status').innerText = "Mic permission required!";
             debugLog('❌ Mic: ' + err.message);
         });
     }
+
+    /* ============================================================
+       ZANGI-GRADE NOISE GATE + VAD
+       ============================================================ */
+    let _noiseGateCtx = null;
+    let _noiseGateActive = false;
+    let _vadSilenceStart = 0;
+    let _vadAutoMuted = false;
+    let _voiceIndicator = null;
+
+    function setupNoiseGateAndVAD() {
+        if (!localStream) return;
+        try {
+            if (!_noiseGateCtx) {
+                _noiseGateCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (_noiseGateCtx.state === 'suspended') _noiseGateCtx.resume();
+
+            const source = _noiseGateCtx.createMediaStreamSource(localStream);
+
+            // High-pass: removes rumble < 80Hz
+            const hp = _noiseGateCtx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.value = 80;
+            hp.Q.value = 0.7;
+
+            // Low-pass: removes hiss > 8kHz (voice is < 8kHz)
+            const lp = _noiseGateCtx.createBiquadFilter();
+            lp.type = 'lowpass';
+            lp.frequency.value = 8000;
+            lp.Q.value = 0.7;
+
+            // Presence boost: 3kHz for voice clarity
+            const presence = _noiseGateCtx.createBiquadFilter();
+            presence.type = 'peaking';
+            presence.frequency.value = 3000;
+            presence.Q.value = 1.0;
+            presence.gain.value = 2;
+
+            const analyser = _noiseGateCtx.createAnalyser();
+            analyser.fftSize = 512;
+            analyser.smoothingTimeConstant = 0.3;
+
+            source.connect(hp);
+            hp.connect(lp);
+            lp.connect(presence);
+            presence.connect(analyser);
+
+            const freqData = new Uint8Array(analyser.frequencyBinCount);
+            const timeData = new Uint8Array(analyser.fftSize);
+
+            _noiseGateActive = true;
+
+            setInterval(() => {
+                if (!_noiseGateActive || isEnded || !callStarted) return;
+
+                // VAD via time-domain RMS
+                analyser.getByteTimeDomainData(timeData);
+                let sum = 0;
+                for (let i = 0; i < timeData.length; i++) {
+                    const v = (timeData[i] - 128) / 128;
+                    sum += v * v;
+                }
+                const rms = Math.sqrt(sum / timeData.length);
+
+                // VAD via frequency energy (voice band 300-3400Hz)
+                analyser.getByteFrequencyData(freqData);
+                let voiceEnergy = 0;
+                const nyquist = _noiseGateCtx.sampleRate / 2;
+                const binHz = nyquist / freqData.length;
+                const startBin = Math.floor(300 / binHz);
+                const endBin = Math.min(freqData.length - 1, Math.floor(3400 / binHz));
+                for (let i = startBin; i <= endBin; i++) voiceEnergy += freqData[i];
+                voiceEnergy /= (endBin - startBin + 1);
+
+                const isVoice = (rms > 0.02) && (voiceEnergy > 25);
+
+                // Voice indicator UI
+                if (_voiceIndicator) {
+                    _voiceIndicator.textContent = isVoice ? '🎙️' : '·';
+                    _voiceIndicator.style.color = isVoice ? '#38ef7d' : '#4b5563';
+                }
+
+                if (isVoice) {
+                    _vadSilenceStart = 0;
+                    if (_vadAutoMuted) {
+                        localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+                        _vadAutoMuted = false;
+                        debugLog('🎙️ Voice ON');
+                    }
+                } else {
+                    if (!_vadSilenceStart) _vadSilenceStart = Date.now();
+                    if (!_vadAutoMuted && (Date.now() - _vadSilenceStart) > 2500) {
+                        localStream.getAudioTracks().forEach(t => { t.enabled = false; });
+                        _vadAutoMuted = true;
+                        debugLog('🔇 Silence — track paused');
+                    }
+                }
+            }, 250);
+        } catch(e) {
+            debugLog('Noise gate err: ' + e.message);
+        }
+    }
+
+    /* ============================================================
+       PEER SETUP — TURN + TCP fallback
+       ============================================================ */
+    const ICE_SERVERS = [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' },
+        { urls: 'stun:stun.cloudflare.com:3478' },
+        {
+            urls: 'turn:openrelay.metered.ca:80',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turn:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        },
+        {
+            urls: 'turns:openrelay.metered.ca:443?transport=tcp',
+            username: 'openrelayproject',
+            credential: 'openrelayproject'
+        }
+    ];
 
     function setupPeerConnection() {
         const peerId = `secure_av25_${roomId}_${role}`;
         const targetRole = role === 'caller' ? 'receiver' : 'caller';
         const targetPeerId = `secure_av25_${roomId}_${targetRole}`;
 
+        if (currentPeer && !currentPeer.destroyed) {
+            try { currentPeer.destroy(); } catch(e) {}
+        }
+
         currentPeer = new Peer(peerId, {
             host: '0.peerjs.com', port: 443, path: '/', secure: true,
             config: {
-                iceServers: [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun.cloudflare.com:3478' }
-                ],
-                iceCandidatePoolSize: 0
-            }
+                iceServers: ICE_SERVERS,
+                iceCandidatePoolSize: 4,
+                bundlePolicy: 'max-bundle',
+                rtcpMuxPolicy: 'require',
+                iceTransportPolicy: 'all',
+                sdpSemantics: 'unified-plan'
+            },
+            debug: 1
         });
 
         currentPeer.on('open', () => {
+            debugLog('✅ Peer open: ' + peerId);
             document.getElementById('call-status').innerText = role === 'caller' ? "Calling..." : "Incoming Call...";
             if (role === 'caller') {
                 setTimeout(() => {
                     try {
-                        dataConnection = currentPeer.connect(targetPeerId);
+                        dataConnection = currentPeer.connect(targetPeerId, { reliable: true });
                         setupDataConnectionEvents();
-                    } catch(e) {}
+                    } catch(e) { debugLog('DC err: ' + e.message); }
                     startCallWithRetry(targetPeerId);
                 }, 800);
             }
@@ -479,6 +682,7 @@
 
         currentPeer.on('call', call => {
             activeCall = call;
+            clearConnectTimeout();
             stopAlerts();
             call.answer(localStream);
             handleCallStream(call);
@@ -499,13 +703,30 @@
             debugLog('Peer error: ' + (err && err.message || err));
             if (type === 'unavailable-id') {
                 debugLog('ID busy — retrying in 3s');
-                setTimeout(() => {
+                if (_peerRetryTimeout) clearTimeout(_peerRetryTimeout);
+                _peerRetryTimeout = setTimeout(() => {
                     try { currentPeer.destroy(); } catch(e) {}
                     currentPeer = null;
                     setupPeerConnection();
                 }, 3000);
             } else if (type === 'peer-unavailable') {
                 document.getElementById('call-status').innerText = "Waiting for other side...";
+                _reconnectRetries++;
+                if (_reconnectRetries > 15) {
+                    stopAlerts();
+                    document.getElementById('call-status').innerText = "Peer not responding. Tap END.";
+                } else {
+                    setTimeout(() => startCallWithRetry(targetPeerId), 2500);
+                }
+            } else if (type === 'network' || type === 'server-error' || type === 'socket-error') {
+                stopAlerts();
+                document.getElementById('call-status').innerText = "Network error — retrying...";
+                if (_peerRetryTimeout) clearTimeout(_peerRetryTimeout);
+                _peerRetryTimeout = setTimeout(() => {
+                    try { currentPeer.destroy(); } catch(e) {}
+                    currentPeer = null;
+                    setupPeerConnection();
+                }, 4000);
             } else {
                 document.getElementById('call-status').innerText = "Connecting...";
             }
@@ -513,12 +734,16 @@
     }
 
     function startCallWithRetry(targetPeerId) {
-        if (!currentPeer || currentPeer.destroyed || _reconnectRetries > 10) return;
+        if (!currentPeer || currentPeer.destroyed || isEnded) return;
+        if (_reconnectRetries > 15) {
+            stopAlerts();
+            return;
+        }
         let call;
         try { call = currentPeer.call(targetPeerId, localStream); } catch(e) { call = null; }
         if (!call) {
             _reconnectRetries++;
-            setTimeout(() => startCallWithRetry(targetPeerId), 2000);
+            setTimeout(() => startCallWithRetry(targetPeerId), 2500);
             return;
         }
         activeCall = call;
@@ -527,7 +752,12 @@
             if (e && e.type === 'peer-unavailable') {
                 _reconnectRetries++;
                 document.getElementById('call-status').innerText = "Waiting for other side...";
-                setTimeout(() => startCallWithRetry(targetPeerId), 2000);
+                if (_reconnectRetries <= 15) {
+                    setTimeout(() => startCallWithRetry(targetPeerId), 2500);
+                } else {
+                    stopAlerts();
+                    document.getElementById('call-status').innerText = "Peer not responding. Tap END.";
+                }
             }
         });
     }
@@ -564,10 +794,12 @@
                 try {
                     const p = sender.getParameters();
                     if (!p.encodings || !p.encodings[0]) return;
-                    if (p.encodings[0].maxBitrate !== bitrate) {
-                        p.encodings[0].maxBitrate = bitrate;
-                        try { p.encodings[0].dtx = true; } catch(e) {}
-                        try { p.encodings[0].networkPriority = 'high'; } catch(e) {}
+                    const enc = p.encodings[0];
+                    if (enc.maxBitrate !== bitrate) {
+                        enc.maxBitrate = bitrate;
+                        enc.dtx = true;
+                        enc.networkPriority = 'high';
+                        try { enc.priority = 'high'; } catch(e) {}
                         sender.setParameters(p).catch(() => {});
                     }
                 } catch(e) {}
@@ -582,7 +814,7 @@
     }
 
     /* ============================================================
-       STATS MONITOR — delta-based loss
+       STATS MONITOR — Zangi-style adaptive
        ============================================================ */
     function startStatsMonitor(pc) {
         if (_statsInterval) { clearInterval(_statsInterval); _statsInterval = null; }
@@ -597,11 +829,10 @@
                 if (!_statsPc || _statsPc.connectionState === 'closed') return;
                 if (document.hidden) return;
                 const stats = await _statsPc.getStats();
-                let inbound = null, outbound = null, remoteInbound = null, pair = null;
+                let inbound = null, outbound = null, pair = null;
                 stats.forEach(r => {
                     if (r.type === 'inbound-rtp' && r.kind === 'audio') inbound = r;
                     else if (r.type === 'outbound-rtp' && r.kind === 'audio') outbound = r;
-                    else if (r.type === 'remote-inbound-rtp' && r.kind === 'audio') remoteInbound = r;
                     else if (r.type === 'candidate-pair' && r.state === 'succeeded' && r.nominated) pair = r;
                 });
                 const now = Date.now();
@@ -634,27 +865,36 @@
                 if (pair && pair.currentRoundTripTime !== undefined) rtt = Math.round(pair.currentRoundTripTime * 1000);
 
                 const prev = _netQuality;
-                if (rtt > 400 || lossPct > 5) _netQuality = 'weak';
-                else if (rtt > 200 || lossPct > 1.5) _netQuality = 'ok';
-                else _netQuality = 'good';
+                // Zangi: tolerate more loss (FEC handles it)
+                if (rtt > 700 || lossPct > 15)      _netQuality = 'weak';
+                else if (rtt > 350 || lossPct > 6)  _netQuality = 'ok';
+                else                                 _netQuality = 'good';
 
-                let icon = '▁▃▅▇', txt = 'GOOD', color = '#38ef7d';
-                if (_netQuality === 'weak') { icon = '▁▁▁▁'; txt = 'WEAK'; color = '#ea0038'; }
-                else if (_netQuality === 'ok') { icon = '▁▃▅▁'; txt = 'OK'; color = '#ffb74d'; }
+                let icon = '▁▃▅▇', txt = 'CLEAR', color = '#38ef7d';
+                if (_netQuality === 'weak') { icon = '▁▁▁▁'; txt = 'LIMITED'; color = '#ea0038'; }
+                else if (_netQuality === 'ok') { icon = '▁▃▅▁'; txt = 'GOOD'; color = '#ffb74d'; }
 
                 const si = document.getElementById('signal-icon');
                 const st = document.getElementById('signal-text');
                 const ss = document.getElementById('stats-text');
                 if (si) { si.textContent = icon; si.style.color = color; }
                 if (st) { st.textContent = txt; st.style.color = color; }
-                if (ss) ss.textContent = `↓${kbpsIn} ↑${kbpsOut} kbps · ${rtt}ms`;
 
+                let totalMB = 0;
+                if (inbound && inbound.bytesReceived) totalMB = (inbound.bytesReceived / 1048576).toFixed(2);
+                let qualityLabel = '🎙️ Clear';
+                if (_netQuality === 'weak') qualityLabel = '🎙️ Limited';
+                else if (_netQuality === 'ok') qualityLabel = '🎙️ Good';
+                if (ss) ss.textContent = `${qualityLabel} · ↓${kbpsIn} ↑${kbpsOut} kbps · ${rtt}ms · ${totalMB}MB`;
+
+                // Zangi adaptive bitrate
                 if (!isAutoHD && _canSetParams) {
                     let target = BITRATE_SAVER;
-                    if (_netQuality === 'weak') target = BITRATE_WEAK;
-                    else if (_netQuality === 'ok') target = 12000;
+                    if (_netQuality === 'weak')     target = BITRATE_WEAK;
+                    else if (_netQuality === 'ok')  target = 11000;
+                    if (target < BITRATE_MIN) target = BITRATE_MIN;
                     applySenderBitrate(_statsPc, target);
-                    if (prev !== _netQuality) debugLog('🔄 Adaptive: ' + (target/1000) + 'kbps (' + _netQuality + ')');
+                    if (prev !== _netQuality) debugLog('🔄 ' + (target/1000) + 'kbps (' + _netQuality + ')');
                 }
             } catch(e) {}
         }, 5000);
@@ -672,6 +912,7 @@
        ============================================================ */
     function handleCallStream(call) {
         stopAlerts();
+        clearConnectTimeout();
         patchOpusLowBitrate(call);
 
         try {
@@ -704,6 +945,7 @@
         } catch(e) {}
 
         call.on('stream', async remoteStream => {
+            clearConnectTimeout();
             document.getElementById('call-status').innerText = "Encrypted Voice Call 🔒";
             document.getElementById('call-timer').style.display = 'block';
             document.getElementById('fs-lock-btn').style.display = 'block';
@@ -731,15 +973,16 @@
     }
 
     /* ============================================================
-       AUTO HD — no reinit
+       AUTO HD
        ============================================================ */
     function toggleAutoHD() { setAutoHDState(!isAutoHD, true); }
 
     function setAutoHDState(enabled, broadcast = true) {
         isAutoHD = !!enabled;
         updateAutoHDUI();
+        const target = isAutoHD ? BITRATE_HD : BITRATE_SAVER;
         if (activeCall && activeCall.peerConnection) {
-            applySenderBitrate(activeCall.peerConnection, isAutoHD ? BITRATE_HD : BITRATE_SAVER);
+            applySenderBitrate(activeCall.peerConnection, target);
         }
         if (broadcast && dataConnection && dataConnection.open) {
             try { dataConnection.send({ type: 'AUTO_HD_SYNC', active: isAutoHD }); } catch(e) {}
@@ -751,8 +994,8 @@
         const mode = document.getElementById('mode-text');
         if (!btn) return;
         btn.classList.toggle('active', isAutoHD);
-        btn.innerText = isAutoHD ? "⚡ Auto HD ON" : "⚡ Data Saver";
-        if (mode) mode.innerText = isAutoHD ? "Auto HD Active" : "Data Saver Mode";
+        btn.innerText = isAutoHD ? "🎧 Balanced (~16kbps)" : "🪶 Clear Voice (~12kbps)";
+        if (mode) mode.innerText = isAutoHD ? "Balanced Mode · Extra Clarity" : "Zangi Mode · Clear + Low Data";
     }
 
     /* ============================================================
@@ -761,7 +1004,6 @@
     function startCallTimer() {
         if (callTimerInterval) return;
         callTimerInterval = setInterval(() => {
-            if (document.hidden) { callSeconds++; return; }
             callSeconds++;
             const m = Math.floor(callSeconds / 60).toString().padStart(2, '0');
             const s = (callSeconds % 60).toString().padStart(2, '0');
@@ -789,10 +1031,32 @@
         try { if (dataConnection && dataConnection.open) dataConnection.send({ type: 'END_CALL' }); } catch(e) {}
     });
 
+    /* ============================================================
+       NETWORK CHANGE HANDLERS
+       ============================================================ */
+    window.addEventListener('online', () => {
+        debugLog('🌐 Network restored');
+        if (!isEnded && currentPeer && !currentPeer.destroyed) {
+            try { currentPeer.reconnect(); } catch(e) {}
+        }
+        if (!isEnded) document.getElementById('call-status').innerText = "Reconnecting...";
+    });
+
+    window.addEventListener('offline', () => {
+        debugLog('📴 Network lost');
+        if (!isEnded) document.getElementById('call-status').innerText = "Network lost...";
+    });
+
+    /* ============================================================
+       CLEANUP
+       ============================================================ */
     function executeCleanupAndExit(endedByRemote = false) {
         if (isEnded || isReturning) return;
         isEnded = true; isReturning = true;
 
+        _noiseGateActive = false;
+        clearConnectTimeout();
+        if (_peerRetryTimeout) { clearTimeout(_peerRetryTimeout); _peerRetryTimeout = null; }
         stopAlerts();
         try { stopStatsMonitor(); } catch(e) {}
         if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
