@@ -24,7 +24,11 @@ p { font-size: 10px; color: #9ca3af; margin: 0 0 8px; }
 .utility-btn { background: #713f12; color: #fde047; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
 .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px; outline: none; }
 #permission-banner { background: #7f1d1d; color: #fca5a5; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: none; font-weight: bold; }
-#permission-banner.active { display: block; }
+#permission-banner.active { display: block; animation: pulse-banner 1.2s infinite; }
+@keyframes pulse-banner {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.7); }
+    50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+}
 #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
 #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 100px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
 #debug-panel.active { display: block; }
@@ -34,7 +38,7 @@ p { font-size: 10px; color: #9ca3af; margin: 0 0 8px; }
 <div class="box">
     <h3>SECURE_NODE_VOICE</h3>
     <p id="mode-text">Data Saver · 12kbps</p>
-    <div id="permission-banner" onclick="requestMicPermission()">⚠️ Tap to grant microphone</div>
+    <div id="permission-banner">⚠️ Tap to grant microphone</div>
     <div id="call-status" class="status">Initializing...</div>
     <div id="call-timer" class="timer" style="display:none;">00:00</div>
     <div id="signal-bar">
@@ -83,11 +87,11 @@ let localStream = null, activeCall = null, dataConn = null, peer = null;
 let isMuted = false, isSpeakerOn = false, isAutoHD = false;
 let callStarted = false, isEnded = false;
 let vibrateTimer = null, ringTimer = null, callTimer = null, statsTimer = null;
-let callSeconds = 0, connectTimeout = null, retryCount = 0;
+let callSeconds = 0, connectTimeout = null, incomingTimeout = null, retryCount = 0;
 let audioCtx = null, _canSetParams = true, _netQuality = 'good';
 let _pc = null, _lastRx = 0, _lastTx = 0, _lastTs = 0;
-let lastTapTime = 0, wakeLock = null;
-let pendingFlow = null;  // { type: 'call' | 'accept', targetId?, call? }
+let wakeLock = null;
+let pendingFlow = null;
 
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
@@ -186,7 +190,7 @@ function startInit() {
     updateAutoHDUI();
     startAlerts();
     startConnectTimeout();
-    setupPeer();          // ← peer online, પણ mic માંગે નહીં
+    setupPeer();
     requestWakeLock();
 }
 
@@ -222,7 +226,7 @@ async function triggerEarpieceMode() {
 }
 
 /* ============================================================
-   MIC PERMISSION — ફક્ત user gesture પર
+   MIC PERMISSION
    ============================================================ */
 let micRetry = 0;
 async function initMic() {
@@ -289,20 +293,30 @@ function requestMicPermission() {
 }
 
 /* ============================================================
-   🎧 AUDIO CHOICE PROMPT — કોઈ પરમિશન નહીં
+   🎧 AUDIO CHOICE PROMPT
    ============================================================ */
 function promptAudioChoice() {
-    return new Promise(resolve => {
-        const useEarpiece = confirm("🎧 ઇયરપીસમાં સાંભળવું છે?\n\nOK = ઇયરપીસ (ખાનગી)\nCancel = સ્પીકર");
-        isSpeakerOn = !useEarpiece;
-        updateOutputUI();
-        log('🎧 User chose: ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
-        resolve();
+    return new Promise((resolve, reject) => {
+        try {
+            let useEarpiece;
+            try {
+                useEarpiece = confirm("🎧 ઇયરપીસમાં સાંભળવું છે?\n\nOK = ઇયરપીસ (ખાનગી)\nCancel = સ્પીકર");
+            } catch(ce) {
+                log('⚠️ confirm blocked, defaulting earpiece');
+                useEarpiece = true;
+            }
+            isSpeakerOn = !useEarpiece;
+            updateOutputUI();
+            log('🎧 Choice: ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
+            resolve();
+        } catch(e) {
+            reject(e);
+        }
     });
 }
 
 /* ============================================================
-   📞 CALL FLOW — user tap પછી જ mic + audio choice
+   📞 CALL FLOW
    ============================================================ */
 async function beginCallFlow(targetId) {
     pendingFlow = { type: 'call', targetId };
@@ -314,11 +328,27 @@ async function beginCallFlow(targetId) {
     const mic = await initMic();
     if (!mic) {
         banner.onclick = () => requestMicPermission();
+        banner.classList.add('active');
         return;
     }
 
-    await promptAudioChoice();
-    triggerEarpieceMode();  // હવે labels ઉપલબ્ધ છે
+    try {
+        await promptAudioChoice();
+    } catch(e) {
+        log('⚠️ Audio choice err: ' + e.message);
+        isSpeakerOn = false;
+        updateOutputUI();
+    }
+    triggerEarpieceMode();
+
+    // Restart connect timeout
+    clearTimeout(connectTimeout);
+    connectTimeout = setTimeout(() => {
+        if (!callStarted && !isEnded) {
+            stopAlerts();
+            document.getElementById('call-status').innerText = "No answer. Tap END.";
+        }
+    }, 60000);
 
     document.getElementById('call-status').innerText = "Calling...";
     try {
@@ -330,6 +360,9 @@ async function beginCallFlow(targetId) {
 
 async function acceptCallFlow(call) {
     pendingFlow = { type: 'accept', call };
+    stopAlerts();
+    clearTimeout(incomingTimeout);
+
     const banner = document.getElementById('permission-banner');
     banner.classList.remove('active');
     document.getElementById('call-status').innerText = "Requesting mic...";
@@ -337,15 +370,27 @@ async function acceptCallFlow(call) {
     const mic = await initMic();
     if (!mic) {
         banner.onclick = () => requestMicPermission();
+        banner.classList.add('active');
         return;
     }
 
-    await promptAudioChoice();
-    triggerEarpieceMode();  // હવે labels ઉપલબ્ધ છે
+    try {
+        await promptAudioChoice();
+    } catch(e) {
+        log('⚠️ Audio choice err: ' + e.message);
+        isSpeakerOn = false;
+        updateOutputUI();
+    }
+    triggerEarpieceMode();
 
     document.getElementById('call-status').innerText = "Answering...";
-    call.answer(localStream);
-    handleStream(call);
+    try {
+        call.answer(localStream);
+        handleStream(call);
+    } catch(e) {
+        log('❌ Answer err: ' + (e.message || e));
+        cleanup(true);
+    }
 }
 
 /* ============================================================
@@ -392,7 +437,7 @@ function startConnectTimeout() {
 }
 
 /* ============================================================
-   PEER SETUP — mic permission વગર
+   PEER SETUP
    ============================================================ */
 const ICE = [
     { urls: 'stun:stun.l.google.com:19302' },
@@ -440,8 +485,6 @@ function setupPeer() {
         log('📞 Incoming call');
         activeCall = call;
         clearTimeout(connectTimeout);
-        stopAlerts();
-        startCallTimerReset();
 
         const banner = document.getElementById('permission-banner');
         document.getElementById('call-status').innerText = "Incoming Call 📞";
@@ -449,13 +492,15 @@ function setupPeer() {
         banner.classList.add('active');
         banner.onclick = () => acceptCallFlow(call);
 
-        // 25s timeout — accept ના કરે તો reject
-        setTimeout(() => {
+        // 60s timeout, cancel on accept
+        clearTimeout(incomingTimeout);
+        incomingTimeout = setTimeout(() => {
             if (!callStarted && activeCall === call && !isEnded) {
+                log('⏱️ Incoming timeout');
                 try { call.close(); } catch(e) {}
                 if (!isEnded) cleanup(true);
             }
-        }, 25000);
+        }, 60000);
     });
 
     peer.on('disconnected', () => { try { peer.reconnect(); } catch(e) {} });
@@ -478,8 +523,6 @@ function setupPeer() {
         }
     });
 }
-
-function startCallTimerReset() { /* placeholder — કોઈ ફેરફાર નહીં */ }
 
 function startCall(targetId) {
     if (!peer || peer.destroyed || isEnded) return;
@@ -886,7 +929,7 @@ document.addEventListener('visibilitychange', () => {
 });
 
 /* ============================================================
-   CLEANUP + CHAT RETURN
+   CLEANUP
    ============================================================ */
 function cleanup(byRemote = false) {
     if (isEnded) return;
@@ -894,6 +937,7 @@ function cleanup(byRemote = false) {
     pendingFlow = null;
     
     clearTimeout(connectTimeout);
+    clearTimeout(incomingTimeout);
     stopAlerts();
     stopStats();
     if (callTimer) { clearInterval(callTimer); callTimer = null; }
