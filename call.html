@@ -87,17 +87,11 @@ let callSeconds = 0, connectTimeout = null, retryCount = 0;
 let audioCtx = null, _canSetParams = true, _netQuality = 'good';
 let _pc = null, _lastRx = 0, _lastTx = 0, _lastTs = 0;
 let lastTapTime = 0, wakeLock = null;
-let _probeHolder = null;
-let _callAudioCtx = null, _callSourceNode = null, _callGainNode = null;
-let _audioCtxActive = false;
+let _probeHolder = null;   // 🆕 probe stream holder
 
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
 const B_SAVER = 12000, B_HD = 16000, B_WEAK = 10000;
-
-// 🎧 Earpiece વોલ્યુમ — 0.55 (0.35 ખૂબ ઓછું હતું)
-const VOL_EARPIECE = 0.55;
-const VOL_SPEAKER  = 1.0;
 
 const remoteAudio = document.getElementById('remote-audio');
 
@@ -114,7 +108,7 @@ function log(msg) {
 }
 
 /* ============================================================
-   SDP MUNGING — Zangi 12kbps
+   SDP MUNGING — Zangi 12kbps clear voice
    ============================================================ */
 const _origOffer = RTCPeerConnection.prototype.createOffer;
 const _origAnswer = RTCPeerConnection.prototype.createAnswer;
@@ -170,11 +164,96 @@ RTCPeerConnection.prototype.createAnswer = async function(...a) {
 };
 
 /* ============================================================
-   SUPPORT FLAGS
+   SINK SUPPORT CHECK
    ============================================================ */
 const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
-const CTX_SINK_SUPPORTED = (typeof AudioContext !== 'undefined') && ('setSinkId' in AudioContext.prototype);
-log('🔊 HTMLMedia.setSinkId=' + SINK_SUPPORTED + ' | AudioContext.setSinkId=' + CTX_SINK_SUPPORTED);
+log('🔊 setSinkId supported: ' + SINK_SUPPORTED);
+
+/* ============================================================
+   🆕 DIAGNOSTIC — દરેક ફોનમાં ઉપલબ્ધ ડિવાઇસ લોગ કરો
+   ============================================================ */
+async function logAudioDevices() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+        const inputs = devices.filter(d => d.kind === 'audioinput');
+        log('📱 Outputs (' + outputs.length + '): ' + 
+            outputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
+        log('📱 Inputs (' + inputs.length + '): ' + 
+            inputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
+    } catch(e) {
+        log('enumerateDevices err: ' + e.message);
+    }
+}
+
+/* ============================================================
+   🆕 STRATEGY CHAIN — ઇયરપીસ ફોર્સ કરવા 3 સ્તર
+   ============================================================ */
+async function enforceEarpiece() {
+    if (isSpeakerOn) return false;
+    if (!isMobile) return false;
+
+    log('🎧 Earpiece routing attempt...');
+
+    // Strategy 1: setSinkId with earpiece deviceId
+    if (SINK_SUPPORTED) {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const ear = devices.find(d =>
+                d.kind === 'audiooutput' &&
+                /earpiece|receiver|handset|inner|headset/i.test(d.label || '')
+            );
+            if (ear) {
+                await remoteAudio.setSinkId(ear.deviceId);
+                log('🎧 ✅ Strategy1: setSinkId(earpiece)');
+                return true;
+            }
+        } catch(e) {
+            log('Strategy1 err: ' + e.name);
+        }
+    }
+
+    // Strategy 2: re-apply echoCancellation on active track
+    if (localStream) {
+        const track = localStream.getAudioTracks()[0];
+        if (track) {
+            try {
+                await track.applyConstraints({
+                    echoCancellation: true,
+                    noiseSuppression: true,
+                    autoGainControl: true,
+                    channelCount: 1
+                });
+                log('🎧 ✅ Strategy2: echoCancellation re-applied');
+                return true;
+            } catch(e) {
+                log('Strategy2 err: ' + e.name);
+            }
+        }
+    }
+
+    // Strategy 3: brief getUserMedia probe
+    try {
+        if (_probeHolder) {
+            _probeHolder.getTracks().forEach(t => t.stop());
+            _probeHolder = null;
+        }
+        _probeHolder = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        log('🎧 ✅ Strategy3: probe applied');
+        return true;
+    } catch(e) {
+        log('Strategy3 err: ' + e.name);
+    }
+
+    log('⚠️ Earpiece routing FAILED — device may not support browser routing');
+    return false;
+}
 
 /* ============================================================
    INIT
@@ -191,107 +270,6 @@ function startInit() {
     startConnectTimeout();
     initMic();
     requestWakeLock();
-}
-
-/* ============================================================
-   🎵 AudioContext — mic પરમિશન (user gesture) પછી બને
-   ============================================================ */
-async function ensureCallAudioCtx() {
-    if (_callAudioCtx && _callAudioCtx.state !== 'closed') {
-        if (_callAudioCtx.state === 'suspended') {
-            try { await _callAudioCtx.resume(); } catch(e) {}
-        }
-        return _callAudioCtx;
-    }
-    try {
-        _callAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-        if (_callAudioCtx.state === 'suspended') {
-            try { await _callAudioCtx.resume(); } catch(e) {}
-        }
-        log('🎵 AudioContext: ' + _callAudioCtx.state);
-        return _callAudioCtx;
-    } catch(e) {
-        log('❌ AudioContext create failed: ' + e.message);
-        return null;
-    }
-}
-
-/* ============================================================
-   DIAGNOSTIC
-   ============================================================ */
-async function logAudioDevices() {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const outs = devices.filter(d => d.kind === 'audiooutput');
-        const ins  = devices.filter(d => d.kind === 'audioinput');
-        log('📱 Outputs (' + outs.length + '): ' + outs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
-        log('📱 Inputs (' + ins.length + '): ' + ins.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
-    } catch(e) { log('enumerate err: ' + e.message); }
-}
-
-/* ============================================================
-   🎧 EARPIECE ENFORCER
-   ============================================================ */
-async function enforceEarpiece() {
-    if (!isMobile || isSpeakerOn) return false;
-    log('🎧 enforceEarpiece...');
-
-    if (CTX_SINK_SUPPORTED && _callAudioCtx && _callAudioCtx.state === 'running') {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const ear = devices.find(d =>
-                d.kind === 'audiooutput' && /earpiece|receiver|handset|inner/i.test(d.label || '')
-            );
-            if (ear) {
-                await _callAudioCtx.setSinkId(ear.deviceId);
-                log('🎧 ✅ S1: AudioContext sink → earpiece');
-                return true;
-            }
-        } catch(e) { log('S1 err: ' + e.name); }
-    }
-
-    if (SINK_SUPPORTED) {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const ear = devices.find(d =>
-                d.kind === 'audiooutput' && /earpiece|receiver|handset|inner/i.test(d.label || '')
-            );
-            if (ear) {
-                await remoteAudio.setSinkId(ear.deviceId);
-                log('🎧 ✅ S2: HTMLMedia sink → earpiece');
-                return true;
-            }
-            await remoteAudio.setSinkId('communications');
-            log('🎧 ✅ S2b: HTMLMedia sink → communications');
-            return true;
-        } catch(e) { log('S2 err: ' + e.name); }
-    }
-
-    if (localStream) {
-        const track = localStream.getAudioTracks()[0];
-        if (track) {
-            try {
-                await track.applyConstraints({
-                    echoCancellation: true, noiseSuppression: true,
-                    autoGainControl: true, channelCount: 1
-                });
-                log('🎧 ✅ S3: echoCancellation re-applied');
-                return true;
-            } catch(e) { log('S3 err: ' + e.name); }
-        }
-    }
-
-    try {
-        if (_probeHolder) { _probeHolder.getTracks().forEach(t => t.stop()); _probeHolder = null; }
-        _probeHolder = await navigator.mediaDevices.getUserMedia({
-            audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-        });
-        log('🎧 ✅ S4: probe applied');
-        return true;
-    } catch(e) { log('S4 err: ' + e.name); }
-
-    log('⚠️ Earpiece FAILED — OS restricts routing');
-    return false;
 }
 
 /* ============================================================
@@ -329,10 +307,9 @@ async function initMic() {
         
         if (isMuted) track.enabled = false;
         log('✅ Mic ready');
-        await logAudioDevices();
         
-        // 🎵 AudioContext — mic પરમિશન (user gesture) પછી બનાવો
-        await ensureCallAudioCtx();
+        // 🆕 diagnostic — કયા ડિવાઇસ છે તે જુઓ
+        logAudioDevices();
         
         if (!peer) setupPeer();
         else if (activeCall) replaceStream(localStream);
@@ -442,6 +419,7 @@ function setupPeer() {
                     dataConn = peer.connect(targetId, { reliable: true });
                     setupDataConn();
                 } catch(e) {}
+                // 🆕 probe right before call
                 if (!isSpeakerOn) await enforceEarpiece();
                 startCall(targetId);
             }, 1500);
@@ -456,6 +434,7 @@ function setupPeer() {
         clearTimeout(connectTimeout);
         stopAlerts();
         if (localStream) {
+            // 🆕 probe right before answer
             if (!isSpeakerOn) await enforceEarpiece();
             call.answer(localStream);
             handleStream(call);
@@ -534,7 +513,7 @@ function setupDataConn() {
 }
 
 /* ============================================================
-   HANDLE STREAM — 🎯 મુખ્ય સુધારો
+   HANDLE STREAM
    ============================================================ */
 function handleStream(call) {
     stopAlerts();
@@ -562,81 +541,28 @@ function handleStream(call) {
         startCallTimer();
         callStarted = true;
 
-        // ─── 1️⃣ Track ચેક ───
-        const audioTracks = stream.getAudioTracks();
-        log('📡 Stream: ' + audioTracks.length + ' audio track(s)');
-        if (audioTracks.length === 0) {
-            log('❌ Stream માં audio track જ નથી!');
-            return;
-        }
-        const tr = audioTracks[0];
-        log('🎵 Track: enabled=' + tr.enabled + ' muted=' + tr.muted + ' state=' + tr.readyState);
-
-        // ─── 2️⃣ HTML5 audio — પ્રથમ અને હંમેશા ───
         remoteAudio.srcObject = stream;
         remoteAudio.muted = false;
-        remoteAudio.volume = isSpeakerOn ? VOL_SPEAKER : VOL_EARPIECE;
+        remoteAudio.volume = 1.0;
 
-        let htmlOk = false;
+        let played = false;
         for (let i = 0; i < 5; i++) {
             try {
                 await remoteAudio.play();
-                htmlOk = true;
-                log('✅ HTML5 playing (attempt ' + (i+1) + ')');
+                played = true;
+                log('✅ Playing (attempt ' + (i+1) + ')');
                 break;
             } catch(e) {
-                log('⏳ HTML5 play ' + (i+1) + ' fail: ' + e.message);
                 await new Promise(r => setTimeout(r, 200));
             }
         }
-        if (!htmlOk) {
+        if (!played) {
             document.getElementById('audio-fix-banner').style.display = 'block';
         } else {
             document.getElementById('audio-fix-banner').style.display = 'none';
         }
-
-        // ─── 3️⃣ AudioContext — ફક્ત જો CONFIRMED running ───
-        if (isMobile && CTX_SINK_SUPPORTED) {
-            const ctx = await ensureCallAudioCtx();
-            
-            if (ctx && ctx.state === 'running') {
-                try {
-                    if (_callSourceNode) try { _callSourceNode.disconnect(); } catch(e) {}
-                    if (_callGainNode) try { _callGainNode.disconnect(); } catch(e) {}
-
-                    _callSourceNode = ctx.createMediaStreamSource(stream);
-                    _callGainNode = ctx.createGain();
-                    _callGainNode.gain.value = isSpeakerOn ? VOL_SPEAKER : VOL_EARPIECE;
-                    _callSourceNode.connect(_callGainNode);
-                    _callGainNode.connect(ctx.destination);
-
-                    // statechange fallback
-                    ctx.onstatechange = () => {
-                        log('🎵 AudioContext state: ' + ctx.state);
-                        if (ctx.state === 'suspended' && _audioCtxActive) {
-                            log('⚠️ AudioContext suspended → fallback to HTML5');
-                            remoteAudio.muted = false;
-                            remoteAudio.play().catch(() => {});
-                            _audioCtxActive = false;
-                        }
-                    };
-
-                    // ⚠️ CONFIRMED running પછી જ mute
-                    remoteAudio.muted = true;
-                    _audioCtxActive = true;
-                    log('✅ AudioContext active (gain=' + _callGainNode.gain.value + ') — HTML5 muted');
-                } catch(e) {
-                    log('❌ AudioContext node err: ' + e.message);
-                    _audioCtxActive = false;
-                    remoteAudio.muted = false;
-                }
-            } else {
-                log('⚠️ AudioContext state=' + (ctx ? ctx.state : 'null') + ' — HTML5 only (speaker)');
-                _audioCtxActive = false;
-                // HTML5 ચાલુ જ રહે
-            }
-        }
-
+        
+        // 🆕 stream શરૂ થયા પછી પણ ઇયરપીસ ફરી ફોર્સ કરો
         await applyOutput();
     });
 
@@ -649,33 +575,27 @@ function handleStream(call) {
    ============================================================ */
 async function applyOutput() {
     if (isSpeakerOn) {
-        if (!remoteAudio.muted) remoteAudio.volume = VOL_SPEAKER;
-        if (_callGainNode) _callGainNode.gain.value = VOL_SPEAKER;
-
-        if (CTX_SINK_SUPPORTED && _callAudioCtx && _callAudioCtx.state === 'running') {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const spk = devices.find(d =>
-                    d.kind === 'audiooutput' && /speaker|loudspeaker/i.test(d.label || '')
-                );
-                await _callAudioCtx.setSinkId(spk ? spk.deviceId : 'default');
-                log('🔊 Context sink → Speaker');
-                return;
-            } catch(e) { log('Speaker ctx sink err: ' + e.name); }
-        }
+        remoteAudio.volume = 1.0;
+        if (!remoteAudio.muted) remoteAudio.muted = false;
+        // speaker માટે setSinkId 'default' કે speaker deviceId
         if (SINK_SUPPORTED) {
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const spk = devices.find(d =>
-                    d.kind === 'audiooutput' && /speaker|loudspeaker/i.test(d.label || '')
+                    d.kind === 'audiooutput' &&
+                    /speaker|loudspeaker/i.test(d.label || '')
                 );
-                await remoteAudio.setSinkId(spk ? spk.deviceId : 'default');
-                log('🔊 HTMLMedia sink → Speaker');
-            } catch(e) { log('Speaker sink err: ' + e.name); }
+                if (spk) await remoteAudio.setSinkId(spk.deviceId);
+                else await remoteAudio.setSinkId('default');
+                log('🔊 Speaker routing OK');
+            } catch(e) {
+                try { await remoteAudio.setSinkId('default'); } catch(_) {}
+            }
         }
     } else {
-        if (!remoteAudio.muted) remoteAudio.volume = VOL_EARPIECE;
-        if (_callGainNode) _callGainNode.gain.value = VOL_EARPIECE;
+        remoteAudio.volume = 0.95;
+        if (!remoteAudio.muted) remoteAudio.muted = false;
+        // 🆕 earpiece માટે strategy chain
         await enforceEarpiece();
     }
 }
@@ -699,51 +619,10 @@ function updateOutputUI() {
     }
 }
 
-/* ============================================================
-   🔓 FORCE UNLOCK — user tap થી ઓડિયો ચાલુ
-   ============================================================ */
-async function forceUnlockAudio(e) {
+function forceUnlockAudio(e) {
     if (e) e.stopPropagation();
-    log('🔓 Force unlock...');
-
-    const ctx = await ensureCallAudioCtx();
-    log('🔓 AudioContext: ' + (ctx ? ctx.state : 'null'));
-
-    // AudioContext running થાય તો nodes બનાવો
-    if (ctx && ctx.state === 'running' && remoteAudio.srcObject && !_audioCtxActive) {
-        try {
-            const stream = remoteAudio.srcObject;
-            if (_callSourceNode) try { _callSourceNode.disconnect(); } catch(e) {}
-            if (_callGainNode) try { _callGainNode.disconnect(); } catch(e) {}
-
-            _callSourceNode = ctx.createMediaStreamSource(stream);
-            _callGainNode = ctx.createGain();
-            _callGainNode.gain.value = isSpeakerOn ? VOL_SPEAKER : VOL_EARPIECE;
-            _callSourceNode.connect(_callGainNode);
-            _callGainNode.connect(ctx.destination);
-
-            ctx.onstatechange = () => {
-                if (ctx.state === 'suspended' && _audioCtxActive) {
-                    remoteAudio.muted = false;
-                    remoteAudio.play().catch(() => {});
-                    _audioCtxActive = false;
-                }
-            };
-
-            remoteAudio.muted = true;
-            _audioCtxActive = true;
-            log('✅ AudioContext now active');
-        } catch(err) {
-            log('❌ Node connect err: ' + err.message);
-        }
-    }
-
-    // ખાતરી કરો HTML5 ચાલુ છે જો AudioContext fail
-    if (!_audioCtxActive && remoteAudio.srcObject) {
-        remoteAudio.muted = false;
-        try { await remoteAudio.play(); log('✅ HTML5 force-played'); } catch(e) { log('HTML5 force-play err: ' + e.message); }
-    }
-
+    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    remoteAudio.play().catch(() => {});
     document.getElementById('audio-fix-banner').style.display = 'none';
 }
 
@@ -945,16 +824,12 @@ function cleanup(byRemote = false) {
     if (callTimer) { clearInterval(callTimer); callTimer = null; }
     try { if (wakeLock) wakeLock.release(); } catch(e) {}
     
+    // 🆕 probe holder release
     try {
-        if (_probeHolder) { _probeHolder.getTracks().forEach(t => t.stop()); _probeHolder = null; }
-    } catch(e) {}
-    
-    try {
-        if (_callSourceNode) { try { _callSourceNode.disconnect(); } catch(e) {} _callSourceNode = null; }
-        if (_callGainNode)   { try { _callGainNode.disconnect(); } catch(e) {} _callGainNode = null; }
-        if (_callAudioCtx && _callAudioCtx.state !== 'closed') _callAudioCtx.close();
-        _callAudioCtx = null;
-        _audioCtxActive = false;
+        if (_probeHolder) {
+            _probeHolder.getTracks().forEach(t => t.stop());
+            _probeHolder = null;
+        }
     } catch(e) {}
     
     try { if (activeCall) activeCall.close(); } catch(e) {}
@@ -962,7 +837,6 @@ function cleanup(byRemote = false) {
     try {
         remoteAudio.pause();
         remoteAudio.srcObject = null;
-        remoteAudio.muted = false;
     } catch(e) {}
     try { if (dataConn) dataConn.close(); } catch(e) {}
     try { if (peer && !peer.destroyed) peer.destroy(); } catch(e) {}
