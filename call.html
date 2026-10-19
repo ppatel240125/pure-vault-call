@@ -92,19 +92,19 @@ let audioCtx = null, _canSetParams = true, _netQuality = 'good';
 let _pc = null, _lastRx = 0, _lastTx = 0, _lastTs = 0;
 let wakeLock = null;
 let pendingFlow = null;
+let callInitiated = false;
 
 const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
 
-// Zangi bitrates
 const B_SAVER = 12000, B_HD = 16000, B_WEAK = 10000;
 
 const remoteAudio = document.getElementById('remote-audio');
 
 /* ============================================================
-   DEBUG LOG
+   LOG (always to console + panel if debug)
    ============================================================ */
 function log(msg) {
-    console.log(msg);
+    console.log('[VCALL] ' + msg);
     if (debugMode) {
         const p = document.getElementById('debug-panel');
         p.classList.add('active');
@@ -113,7 +113,7 @@ function log(msg) {
 }
 
 /* ============================================================
-   SDP MUNGING — Zangi 12kbps clear voice
+   SDP MUNGING (unchanged — data saver)
    ============================================================ */
 const _origOffer = RTCPeerConnection.prototype.createOffer;
 const _origAnswer = RTCPeerConnection.prototype.createAnswer;
@@ -169,16 +169,16 @@ RTCPeerConnection.prototype.createAnswer = async function(...a) {
 };
 
 /* ============================================================
-   SINK SUPPORT CHECK
+   SINK SUPPORT
    ============================================================ */
 const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
 const CTX_SINK_SUPPORTED = (typeof AudioContext !== 'undefined') && ('setSinkId' in AudioContext.prototype);
 let _callAudioCtx = null;
 let _callSourceNode = null;
-log('🔊 HTMLMedia.setSinkId: ' + SINK_SUPPORTED + ' | AudioContext.setSinkId: ' + CTX_SINK_SUPPORTED);
+log('HTMLMedia.setSinkId=' + SINK_SUPPORTED + ' | AudioContext.setSinkId=' + CTX_SINK_SUPPORTED);
 
 /* ============================================================
-   INIT — NO MIC REQUEST ON LOAD
+   INIT
    ============================================================ */
 if (!roomId || !role) {
     document.getElementById('call-status').innerText = "Error: Invalid Room/Role";
@@ -187,42 +187,10 @@ if (!roomId || !role) {
 }
 
 function startInit() {
+    log('startInit room=' + roomId + ' role=' + role);
     updateAutoHDUI();
-    startAlerts();
-    startConnectTimeout();
     setupPeer();
     requestWakeLock();
-}
-
-/* ============================================================
-   🎧 EARPIECE PROBE (mic permission પછી ચાલે)
-   ============================================================ */
-async function triggerEarpieceMode() {
-    if (!isMobile) return;
-    try {
-        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const earpiece = devices.find(d =>
-            d.kind === 'audioinput' &&
-            /earpiece|receiver|handset|inner/i.test(d.label || '')
-        );
-        if (!earpiece) {
-            log('ℹ️ No earpiece audioinput label visible');
-            return;
-        }
-        const temp = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                deviceId: { exact: earpiece.deviceId },
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-        temp.getTracks().forEach(t => t.stop());
-        log('📞 Earpiece probe OK — OS mode switched');
-    } catch(e) {
-        log('Earpiece probe err: ' + (e.name || e.message));
-    }
 }
 
 /* ============================================================
@@ -230,8 +198,12 @@ async function triggerEarpieceMode() {
    ============================================================ */
 let micRetry = 0;
 async function initMic() {
-    if (localStream && localStream.active) return localStream;
+    if (localStream && localStream.active) {
+        log('Mic already active');
+        return localStream;
+    }
     
+    log('Requesting mic...');
     try {
         localStream = await navigator.mediaDevices.getUserMedia({
             audio: {
@@ -250,33 +222,19 @@ async function initMic() {
         const track = localStream.getAudioTracks()[0];
         if (track) {
             try { track.contentHint = 'speech'; } catch(e) {}
-            track.onended = () => {
-                if (!isEnded && micRetry < 3) {
-                    micRetry++;
-                    setTimeout(initMic, 1000);
-                }
-            };
         }
         
-        if (isMuted) track.enabled = false;
+        if (isMuted && track) track.enabled = false;
         log('✅ Mic ready');
-        
-        if (activeCall) replaceStream(localStream);
-        
         return localStream;
     } catch(err) {
-        log('❌ Mic err: ' + err.name);
+        log('❌ Mic err: ' + err.name + ' — ' + err.message);
         const banner = document.getElementById('permission-banner');
         banner.classList.add('active');
         if (err.name === 'NotAllowedError') {
             banner.innerText = "⛔ Mic blocked. Click 🔒 → Allow → Tap here";
         } else {
             banner.innerText = "⚠️ Mic error. Tap to retry";
-        }
-        
-        if (micRetry < 2) {
-            micRetry++;
-            setTimeout(initMic, 2000);
         }
         return null;
     }
@@ -293,53 +251,29 @@ function requestMicPermission() {
 }
 
 /* ============================================================
-   🎧 AUDIO CHOICE PROMPT
-   ============================================================ */
-function promptAudioChoice() {
-    return new Promise((resolve, reject) => {
-        try {
-            let useEarpiece;
-            try {
-                useEarpiece = confirm("🎧 ઇયરપીસમાં સાંભળવું છે?\n\nOK = ઇયરપીસ (ખાનગી)\nCancel = સ્પીકર");
-            } catch(ce) {
-                log('⚠️ confirm blocked, defaulting earpiece');
-                useEarpiece = true;
-            }
-            isSpeakerOn = !useEarpiece;
-            updateOutputUI();
-            log('🎧 Choice: ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
-            resolve();
-        } catch(e) {
-            reject(e);
-        }
-    });
-}
-
-/* ============================================================
-   📞 CALL FLOW
+   CALL FLOWS
    ============================================================ */
 async function beginCallFlow(targetId) {
+    log('🎬 beginCallFlow');
     pendingFlow = { type: 'call', targetId };
     clearTimeout(connectTimeout);
+    
     const banner = document.getElementById('permission-banner');
     banner.classList.remove('active');
     document.getElementById('call-status').innerText = "Requesting mic...";
 
     const mic = await initMic();
     if (!mic) {
+        banner.innerText = "⚠️ Mic error. Tap to retry";
         banner.onclick = () => requestMicPermission();
         banner.classList.add('active');
         return;
     }
 
-    try {
-        await promptAudioChoice();
-    } catch(e) {
-        log('⚠️ Audio choice err: ' + e.message);
-        isSpeakerOn = false;
-        updateOutputUI();
-    }
-    triggerEarpieceMode();
+    // Default: earpiece (user can toggle to speaker)
+    isSpeakerOn = false;
+    updateOutputUI();
+    log('🎧 Default output: Earpiece');
 
     // Restart connect timeout
     clearTimeout(connectTimeout);
@@ -351,14 +285,12 @@ async function beginCallFlow(targetId) {
     }, 60000);
 
     document.getElementById('call-status').innerText = "Calling...";
-    try {
-        dataConn = peer.connect(targetId, { reliable: true });
-        setupDataConn();
-    } catch(e) {}
+    startAlerts();  // caller feedback
     startCall(targetId);
 }
 
 async function acceptCallFlow(call) {
+    log('🎬 acceptCallFlow');
     pendingFlow = { type: 'accept', call };
     stopAlerts();
     clearTimeout(incomingTimeout);
@@ -369,23 +301,21 @@ async function acceptCallFlow(call) {
 
     const mic = await initMic();
     if (!mic) {
+        banner.innerText = "⚠️ Mic error. Tap to retry";
         banner.onclick = () => requestMicPermission();
         banner.classList.add('active');
         return;
     }
 
-    try {
-        await promptAudioChoice();
-    } catch(e) {
-        log('⚠️ Audio choice err: ' + e.message);
-        isSpeakerOn = false;
-        updateOutputUI();
-    }
-    triggerEarpieceMode();
+    isSpeakerOn = false;
+    updateOutputUI();
+    log('🎧 Default output: Earpiece');
 
     document.getElementById('call-status').innerText = "Answering...";
+    log('📞 call.answer()');
     try {
         call.answer(localStream);
+        log('✅ Answer sent');
         handleStream(call);
     } catch(e) {
         log('❌ Answer err: ' + (e.message || e));
@@ -394,9 +324,10 @@ async function acceptCallFlow(call) {
 }
 
 /* ============================================================
-   ALERTS
+   ALERTS (ringing / vibrate)
    ============================================================ */
 function startAlerts() {
+    stopAlerts();
     if (isMobile && 'vibrate' in navigator) {
         vibrateTimer = setInterval(() => {
             if (callStarted || isEnded) { stopAlerts(); return; }
@@ -404,17 +335,17 @@ function startAlerts() {
         }, 2000);
     } else {
         try {
-            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
             ringTimer = setInterval(() => {
                 if (callStarted || isEnded) { stopAlerts(); return; }
                 if (!audioCtx) return;
                 const o = audioCtx.createOscillator();
                 const g = audioCtx.createGain();
                 o.frequency.value = 480;
-                g.gain.value = 0.1;
+                g.gain.value = 0.08;
                 o.connect(g).connect(audioCtx.destination);
                 o.start();
-                o.stop(audioCtx.currentTime + 0.4);
+                o.stop(audioCtx.currentTime + 0.3);
             }, 2500);
         } catch(e) {}
     }
@@ -424,16 +355,6 @@ function stopAlerts() {
     if (vibrateTimer) { clearInterval(vibrateTimer); vibrateTimer = null; }
     if (ringTimer) { clearInterval(ringTimer); ringTimer = null; }
     if ('vibrate' in navigator) try { navigator.vibrate(0); } catch(e){}
-}
-
-function startConnectTimeout() {
-    clearTimeout(connectTimeout);
-    connectTimeout = setTimeout(() => {
-        if (!callStarted && !isEnded) {
-            stopAlerts();
-            document.getElementById('call-status').innerText = "No answer. Tap END.";
-        }
-    }, 60000);
 }
 
 /* ============================================================
@@ -458,15 +379,14 @@ function setupPeer() {
         host: '0.peerjs.com', port: 443, path: '/', secure: true,
         config: {
             iceServers: ICE,
-            iceCandidatePoolSize: 4,
             bundlePolicy: 'max-bundle',
             rtcpMuxPolicy: 'require'
         },
-        debug: 0
+        debug: 1
     });
 
-    peer.on('open', () => {
-        log('✅ Peer open');
+    peer.on('open', (id) => {
+        log('✅ Peer open: ' + id);
         const banner = document.getElementById('permission-banner');
 
         if (role === 'caller') {
@@ -479,10 +399,14 @@ function setupPeer() {
         }
     });
 
-    peer.on('connection', c => { dataConn = c; setupDataConn(); });
+    peer.on('connection', c => {
+        log('🔗 Data conn from ' + c.peer);
+        dataConn = c;
+        setupDataConn();
+    });
 
     peer.on('call', call => {
-        log('📞 Incoming call');
+        log('📞 Incoming call from ' + call.peer);
         activeCall = call;
         clearTimeout(connectTimeout);
 
@@ -492,54 +416,113 @@ function setupPeer() {
         banner.classList.add('active');
         banner.onclick = () => acceptCallFlow(call);
 
-        // 60s timeout, cancel on accept
+        startAlerts();  // ring now
+
         clearTimeout(incomingTimeout);
         incomingTimeout = setTimeout(() => {
             if (!callStarted && activeCall === call && !isEnded) {
-                log('⏱️ Incoming timeout');
+                log('⏱️ Incoming timeout — closing');
                 try { call.close(); } catch(e) {}
                 if (!isEnded) cleanup(true);
             }
         }, 60000);
     });
 
-    peer.on('disconnected', () => { try { peer.reconnect(); } catch(e) {} });
-    peer.on('close', () => { if (!isEnded) cleanup(); });
+    peer.on('disconnected', () => {
+        log('⚠️ Peer disconnected, reconnecting...');
+        try { peer.reconnect(); } catch(e) {}
+    });
+
+    peer.on('close', () => {
+        log('⚠️ Peer closed');
+        if (!isEnded) cleanup();
+    });
+
     peer.on('error', err => {
-        log('Peer err: ' + (err.type || err.message));
+        log('❌ Peer error: ' + err.type + ' — ' + err.message);
+        
         if (err.type === 'peer-unavailable') {
-            if (retryCount < 15) {
+            if (!callInitiated) {
+                log('Peer unavailable but call not initiated — ignore');
+                return;
+            }
+            if (retryCount < 20 && !isEnded && !callStarted) {
                 retryCount++;
-                document.getElementById('call-status').innerText = "Waiting... (try " + retryCount + ")";
-                setTimeout(() => startCall(targetId), 3000);
-            } else {
+                document.getElementById('call-status').innerText = "Connecting... (try " + retryCount + ")";
+                setTimeout(() => {
+                    if (!isEnded && !callStarted) startCall(targetId);
+                }, 2500);
+            } else if (!isEnded) {
                 stopAlerts();
                 document.getElementById('call-status').innerText = "Peer offline. Tap END.";
             }
         } else if (err.type === 'unavailable-id') {
-            setTimeout(() => { try { peer.destroy(); } catch(e){} peer = null; setupPeer(); }, 3000);
+            log('ID taken, retrying with new peer in 3s');
+            setTimeout(() => {
+                try { peer.destroy(); } catch(e){}
+                peer = null;
+                setupPeer();
+            }, 3000);
         } else if (err.type === 'network' || err.type === 'server-error') {
-            setTimeout(() => { try { peer.destroy(); } catch(e){} peer = null; setupPeer(); }, 4000);
+            setTimeout(() => {
+                try { peer.destroy(); } catch(e){}
+                peer = null;
+                setupPeer();
+            }, 4000);
         }
     });
 }
 
+/* ============================================================
+   START CALL
+   ============================================================ */
 function startCall(targetId) {
-    if (!peer || peer.destroyed || isEnded) return;
+    log('📞 startCall → ' + targetId);
+    
+    if (!peer || peer.destroyed) { log('❌ peer invalid'); return; }
+    if (isEnded) { log('❌ call ended'); return; }
+    if (callStarted) { log('✅ call already started'); return; }
     if (!localStream) {
-        setTimeout(() => startCall(targetId), 1500);
+        log('⏳ no localStream, waiting 500ms');
+        setTimeout(() => startCall(targetId), 500);
         return;
     }
+    
+    // Close previous attempt (from retries)
+    if (activeCall) {
+        log('⚠️ Closing previous attempt');
+        try { activeCall.close(); } catch(e) {}
+        activeCall = null;
+    }
+    
+    callInitiated = true;
+    
     try {
+        log('📞 peer.call()');
         activeCall = peer.call(targetId, localStream);
-        if (activeCall) handleStream(activeCall);
-        else {
+        log('📞 returned: ' + (activeCall ? 'conn=' + activeCall.connectionId : 'NULL'));
+        
+        if (activeCall) {
+            handleStream(activeCall);
+            
+            // Data connection AFTER call, with delay
+            setTimeout(() => {
+                if (!isEnded && peer && !peer.destroyed) {
+                    try {
+                        log('🔗 peer.connect() for MODE sync');
+                        dataConn = peer.connect(targetId, { reliable: true });
+                        setupDataConn();
+                    } catch(e) { log('⚠️ connect err: ' + e.message); }
+                }
+            }, 2000);
+        } else {
             retryCount++;
-            setTimeout(() => startCall(targetId), 3000);
+            if (retryCount < 20) setTimeout(() => startCall(targetId), 2500);
         }
     } catch(e) {
+        log('❌ peer.call threw: ' + e.message);
         retryCount++;
-        if (retryCount < 15) setTimeout(() => startCall(targetId), 3000);
+        if (retryCount < 20) setTimeout(() => startCall(targetId), 2500);
     }
 }
 
@@ -556,47 +539,57 @@ function replaceStream(newStream) {
 function setupDataConn() {
     if (!dataConn) return;
     dataConn.on('open', () => {
+        log('🔗 Data conn open');
         try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
     });
     dataConn.on('data', d => {
         if (d === 'END_CALL' || (d && d.type === 'END_CALL')) cleanup(true);
         else if (d && d.type === 'MODE') setAutoHD(d.active, false);
     });
+    dataConn.on('error', err => log('⚠️ Data err: ' + err.message));
 }
 
 /* ============================================================
    HANDLE STREAM
    ============================================================ */
 function handleStream(call) {
+    log('🎬 handleStream');
     stopAlerts();
     clearTimeout(connectTimeout);
-    applyBitrate(call.peerConnection);
-    startStats(call.peerConnection);
-
+    
     if (call.peerConnection) {
+        applyBitrate(call.peerConnection);
+        startStats(call.peerConnection);
+        
         call.peerConnection.oniceconnectionstatechange = () => {
             const s = call.peerConnection.iceConnectionState;
-            log('ICE: ' + s);
+            log('❄️ ICE: ' + s);
             if (s === 'connected' || s === 'completed') {
                 document.getElementById('call-status').innerText = "Encrypted Call 🔒";
                 clearTimeout(connectTimeout);
                 applyBitrate(call.peerConnection);
-            } else if (s === 'failed' || s === 'disconnected') {
+            } else if (s === 'failed') {
+                document.getElementById('call-status').innerText = "Connection failed";
+            } else if (s === 'disconnected') {
                 document.getElementById('call-status').innerText = "Reconnecting...";
             }
         };
     }
 
     call.on('stream', async stream => {
+        log('📡 Got remote stream');
         document.getElementById('call-status').innerText = "Encrypted Call 🔒";
         document.getElementById('call-timer').style.display = 'block';
         startCallTimer();
         callStarted = true;
+        stopAlerts();
 
+        // Try AudioContext.setSinkId (mobile Chrome 110+)
         if (isMobile && !SINK_SUPPORTED && CTX_SINK_SUPPORTED) {
             try {
                 if (!_callAudioCtx || _callAudioCtx.state === 'closed') {
                     _callAudioCtx = new AudioContext();
+                    log('🔊 Created AudioContext');
                 }
                 if (_callAudioCtx.state === 'suspended') {
                     await _callAudioCtx.resume();
@@ -607,12 +600,11 @@ function handleStream(call) {
                 _callSourceNode = _callAudioCtx.createMediaStreamSource(stream);
                 _callSourceNode.connect(_callAudioCtx.destination);
                 remoteAudio.muted = true;
-                document.getElementById('audio-fix-banner').style.display = 'none';
                 log('✅ AudioContext playback active');
                 await applyOutput();
                 return;
             } catch(e) {
-                log('AudioContext path failed: ' + (e.name || e.message));
+                log('⚠️ AudioContext path failed: ' + (e.name || e.message));
                 remoteAudio.muted = false;
                 if (_callSourceNode) {
                     try { _callSourceNode.disconnect(); } catch(_) {}
@@ -633,6 +625,7 @@ function handleStream(call) {
                 log('✅ Playing (attempt ' + (i+1) + ')');
                 break;
             } catch(e) {
+                log('⏳ play attempt ' + (i+1) + ' failed: ' + e.message);
                 await new Promise(r => setTimeout(r, 200));
             }
         }
@@ -645,8 +638,15 @@ function handleStream(call) {
         await applyOutput();
     });
 
-    call.on('close', () => cleanup());
-    call.on('error', () => cleanup());
+    call.on('close', () => {
+        log('📴 Call closed');
+        if (!isEnded) cleanup();
+    });
+    
+    call.on('error', (err) => {
+        log('❌ Call error: ' + (err.message || JSON.stringify(err)));
+        if (!isEnded) cleanup();
+    });
 }
 
 /* ============================================================
@@ -677,12 +677,12 @@ async function applyOutput() {
             log('🎧 Context sink → ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
             return;
         } catch(e) {
-            log('Context sink err: ' + (e.name || e.message));
+            log('⚠️ Context sink err: ' + (e.name || e.message));
         }
     }
 
     if (!SINK_SUPPORTED) {
-        log('⚠️ setSinkId unavailable — using OS default');
+        log('⚠️ setSinkId unavailable — OS default routing');
         return;
     }
     
@@ -935,6 +935,8 @@ function cleanup(byRemote = false) {
     if (isEnded) return;
     isEnded = true;
     pendingFlow = null;
+    
+    log('🧹 Cleanup (byRemote=' + byRemote + ')');
     
     clearTimeout(connectTimeout);
     clearTimeout(incomingTimeout);
