@@ -164,10 +164,13 @@ RTCPeerConnection.prototype.createAnswer = async function(...a) {
 };
 
 /* ============================================================
-   SINK SUPPORT CHECK
+   SINK SUPPORT CHECK — 🎧 વિસ્તૃત (HTMLMedia + AudioContext)
    ============================================================ */
 const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
-log('🔊 setSinkId supported: ' + SINK_SUPPORTED);
+const CTX_SINK_SUPPORTED = (typeof AudioContext !== 'undefined') && ('setSinkId' in AudioContext.prototype);
+let _callAudioCtx = null;
+let _callSourceNode = null;
+log('🔊 HTMLMedia.setSinkId=' + SINK_SUPPORTED + ' | AudioContext.setSinkId=' + CTX_SINK_SUPPORTED);
 
 /* ============================================================
    INIT
@@ -184,6 +187,37 @@ function startInit() {
     startConnectTimeout();
     initMic();
     requestWakeLock();
+}
+
+/* ============================================================
+   🎧 EARPIECE PROBE — mic પરમિશન પછી ચાલે
+   ============================================================ */
+async function triggerEarpieceMode() {
+    if (!isMobile) return;
+    try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) return;
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const earpiece = devices.find(d =>
+            d.kind === 'audioinput' &&
+            /earpiece|receiver|handset|inner/i.test(d.label || '')
+        );
+        if (!earpiece) {
+            log('ℹ️ No earpiece audioinput label visible');
+            return;
+        }
+        const temp = await navigator.mediaDevices.getUserMedia({
+            audio: {
+                deviceId: { exact: earpiece.deviceId },
+                echoCancellation: true,
+                noiseSuppression: true,
+                autoGainControl: true
+            }
+        });
+        temp.getTracks().forEach(t => t.stop());
+        log('📞 Earpiece probe OK — OS mode switched');
+    } catch(e) {
+        log('Earpiece probe err: ' + (e.name || e.message));
+    }
 }
 
 /* ============================================================
@@ -221,6 +255,9 @@ async function initMic() {
         
         if (isMuted) track.enabled = false;
         log('✅ Mic ready');
+        
+        // 🎧 NEW: પરમિશન મળ્યા પછી ઇયરપીસ probe (labels હવે ઉપલબ્ધ)
+        triggerEarpieceMode();
         
         if (!peer) setupPeer();
         else if (activeCall) replaceStream(localStream);
@@ -449,6 +486,35 @@ function handleStream(call) {
         startCallTimer();
         callStarted = true;
 
+        // 🎧 NEW: mobile પર AudioContext playback path
+        if (isMobile && !SINK_SUPPORTED && CTX_SINK_SUPPORTED) {
+            try {
+                if (!_callAudioCtx || _callAudioCtx.state === 'closed') {
+                    _callAudioCtx = new AudioContext();
+                }
+                if (_callAudioCtx.state === 'suspended') {
+                    await _callAudioCtx.resume();
+                }
+                if (_callSourceNode) {
+                    try { _callSourceNode.disconnect(); } catch(e) {}
+                }
+                _callSourceNode = _callAudioCtx.createMediaStreamSource(stream);
+                _callSourceNode.connect(_callAudioCtx.destination);
+                remoteAudio.muted = true;
+                document.getElementById('audio-fix-banner').style.display = 'none';
+                log('✅ AudioContext playback active');
+                await applyOutput();
+                return;
+            } catch(e) {
+                log('AudioContext path failed: ' + (e.name || e.message));
+                remoteAudio.muted = false;
+                if (_callSourceNode) {
+                    try { _callSourceNode.disconnect(); } catch(_) {}
+                    _callSourceNode = null;
+                }
+            }
+        }
+
         remoteAudio.srcObject = stream;
         remoteAudio.muted = false;
         remoteAudio.volume = 1.0;
@@ -471,7 +537,6 @@ function handleStream(call) {
             document.getElementById('audio-fix-banner').style.display = 'none';
         }
         
-        // Apply sink (earpiece/speaker)
         await applyOutput();
     });
 
@@ -480,12 +545,38 @@ function handleStream(call) {
 }
 
 /* ============================================================
-   AUDIO OUTPUT — Universal (setSinkId optional)
+   AUDIO OUTPUT — HTMLMedia + AudioContext (mobile)
    ============================================================ */
 async function applyOutput() {
     remoteAudio.volume = isSpeakerOn ? 1.0 : 0.95;
-    remoteAudio.muted = false;
-    
+    if (!remoteAudio.muted) remoteAudio.muted = false;
+
+    // 🎧 NEW: mobile AudioContext.setSinkId path (Chrome 110+)
+    if (isMobile && !SINK_SUPPORTED && CTX_SINK_SUPPORTED && _callAudioCtx) {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            let targetId = 'default';
+            if (isSpeakerOn) {
+                const spk = devices.find(d =>
+                    d.kind === 'audiooutput' &&
+                    /speaker|loudspeaker/i.test(d.label || '')
+                );
+                targetId = spk ? spk.deviceId : 'default';
+            } else {
+                const ear = devices.find(d =>
+                    d.kind === 'audiooutput' &&
+                    /earpiece|receiver|handset|inner/i.test(d.label || '')
+                );
+                targetId = ear ? ear.deviceId : 'default';
+            }
+            await _callAudioCtx.setSinkId(targetId);
+            log('🎧 Context sink → ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
+            return;
+        } catch(e) {
+            log('⚠️ Context sink err: ' + (e.name || e.message));
+        }
+    }
+
     // If setSinkId not supported — browser decides routing (mobile)
     if (!SINK_SUPPORTED) {
         log('⚠️ setSinkId unavailable — using default');
@@ -546,6 +637,7 @@ function updateOutputUI() {
 function forceUnlockAudio(e) {
     if (e) e.stopPropagation();
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (_callAudioCtx && _callAudioCtx.state === 'suspended') _callAudioCtx.resume();  // 🎧 NEW
     remoteAudio.play().catch(() => {});
     document.getElementById('audio-fix-banner').style.display = 'none';
 }
@@ -750,11 +842,24 @@ function cleanup(byRemote = false) {
     if (callTimer) { clearInterval(callTimer); callTimer = null; }
     try { if (wakeLock) wakeLock.release(); } catch(e) {}
     
+    // 🎧 NEW: AudioContext cleanup
+    try {
+        if (_callSourceNode) {
+            try { _callSourceNode.disconnect(); } catch(e) {}
+            _callSourceNode = null;
+        }
+        if (_callAudioCtx && _callAudioCtx.state !== 'closed') {
+            _callAudioCtx.close();
+        }
+        _callAudioCtx = null;
+    } catch(e) {}
+    
     try { if (activeCall) activeCall.close(); } catch(e) {}
     try { if (localStream) localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
     try {
         remoteAudio.pause();
         remoteAudio.srcObject = null;
+        remoteAudio.muted = false;
     } catch(e) {}
     try { if (dataConn) dataConn.close(); } catch(e) {}
     try { if (peer && !peer.destroyed) peer.destroy(); } catch(e) {}
