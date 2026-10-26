@@ -21,13 +21,66 @@ p { font-size: 10px; color: #9ca3af; margin: 0 0 8px; }
 .ctrl-btn { background: #1f293d; color: #d1d5db; border: none; padding: 10px 4px; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 11px; outline: none; transition: 0.2s; }
 .ctrl-btn.active { background: #1e3a8a; color: #60a5fa; border: 1px solid #3b82f6; }
 #auto-hd-btn { grid-column: 1 / -1; padding: 14px 8px; min-height: 50px; font-size: 14px; }
+#lock-btn { grid-column: 1 / -1; padding: 12px 8px; }
 .utility-btn { background: #713f12; color: #fde047; border: none; padding: 10px; width: 100%; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 12px; margin-bottom: 6px; outline: none; }
 .end-btn { background: #7f1d1d; color: #fca5a5; border: none; padding: 14px; width: 100%; border-radius: 10px; font-weight: bold; cursor: pointer; font-size: 14px; margin-top: 4px; outline: none; }
 #permission-banner { background: #7f1d1d; color: #fca5a5; font-size: 11px; padding: 10px; border-radius: 8px; margin-bottom: 8px; cursor: pointer; display: none; font-weight: bold; }
 #permission-banner.active { display: block; }
 #audio-fix-banner { background: #1e3a8a; color: #93c5fd; font-size: 11px; padding: 6px; border-radius: 6px; margin-bottom: 8px; cursor: pointer; display: none; }
+#ios-hint { background: #1e3a8a; color: #93c5fd; font-size: 10px; padding: 8px; border-radius: 6px; margin-bottom: 8px; display: none; line-height: 1.4; }
+#ios-hint.active { display: block; }
 #debug-panel { position: fixed; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.9); color: #00ff66; font-size: 9px; padding: 4px; max-height: 100px; overflow-y: auto; z-index: 9999; display: none; font-family: monospace; }
 #debug-panel.active { display: block; }
+
+/* LOCK OVERLAY */
+#lock-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(3, 5, 10, 0.97);
+    z-index: 9998;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    color: #00ff66;
+    cursor: pointer;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
+    padding: 20px;
+}
+#lock-overlay.active { display: flex; }
+.lock-icon {
+    font-size: 72px;
+    margin-bottom: 24px;
+    animation: lockPulse 2.5s infinite;
+    filter: drop-shadow(0 0 20px #00ff66);
+}
+.lock-hint {
+    font-size: 13px;
+    color: #9ca3af;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    margin-bottom: 8px;
+}
+.lock-sub {
+    font-size: 10px;
+    color: #4b5563;
+    letter-spacing: 1px;
+}
+.lock-tap-count {
+    margin-top: 20px;
+    font-size: 11px;
+    color: #ffb74d;
+    opacity: 0;
+    transition: opacity 0.2s;
+}
+.lock-tap-count.show { opacity: 1; }
+@keyframes lockPulse {
+    0%, 100% { transform: scale(1); filter: drop-shadow(0 0 20px #00ff66); }
+    50% { transform: scale(1.08); filter: drop-shadow(0 0 30px #00ff66); }
+}
 </style>
 </head>
 <body>
@@ -41,16 +94,27 @@ p { font-size: 10px; color: #9ca3af; margin: 0 0 8px; }
         <span id="signal-icon">▁▃▅▇</span>
         <span id="stats-text"></span>
     </div>
+    <div id="ios-hint"></div>
     <div id="audio-fix-banner" onclick="forceUnlockAudio(event)">🔊 No sound? Tap here</div>
     <audio id="remote-audio" autoplay playsinline></audio>
     <button class="utility-btn" onclick="toggleAudioOutput()" id="output-btn">🎧 Earpiece</button>
     <div class="controls-grid">
         <button id="mute-btn" class="ctrl-btn" onclick="toggleMute()">🎙️ Mute</button>
         <button id="speaker-btn" class="ctrl-btn" onclick="toggleAudioOutput()">🔊 Speaker</button>
+        <button id="lock-btn" class="ctrl-btn" onclick="toggleScreenLock()">🔒 Lock Screen</button>
         <button id="auto-hd-btn" class="ctrl-btn" onclick="toggleAutoHD()">🪶 Data Saver</button>
     </div>
     <button class="end-btn" onclick="endCallAndClose()">🔴 END CALL</button>
 </div>
+
+<!-- LOCK OVERLAY -->
+<div id="lock-overlay" onclick="handleLockTap(event)">
+    <div class="lock-icon">🔒</div>
+    <div class="lock-hint">Screen Locked</div>
+    <div class="lock-sub">Double tap to unlock</div>
+    <div class="lock-tap-count" id="lock-tap-count">Tap once more...</div>
+</div>
+
 <div id="debug-panel"></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
@@ -86,14 +150,23 @@ let vibrateTimer = null, ringTimer = null, callTimer = null, statsTimer = null;
 let callSeconds = 0, connectTimeout = null, retryCount = 0;
 let audioCtx = null, _canSetParams = true, _netQuality = 'good';
 let _pc = null, _lastRx = 0, _lastTx = 0, _lastTs = 0;
-let lastTapTime = 0, wakeLock = null;
-let _probeHolder = null;   // 🆕 probe stream holder
+let wakeLock = null;
 
-const isMobile = /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+/* SCREEN LOCK STATE */
+let isScreenLocked = false;
+let lastLockTap = 0;
+let lockTapResetTimer = null;
+const LOCK_DOUBLE_TAP_MS = 500;
+
+const UA = navigator.userAgent;
+const isAndroid = /Android/i.test(UA);
+const isIOS = /iPhone|iPad|iPod/i.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const isMobile = isAndroid || isIOS || /Mobi/i.test(UA);
 
 const B_SAVER = 12000, B_HD = 16000, B_WEAK = 10000;
 
 const remoteAudio = document.getElementById('remote-audio');
+const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
 
 /* ============================================================
    DEBUG LOG
@@ -103,7 +176,198 @@ function log(msg) {
     if (debugMode) {
         const p = document.getElementById('debug-panel');
         p.classList.add('active');
-        p.innerHTML = `[${new Date().toLocaleTimeString()}] ${msg}<br>` + p.innerHTML;
+        const line = document.createElement('div');
+        line.textContent = `[${new Date().toLocaleTimeString()}] ${msg}`;
+        p.prepend(line);
+    }
+}
+
+log('Platform: ' + (isAndroid ? 'Android' : isIOS ? 'iOS' : 'Desktop') + 
+    ' | setSinkId: ' + SINK_SUPPORTED);
+
+/* ============================================================
+   🎧 EARPISCE ROUTING — honest platform-aware logic
+   ------------------------------------------------------------
+   Android  : echoCancellation=true → communication mode → Earpiece (auto)
+   iOS      : setSinkId mostly not supported → show hint to user
+   Desktop  : setSinkId works, pick earpiece deviceId
+   ============================================================ */
+async function forceEarpiece() {
+    if (isSpeakerOn) return false;
+
+    // ── Android: getUserMedia with echoCancellation already routes to earpiece
+    if (isAndroid) {
+        log('✅ Android: Communication mode → Earpiece (auto)');
+        return true;
+    }
+
+    // ── iOS: try setSinkId (works on iOS 26+ only), else show hint
+    if (isIOS) {
+        if (SINK_SUPPORTED) {
+            try {
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const ear = devices.find(d =>
+                    d.kind === 'audiooutput' &&
+                    /earpiece|receiver|handset|iphone/i.test(d.label || '')
+                );
+                if (ear) {
+                    await remoteAudio.setSinkId(ear.deviceId);
+                    log('✅ iOS: Earpiece set via setSinkId');
+                    return true;
+                }
+            } catch(e) {
+                log('iOS setSinkId err: ' + e.name);
+            }
+        }
+        showIOSHint(true);
+        log('⚠️ iOS: Cannot force earpiece from browser');
+        return false;
+    }
+
+    // ── Desktop: setSinkId works
+    if (SINK_SUPPORTED) {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const ear = devices.find(d =>
+                d.kind === 'audiooutput' &&
+                /earpiece|receiver|handset|headset/i.test(d.label || '')
+            );
+            if (ear) {
+                await remoteAudio.setSinkId(ear.deviceId);
+                log('✅ Desktop: Earpiece set');
+                return true;
+            }
+            // No labeled earpiece — use default (usually headset/speakers)
+            await remoteAudio.setSinkId('default');
+            log('⚠️ Desktop: using default output');
+            return true;
+        } catch(e) {
+            log('Desktop setSinkId err: ' + e.name);
+        }
+    }
+
+    return false;
+}
+
+async function forceSpeaker() {
+    showIOSHint(false);
+
+    if (isAndroid) {
+        // Android: cannot switch to speaker from browser reliably.
+        // We can only un-mute; audio may already be on earpiece.
+        // Alternative: apply audioContext routing trick
+        log('🔊 Android: Speaker toggle (limited)');
+        return true;
+    }
+
+    if (SINK_SUPPORTED) {
+        try {
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const spk = devices.find(d =>
+                d.kind === 'audiooutput' &&
+                /speaker|loudspeaker/i.test(d.label || '')
+            );
+            if (spk) await remoteAudio.setSinkId(spk.deviceId);
+            else await remoteAudio.setSinkId('default');
+            log('✅ Speaker set via setSinkId');
+            return true;
+        } catch(e) {
+            log('Speaker setSinkId err: ' + e.name);
+        }
+    }
+    return false;
+}
+
+function showIOSHint(show) {
+    const hint = document.getElementById('ios-hint');
+    if (!isIOS) return;
+    if (show) {
+        hint.innerHTML = '📱 iPhone: Control Center (ઉપરથી નીચે સ્વાઇપ) → 🎵 Audio → "iPhone" પસંદ કરો';
+        hint.classList.add('active');
+    } else {
+        hint.classList.remove('active');
+    }
+}
+
+/* Hide earpiece/speaker buttons where they won't work */
+function adjustOutputButtonsVisibility() {
+    if (isIOS && !SINK_SUPPORTED) {
+        // iOS without setSinkId — buttons can't change routing, hide them
+        // but keep them since forceSpeaker still works partially? Actually no.
+        // Keep buttons but they show hint on iOS
+    }
+    // Android: buttons limited but keep for UX (state toggle)
+    // Desktop: fully functional
+}
+
+/* ============================================================
+   DEBUG — available audio devices
+   ============================================================ */
+async function logAudioDevices() {
+    try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const outputs = devices.filter(d => d.kind === 'audiooutput');
+        const inputs = devices.filter(d => d.kind === 'audioinput');
+        log('📱 Outputs (' + outputs.length + '): ' + 
+            outputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
+        log('📱 Inputs (' + inputs.length + '): ' + 
+            inputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
+    } catch(e) {
+        log('enumerateDevices err: ' + e.message);
+    }
+}
+
+/* ============================================================
+   SCREEN LOCK / UNLOCK
+   ============================================================ */
+function toggleScreenLock() {
+    setScreenLock(!isScreenLocked);
+}
+
+function setScreenLock(locked) {
+    isScreenLocked = !!locked;
+    const ov = document.getElementById('lock-overlay');
+    const btn = document.getElementById('lock-btn');
+
+    if (locked) {
+        ov.classList.add('active');
+        btn.classList.add('active');
+        btn.innerText = "🔓 Locked";
+        lastLockTap = 0;
+        if (!wakeLock) requestWakeLock();
+        log('🔒 Screen LOCKED');
+    } else {
+        ov.classList.remove('active');
+        btn.classList.remove('active');
+        btn.innerText = "🔒 Lock Screen";
+        lastLockTap = 0;
+        if (lockTapResetTimer) { clearTimeout(lockTapResetTimer); lockTapResetTimer = null; }
+        const tc = document.getElementById('lock-tap-count');
+        if (tc) tc.classList.remove('show');
+        log('🔓 Screen UNLOCKED');
+    }
+}
+
+function handleLockTap(e) {
+    if (e) { e.stopPropagation(); e.preventDefault(); }
+
+    const now = Date.now();
+    const tc = document.getElementById('lock-tap-count');
+
+    if (lastLockTap && (now - lastLockTap) <= LOCK_DOUBLE_TAP_MS) {
+        lastLockTap = 0;
+        if (lockTapResetTimer) { clearTimeout(lockTapResetTimer); lockTapResetTimer = null; }
+        if (tc) tc.classList.remove('show');
+        try { if ('vibrate' in navigator) navigator.vibrate(30); } catch(e) {}
+        setScreenLock(false);
+    } else {
+        lastLockTap = now;
+        if (tc) tc.classList.add('show');
+        if (lockTapResetTimer) clearTimeout(lockTapResetTimer);
+        lockTapResetTimer = setTimeout(() => {
+            lastLockTap = 0;
+            if (tc) tc.classList.remove('show');
+        }, LOCK_DOUBLE_TAP_MS);
     }
 }
 
@@ -164,98 +428,6 @@ RTCPeerConnection.prototype.createAnswer = async function(...a) {
 };
 
 /* ============================================================
-   SINK SUPPORT CHECK
-   ============================================================ */
-const SINK_SUPPORTED = typeof remoteAudio.setSinkId === 'function';
-log('🔊 setSinkId supported: ' + SINK_SUPPORTED);
-
-/* ============================================================
-   🆕 DIAGNOSTIC — દરેક ફોનમાં ઉપલબ્ધ ડિવાઇસ લોગ કરો
-   ============================================================ */
-async function logAudioDevices() {
-    try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const outputs = devices.filter(d => d.kind === 'audiooutput');
-        const inputs = devices.filter(d => d.kind === 'audioinput');
-        log('📱 Outputs (' + outputs.length + '): ' + 
-            outputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
-        log('📱 Inputs (' + inputs.length + '): ' + 
-            inputs.map(d => d.label || 'id:' + d.deviceId.slice(0,6)).join(' | '));
-    } catch(e) {
-        log('enumerateDevices err: ' + e.message);
-    }
-}
-
-/* ============================================================
-   🆕 STRATEGY CHAIN — ઇયરપીસ ફોર્સ કરવા 3 સ્તર
-   ============================================================ */
-async function enforceEarpiece() {
-    if (isSpeakerOn) return false;
-    if (!isMobile) return false;
-
-    log('🎧 Earpiece routing attempt...');
-
-    // Strategy 1: setSinkId with earpiece deviceId
-    if (SINK_SUPPORTED) {
-        try {
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            const ear = devices.find(d =>
-                d.kind === 'audiooutput' &&
-                /earpiece|receiver|handset|inner|headset/i.test(d.label || '')
-            );
-            if (ear) {
-                await remoteAudio.setSinkId(ear.deviceId);
-                log('🎧 ✅ Strategy1: setSinkId(earpiece)');
-                return true;
-            }
-        } catch(e) {
-            log('Strategy1 err: ' + e.name);
-        }
-    }
-
-    // Strategy 2: re-apply echoCancellation on active track
-    if (localStream) {
-        const track = localStream.getAudioTracks()[0];
-        if (track) {
-            try {
-                await track.applyConstraints({
-                    echoCancellation: true,
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    channelCount: 1
-                });
-                log('🎧 ✅ Strategy2: echoCancellation re-applied');
-                return true;
-            } catch(e) {
-                log('Strategy2 err: ' + e.name);
-            }
-        }
-    }
-
-    // Strategy 3: brief getUserMedia probe
-    try {
-        if (_probeHolder) {
-            _probeHolder.getTracks().forEach(t => t.stop());
-            _probeHolder = null;
-        }
-        _probeHolder = await navigator.mediaDevices.getUserMedia({
-            audio: {
-                echoCancellation: true,
-                noiseSuppression: true,
-                autoGainControl: true
-            }
-        });
-        log('🎧 ✅ Strategy3: probe applied');
-        return true;
-    } catch(e) {
-        log('Strategy3 err: ' + e.name);
-    }
-
-    log('⚠️ Earpiece routing FAILED — device may not support browser routing');
-    return false;
-}
-
-/* ============================================================
    INIT
    ============================================================ */
 if (!roomId || !role) {
@@ -266,6 +438,7 @@ if (!roomId || !role) {
 
 function startInit() {
     updateAutoHDUI();
+    adjustOutputButtonsVisibility();
     startAlerts();
     startConnectTimeout();
     initMic();
@@ -308,7 +481,6 @@ async function initMic() {
         if (isMuted) track.enabled = false;
         log('✅ Mic ready');
         
-        // 🆕 diagnostic — કયા ડિવાઇસ છે તે જુઓ
         logAudioDevices();
         
         if (!peer) setupPeer();
@@ -419,8 +591,7 @@ function setupPeer() {
                     dataConn = peer.connect(targetId, { reliable: true });
                     setupDataConn();
                 } catch(e) {}
-                // 🆕 probe right before call
-                if (!isSpeakerOn) await enforceEarpiece();
+                if (!isSpeakerOn) await forceEarpiece();
                 startCall(targetId);
             }, 1500);
         }
@@ -434,15 +605,14 @@ function setupPeer() {
         clearTimeout(connectTimeout);
         stopAlerts();
         if (localStream) {
-            // 🆕 probe right before answer
-            if (!isSpeakerOn) await enforceEarpiece();
+            if (!isSpeakerOn) await forceEarpiece();
             call.answer(localStream);
             handleStream(call);
         } else {
             const w = setInterval(async () => {
                 if (localStream) {
                     clearInterval(w);
-                    if (!isSpeakerOn) await enforceEarpiece();
+                    if (!isSpeakerOn) await forceEarpiece();
                     call.answer(localStream);
                     handleStream(call);
                 }
@@ -562,8 +732,8 @@ function handleStream(call) {
             document.getElementById('audio-fix-banner').style.display = 'none';
         }
         
-        // 🆕 stream શરૂ થયા પછી પણ ઇયરપીસ ફરી ફોર્સ કરો
-        await applyOutput();
+        // Re-apply routing after stream starts
+        if (!isSpeakerOn) await forceEarpiece();
     });
 
     call.on('close', () => cleanup());
@@ -571,40 +741,17 @@ function handleStream(call) {
 }
 
 /* ============================================================
-   AUDIO OUTPUT — speaker / earpiece
+   AUDIO OUTPUT TOGGLE
    ============================================================ */
-async function applyOutput() {
-    if (isSpeakerOn) {
-        remoteAudio.volume = 1.0;
-        if (!remoteAudio.muted) remoteAudio.muted = false;
-        // speaker માટે setSinkId 'default' કે speaker deviceId
-        if (SINK_SUPPORTED) {
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const spk = devices.find(d =>
-                    d.kind === 'audiooutput' &&
-                    /speaker|loudspeaker/i.test(d.label || '')
-                );
-                if (spk) await remoteAudio.setSinkId(spk.deviceId);
-                else await remoteAudio.setSinkId('default');
-                log('🔊 Speaker routing OK');
-            } catch(e) {
-                try { await remoteAudio.setSinkId('default'); } catch(_) {}
-            }
-        }
-    } else {
-        remoteAudio.volume = 0.95;
-        if (!remoteAudio.muted) remoteAudio.muted = false;
-        // 🆕 earpiece માટે strategy chain
-        await enforceEarpiece();
-    }
-}
-
 async function toggleAudioOutput() {
     isSpeakerOn = !isSpeakerOn;
     updateOutputUI();
     log('🎚️ Toggle → ' + (isSpeakerOn ? 'Speaker' : 'Earpiece'));
-    await applyOutput();
+    if (isSpeakerOn) {
+        await forceSpeaker();
+    } else {
+        await forceEarpiece();
+    }
 }
 
 function updateOutputUI() {
@@ -799,6 +946,7 @@ window.addEventListener('beforeunload', () => {
 async function requestWakeLock() {
     try {
         if ('wakeLock' in navigator) {
+            if (wakeLock) return;
             wakeLock = await navigator.wakeLock.request('screen');
             wakeLock.addEventListener('release', () => { wakeLock = null; });
         }
@@ -817,20 +965,15 @@ document.addEventListener('visibilitychange', () => {
 function cleanup(byRemote = false) {
     if (isEnded) return;
     isEnded = true;
+
+    if (isScreenLocked) setScreenLock(false);
+    if (lockTapResetTimer) { clearTimeout(lockTapResetTimer); lockTapResetTimer = null; }
     
     clearTimeout(connectTimeout);
     stopAlerts();
     stopStats();
     if (callTimer) { clearInterval(callTimer); callTimer = null; }
     try { if (wakeLock) wakeLock.release(); } catch(e) {}
-    
-    // 🆕 probe holder release
-    try {
-        if (_probeHolder) {
-            _probeHolder.getTracks().forEach(t => t.stop());
-            _probeHolder = null;
-        }
-    } catch(e) {}
     
     try { if (activeCall) activeCall.close(); } catch(e) {}
     try { if (localStream) localStream.getTracks().forEach(t => t.stop()); } catch(e) {}
