@@ -3,281 +3,224 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>P2P Talk - Data Saver</title>
+<title>P2P Talk - Secure Call</title>
 <style>
     :root {
-        --bg: #0f1115; --surface: #1a1d24; --surface-hover: #252932;
-        --primary: #3b82f6; --primary-dark: #1e3a8a; --text: #f3f4f6;
-        --text-muted: #9ca3af; --danger: #ef4444; --success: #22c55e;
-        --border: #2d333b; --radius: 16px;
+        --bg: #0b0e14; --surface: #1a1d24; --surface-hover: #252932;
+        --primary: #3b82f6; --text: #f3f4f6; --text-muted: #9ca3af;
+        --danger: #ef4444; --success: #22c55e; --border: #2d333b;
     }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     body {
-        background: var(--bg); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif;
         margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column;
     }
-    /* Video Area */
-    #video-container { flex: 1; position: relative; background: #000; display: flex; align-items: center; justify-content: center; overflow: hidden; }
-    #remote-video { width: 100%; height: 100%; object-fit: cover; }
-    #local-video-container {
-        position: absolute; top: 16px; right: 16px; width: 100px; height: 150px;
-        background: var(--surface); border-radius: 12px; overflow: hidden; border: 2px solid var(--border);
-        box-shadow: 0 8px 24px rgba(0,0,0,0.6); z-index: 10; transition: transform 0.2s;
+
+    /* 🌟 પહેલી સ્ક્રીન (મેનુ) */
+    #start-screen {
+        position: fixed; inset: 0; background: var(--bg); z-index: 1000;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
     }
-    #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-    /* Status Bar */
+    #start-screen h1 { font-size: 24px; margin-bottom: 10px; color: var(--primary); }
+    .start-btn {
+        background: var(--surface); border: 1px solid var(--border); color: var(--text);
+        padding: 20px 40px; border-radius: 16px; font-size: 18px; font-weight: bold;
+        display: flex; align-items: center; gap: 15px; width: 250px; cursor: pointer;
+        transition: 0.2s;
+    }
+    .start-btn:active { transform: scale(0.95); background: var(--surface-hover); }
+    .start-btn svg { width: 28px; height: 28px; fill: var(--primary); }
+
+    /* વિડિયો / ઓડિયો કૉલ સ્ક્રીન */
+    #call-ui { display: none; flex: 1; flex-direction: column; height: 100vh; }
+    
+    /* Audio Mode માટે */
+    #audio-view {
+        flex: 1; display: none; flex-direction: column; align-items: center; justify-content: center;
+        background: radial-gradient(circle, #1a1d24 0%, #000 100%); position: relative;
+    }
+    .avatar-circle {
+        width: 120px; height: 120px; border-radius: 50%; background: var(--surface-hover);
+        display: flex; align-items: center; justify-content: center; font-size: 50px;
+        border: 2px solid var(--primary); animation: pulse 2s infinite;
+    }
+    @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); } 70% { box-shadow: 0 0 0 20px rgba(59,130,246,0); } 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } }
+    
+    /* Video Mode માટે (સ્પ્લિટ સ્ક્રીન) */
+    #video-view { flex: 1; display: none; flex-direction: column; gap: 2px; background: #000; overflow: hidden; }
+    .video-box { flex: 1; position: relative; background: #111; overflow: hidden; }
+    video { width: 100%; height: 100%; object-fit: cover; }
+    #local-video { transform: scaleX(-1); }
+
+    /* સ્ટેટસ બાર */
     #status-bar {
-        position: absolute; top: 16px; left: 16px; background: rgba(0,0,0,0.7);
-        padding: 8px 14px; border-radius: 20px; font-size: 13px; z-index: 10;
-        display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px); border: 1px solid var(--border);
+        position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7);
+        padding: 6px 16px; border-radius: 20px; font-size: 13px; z-index: 10;
+        display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px);
     }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
-    .dot.connected { background: var(--success); box-shadow: 0 0 8px var(--success); }
-    /* Controls */
-    #controls { background: var(--surface); padding: 20px 16px; padding-bottom: max(20px, env(safe-area-inset-bottom)); display: flex; flex-direction: column; gap: 12px; border-top-left-radius: 24px; border-top-right-radius: 24px; z-index: 20; }
+    .dot.connected { background: var(--success); }
+
+    /* કંટ્રોલ્સ */
+    #controls { background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 10px; border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 20; }
     .row { display: flex; justify-content: space-between; gap: 10px; }
-    button {
-        flex: 1; padding: 14px 10px; border: none; border-radius: 14px;
-        font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-        display: flex; flex-direction: column; align-items: center; gap: 6px;
-        background: var(--surface-hover); color: var(--text); outline: none;
+    button.ctrl {
+        flex: 1; padding: 12px 10px; border: none; border-radius: 12px;
+        font-size: 13px; font-weight: 600; cursor: pointer;
+        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        background: var(--surface-hover); color: var(--text); transition: 0.2s;
     }
-    button:active { transform: scale(0.96); }
-    button svg { width: 24px; height: 24px; fill: currentColor; }
-    .btn-active { background: var(--primary-dark); color: #93c5fd; border: 1px solid var(--primary); }
+    button.ctrl:active { transform: scale(0.95); }
+    button.ctrl svg { width: 22px; height: 22px; fill: currentColor; }
     .btn-danger { background: #7f1d1d; color: #fca5a5; }
-    .btn-saver { background: #422006; color: #fde047; }
     .btn-saver.active { background: #14532d; color: #bbf7d0; border: 1px solid var(--success); }
-    /* Device Sheet (Bottom Sheet) */
-    .sheet-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 100;
-        display: none; align-items: flex-end; justify-content: center;
-        backdrop-filter: blur(4px);
-    }
+
+    /* Devices મેનુ */
+    .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: none; align-items: flex-end; }
     .sheet-overlay.active { display: flex; }
-    .sheet-content {
-        background: var(--surface); width: 100%; max-width: 480px;
-        border-radius: 24px 24px 0 0; padding: 24px 20px;
-        padding-bottom: max(24px, env(safe-area-inset-bottom));
-        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-        border-top: 1px solid var(--border);
-    }
+    .sheet-content { background: #111827; width: 100%; border-radius: 24px 24px 0 0; padding: 24px 20px; padding-bottom: max(24px, env(safe-area-inset-bottom)); animation: slideUp 0.3s; }
     @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
     .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .sheet-header h2 { margin: 0; font-size: 20px; font-weight: 700; }
-    .sheet-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; padding: 0; width: auto; }
-    .device-group { margin-bottom: 20px; }
-    .device-group h3 { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; text-transform: uppercase; margin: 0 0 8px 4px; font-weight: 600; }
-    .device-list { background: var(--bg); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
-    .device-item {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 14px 16px; font-size: 15px; cursor: pointer;
-        border-bottom: 1px solid var(--border); transition: background 0.2s;
-    }
-    .device-item:last-child { border-bottom: none; }
-    .device-item:active { background: var(--surface-hover); }
+    .sheet-header h2 { margin: 0; font-size: 20px; }
+    .sheet-close { background: none; border: none; color: var(--text-muted); font-size: 24px; }
+    .device-list { background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 15px;}
+    .device-group h3 { font-size: 11px; color: var(--text-muted); margin: 0 0 8px 4px; }
+    .device-item { display: flex; justify-content: space-between; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid var(--border); }
     .device-item.active { color: var(--primary); }
-    .device-item.active .check-icon { display: block; }
-    .check-icon { display: none; width: 20px; height: 20px; fill: var(--primary); }
-    /* Toast */
-    #toast {
-        position: fixed; bottom: 120px; left: 50%; transform: translateX(-50%);
-        background: rgba(255,255,255,0.95); color: #000; padding: 10px 20px;
-        border-radius: 20px; font-size: 13px; font-weight: 600;
-        opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 200;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.3); text-align: center; white-space: nowrap;
-    }
-    #toast.show { opacity: 1; }
 </style>
 </head>
 <body>
 
-    <div id="video-container">
-        <video id="remote-video" autoplay playsinline></video>
-        <div id="local-video-container">
-            <video id="local-video" autoplay playsinline muted></video>
+    <!-- 1. સ્ટાર્ટ સ્ક્રીન (Audio / Video પસંદ કરવા) -->
+    <div id="start-screen">
+        <h1>સુરક્ષિત કૉલ શરૂ કરો</h1>
+        <button class="start-btn" onclick="startCall('audio')">
+            <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>
+            ઓડિયો કૉલ (Audio)
+        </button>
+        <button class="start-btn" onclick="startCall('video')">
+            <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+            વિડિયો કૉલ (Video)
+        </button>
+    </div>
+
+    <!-- 2. કૉલ સ્ક્રીન (અંદર Audio/Video બંને માટે) -->
+    <div id="call-ui">
+        <!-- ઓડિયો મોડ વ્યુ -->
+        <div id="audio-view">
+            <div id="status-bar"><div class="dot" id="status-dot"></div><span id="status-text">Connecting...</span></div>
+            <div class="avatar-circle">👤</div>
+            <h2 style="margin-top:20px;">ઓડિયો કૉલ</h2>
+            <!-- ઓડિયો પ્લે થવા માટે આ ટેગ જરૂરી છે -->
+            <audio id="remote-audio" autoplay playsinline></audio>
         </div>
-        <div id="status-bar">
-            <div class="dot" id="status-dot"></div>
-            <span id="status-text">Connecting...</span>
+
+        <!-- વિડિયો મોડ વ્યુ (સ્પ્લિટ સ્ક્રીન) -->
+        <div id="video-view">
+            <div class="video-box">
+                <video id="remote-video" autoplay playsinline></video>
+                <div id="status-bar-vid"><div class="dot" id="status-dot-vid"></div><span id="status-text-vid">Connecting...</span></div>
+            </div>
+            <div class="video-box">
+                <video id="local-video" autoplay playsinline muted></video>
+            </div>
+        </div>
+
+        <!-- કંટ્રોલ પેનલ -->
+        <div id="controls">
+            <div class="row">
+                <button id="mic-btn" class="ctrl" onclick="toggleMic()">🎙️ Mute</button>
+                <button id="cam-btn" class="ctrl" onclick="toggleCam()" style="display:none;">📷 Camera</button>
+            </div>
+            <div class="row">
+                <button id="saver-btn" class="ctrl btn-saver active" onclick="toggleDataSaver()">📉 Data Saver</button>
+                <button id="devices-btn" class="ctrl" onclick="openDevicesSheet()">🎧 Devices</button>
+            </div>
+            <div class="row">
+                <button class="ctrl btn-danger" onclick="endCall()">🔴 End Call</button>
+            </div>
         </div>
     </div>
 
-    <div id="controls">
-        <div class="row">
-            <button id="mic-btn" onclick="toggleMic()">
-                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                <span>Mute</span>
-            </button>
-            <button id="cam-btn" onclick="toggleCam()">
-                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                <span>Camera</span>
-            </button>
-        </div>
-        <div class="row">
-            <button id="saver-btn" class="btn-saver active" onclick="toggleDataSaver()">
-                <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
-                <span>Data Saver</span>
-            </button>
-            <button id="devices-btn" onclick="openDevicesSheet()">
-                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                <span>Devices</span>
-            </button>
-        </div>
-        <div class="row">
-            <button class="btn-danger" onclick="endCall()">
-                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-                <span>End Call</span>
-            </button>
-        </div>
-    </div>
-
-    <!-- Devices Sheet -->
+    <!-- 3. Devices મેનુ (ઈયરપીસ સપોર્ટ માટે) -->
     <div id="devices-sheet-overlay" class="sheet-overlay" onclick="closeDevicesSheet(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">
                 <h2>Devices</h2>
                 <button class="sheet-close" onclick="closeDevicesSheet()">&times;</button>
             </div>
-            <div id="devices-list-container">
-                <!-- Dynamically populated -->
-            </div>
+            <div id="devices-list-container"></div>
         </div>
     </div>
 
-    <div id="toast"></div>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
-        // ==========================================
-        // 1. CONFIGURATION & PARAMS
-        // ==========================================
+        // કોન્ફિગરેશન
         const P = new URLSearchParams(location.search);
-        const roomId = (P.get('room') || 'room123').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 40);
+        const roomId = (P.get('room') || 'room123').replace(/[^a-zA-Z0-9_-]/g, '');
         const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
+        const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }];
 
-        const ICE = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
-        ];
-
-        // ==========================================
-        // 2. STATE
-        // ==========================================
         let peer = null, activeCall = null, localStream = null;
-        let currentCamId = null, currentMicId = null, currentSpeakerId = 'default';
-        let isMuted = false, isCamOff = false, isDataSaver = true;
-        
-        const remoteVideo = document.getElementById('remote-video');
-        const localVideo = document.getElementById('local-video');
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-        const toastEl = document.getElementById('toast');
+        let currentMicId = null, callMode = 'audio'; // Default
+        let isMuted = false, isCamOff = false, isDataSaver = true, retryCount = 0;
 
-        // ==========================================
-        // 3. DATA SAVER (SDP MUNGING)
-        // ==========================================
-        const _origOffer = RTCPeerConnection.prototype.createOffer;
-        const _origAnswer = RTCPeerConnection.prototype.createAnswer;
+        // 1. કૉલ શરૂ કરવાનું ફંક્શન
+        async function startCall(mode) {
+            callMode = mode;
+            document.getElementById('start-screen').style.display = 'none';
+            document.getElementById('call-ui').style.display = 'flex';
 
-        function mungeSDP(sdp) {
-            if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
-            const lines = sdp.split('\r\n');
-            let pt = null;
-            for (const l of lines) {
-                const m = l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
-                if (m) { pt = m[1]; break; }
+            // UI સેટઅપ
+            if (mode === 'audio') {
+                document.getElementById('audio-view').style.display = 'flex';
+                document.getElementById('video-view').style.display = 'none';
+            } else {
+                document.getElementById('audio-view').style.display = 'none';
+                document.getElementById('video-view').style.display = 'flex';
+                document.getElementById('cam-btn').style.display = 'flex';
             }
-            if (!pt) return sdp;
 
-            const out = [];
-            for (const l of lines) {
-                const pre = 'a=fmtp:' + pt + ' ';
-                if (l.startsWith(pre)) {
-                    let parts = l.substring(pre.length).split(';').map(s => s.trim()).filter(Boolean);
-                    const set = (k, v) => {
-                        const i = parts.findIndex(p => p.startsWith(k + '='));
-                        if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
-                    };
-                    set('useinbandfec', '1');
-                    set('usedtx', '1');
-                    set('stereo', '0');
-                    set('maxaveragebitrate', '12000');
-                    set('maxplaybackrate', '12000');
-                    set('minptime', '40');
-                    out.push(pre + parts.join(';'));
-                } else out.push(l);
-            }
-            return out.join('\r\n');
+            // મીડિયા અને પીઅર શરૂ કરો
+            const hasMedia = await initMedia(mode);
+            if (hasMedia) startPeer();
         }
 
-        RTCPeerConnection.prototype.createOffer = async function(...a) {
-            const o = await _origOffer.apply(this, a);
-            if (o && o.sdp) o.sdp = mungeSDP(o.sdp);
-            return o;
-        };
-        RTCPeerConnection.prototype.createAnswer = async function(...a) {
-            const x = await _origAnswer.apply(this, a);
-            if (x && x.sdp) x.sdp = mungeSDP(x.sdp);
-            return x;
-        };
-
-        // ==========================================
-        // 4. MEDIA INITIALIZATION (Earpiece + Data Saver)
-        // ==========================================
-        async function initMedia() {
+        // 2. મીડિયા લેવું (Audio કે Video)
+        async function initMedia(mode) {
             try {
-                const videoConstraints = isDataSaver ? {
-                    width: { ideal: 320, max: 480 },
-                    height: { ideal: 240, max: 360 },
-                    frameRate: { ideal: 15, max: 20 }
-                } : {
-                    width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: { ideal: 30 }
+                const constraints = {
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                 };
+                
+                if (mode === 'video') {
+                    constraints.video = isDataSaver ? { width: 320, height: 240, frameRate: 15 } : { width: 1280, height: 720 };
+                }
 
-                const audioConstraints = {
-                    echoCancellation: true, // Android Earpiece force
-                    noiseSuppression: true,
-                    autoGainControl: true,
-                    channelCount: 1
-                };
+                if (currentMicId) constraints.audio.deviceId = { exact: currentMicId };
 
-                if (currentMicId) audioConstraints.deviceId = { exact: currentMicId };
-
-                localStream = await navigator.mediaDevices.getUserMedia({
-                    audio: audioConstraints,
-                    video: videoConstraints
-                });
-
-                localVideo.srcObject = localStream;
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
+                
+                if (mode === 'video') {
+                    document.getElementById('local-video').srcObject = localStream;
+                }
                 return true;
             } catch (err) {
-                console.error("Media Error:", err);
-                showToast("Camera/Mic permission denied");
+                alert("પરમિશન નકારી કાઢવામાં આવી.");
                 return false;
             }
         }
 
-        // ==========================================
-        // 5. PEERJS SETUP
-        // ==========================================
-        async function startApp() {
-            const hasMedia = await initMedia();
-            if (!hasMedia) return;
-
+        // 3. પીઅર કનેક્શન
+        function startPeer() {
             const myId = `p2p_ds_${roomId}_${role}`;
             const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
-
-            peer = new Peer(myId, {
-                host: '0.peerjs.com', port: 443, path: '/', secure: true,
-                config: { iceServers: ICE }
-            });
+            
+            peer = new Peer(myId, { host: '0.peerjs.com', port: 443, path: '/', secure: true, config: { iceServers: ICE } });
 
             peer.on('open', () => {
-                statusText.innerText = role === 'caller' ? "Calling..." : "Waiting...";
-                if (role === 'caller') setTimeout(() => makeCall(targetId), 1000);
+                updateStatus(role === 'caller' ? "કૉલ કરી રહ્યા છીએ..." : "કૉલની રાહ જોઈએ છીએ...");
+                if (role === 'caller') setTimeout(() => makeCall(targetId), 1500);
             });
 
             peer.on('call', (call) => {
@@ -287,229 +230,115 @@
             });
 
             peer.on('error', (err) => {
-                console.error(err);
-                statusText.innerText = "Error: " + err.type;
+                if (err.type === 'peer-unavailable') {
+                    if (retryCount < 10) {
+                        retryCount++;
+                        updateStatus(`જોડાઈ રહ્યા છીએ... (પ્રયાસ ${retryCount})`);
+                        setTimeout(() => makeCall(targetId), 3000);
+                    } else { updateStatus("સામેવાળો ઓફલાઇન છે."); }
+                }
             });
         }
 
         function makeCall(targetId) {
             if (!peer || peer.destroyed) return;
             activeCall = peer.call(targetId, localStream);
-            setupCall(activeCall);
+            if (activeCall) setupCall(activeCall);
         }
 
         function setupCall(call) {
             call.on('stream', (remoteStream) => {
-                remoteVideo.srcObject = remoteStream;
-                statusDot.classList.add('connected');
-                statusText.innerText = "Connected";
-                applySpeakerToElement(remoteVideo); // Apply speaker routing
-            });
-            call.on('close', () => {
-                statusText.innerText = "Call Ended";
-                statusDot.classList.remove('connected');
+                if (callMode === 'audio') {
+                    document.getElementById('remote-audio').srcObject = remoteStream;
+                } else {
+                    document.getElementById('remote-video').srcObject = remoteStream;
+                    document.getElementById('remote-video').play().catch(e=>{});
+                }
+                updateStatus("કનેક્ટેડ (સુરક્ષિત)");
+                document.querySelectorAll('.dot').forEach(d => d.classList.add('connected'));
+                retryCount = 0;
             });
         }
 
-        // ==========================================
-        // 6. DEVICES SHEET (UI & ROUTING)
-        // ==========================================
+        function updateStatus(msg) {
+            document.getElementById('status-text').innerText = msg;
+            document.getElementById('status-text-vid').innerText = msg;
+        }
+
+        // 4. ઈયરપીસ મેનુ (Android હેક સાથે)
         async function openDevicesSheet() {
-            if (!localStream) await initMedia();
             document.getElementById('devices-sheet-overlay').classList.add('active');
-            await renderDevicesList();
-        }
-
-        function closeDevicesSheet(e) {
-            if (e && e.target !== e.currentTarget) return;
-            document.getElementById('devices-sheet-overlay').classList.remove('active');
-        }
-
-        async function renderDevicesList() {
             const container = document.getElementById('devices-list-container');
-            container.innerHTML = '<p style="text-align:center; color:var(--text-muted); padding:20px;">Looking for devices...</p>';
-            
+            container.innerHTML = 'શોધી રહ્યા છીએ...';
+
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
-                
+                const mics = devices.filter(d => d.kind === 'audioinput');
                 const cams = devices.filter(d => d.kind === 'videoinput');
-                const mics = devices.filter(d => d.kind === 'audioinput' && d.deviceId !== 'communications');
-                const speakers = devices.filter(d => d.kind === 'audiooutput' && d.deviceId !== 'communications');
 
                 let html = '';
 
-                // Camera
-                if (cams.length > 0) {
-                    html += `<div class="device-group"><h3>Camera</h3><div class="device-list">`;
-                    cams.forEach(d => {
-                        const isActive = currentCamId === d.deviceId || (!currentCamId && d.deviceId === 'default');
-                        html += `<div class="device-item ${isActive ? 'active' : ''}" onclick="selectDevice('camera', '${d.deviceId}')">
-                            <span>${d.label || 'Camera'}</span>
-                            <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        </div>`;
-                    });
-                    html += `</div></div>`;
-                }
-
-                // Mic
-                if (mics.length > 0) {
-                    html += `<div class="device-group"><h3>Microphone</h3><div class="device-list">`;
-                    mics.forEach(d => {
-                        const isActive = currentMicId === d.deviceId || (!currentMicId && d.deviceId === 'default');
-                        html += `<div class="device-item ${isActive ? 'active' : ''}" onclick="selectDevice('mic', '${d.deviceId}')">
-                            <span>${d.label || 'Microphone'}</span>
-                            <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        </div>`;
-                    });
-                    html += `</div></div>`;
-                }
-
-                // Speaker (If supported)
-                if (speakers.length > 0 && typeof remoteVideo.setSinkId === 'function') {
-                    html += `<div class="device-group"><h3>Speaker</h3><div class="device-list">`;
-                    speakers.forEach(d => {
-                        const isActive = currentSpeakerId === d.deviceId || (currentSpeakerId === 'default' && d.deviceId === 'default');
-                        html += `<div class="device-item ${isActive ? 'active' : ''}" onclick="selectDevice('speaker', '${d.deviceId}')">
-                            <span>${d.label || 'Speaker'}</span>
-                            <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                        </div>`;
-                    });
-                    html += `</div></div>`;
-                } else if (speakers.length > 0) {
-                    // Fallback for browsers without setSinkId
-                    html += `<div class="device-group"><h3>Speaker</h3><p style="font-size:12px; color:var(--text-muted); padding: 0 4px;">Speaker selection is not supported in this browser.</p></div>`;
-                }
-
+                // માઇક / સ્પીકર લિસ્ટ (ઈયરપીસ અહીંથી બદલાશે)
+                html += `<div class="device-group"><h3>MICROPHONE / SPEAKER</h3><div class="device-list">`;
+                mics.forEach(d => {
+                    let label = d.label || 'Default';
+                    if(label.includes('Speakerphone')) label = 'Speakerphone';
+                    if(label.includes('Earpiece')) label = 'Headset earpiece';
+                    const isActive = currentMicId === d.deviceId || (!currentMicId && d.deviceId === 'default');
+                    html += `<div class="device-item ${isActive ? 'active' : ''}" onclick="switchAudio('${d.deviceId}')">
+                        <span>${label}</span> ${isActive ? '✓' : ''}
+                    </div>`;
+                });
+                html += `</div></div>`;
                 container.innerHTML = html;
-
-            } catch (e) {
-                container.innerHTML = '<p style="color:var(--danger); text-align:center;">Error loading devices.</p>';
-            }
+            } catch (e) { container.innerHTML = 'એરર આવી.'; }
         }
 
-        async function selectDevice(type, deviceId) {
+        // માઇક બદલતા જ ઈયરપીસ/સ્પીકર બદલાશે (કૉલ તૂટશે નહીં)
+        async function switchAudio(deviceId) {
             try {
-                if (type === 'camera') {
-                    currentCamId = deviceId;
-                    const videoTrack = localStream.getVideoTracks()[0];
-                    const newStream = await navigator.mediaDevices.getUserMedia({
-                        video: { deviceId: { exact: deviceId }, ...(isDataSaver ? { width: 320, height: 240 } : {}) }
-                    });
-                    const newTrack = newStream.getVideoTracks()[0];
-                    if (activeCall && activeCall.peerConnection) {
-                        const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                        if (sender) await sender.replaceTrack(newTrack);
-                    }
-                    videoTrack.stop();
-                    localStream.removeTrack(videoTrack);
-                    localStream.addTrack(newTrack);
-                    localVideo.srcObject = localStream;
+                if (localStream) localStream.getAudioTracks().forEach(t => t.stop());
+                const newStream = await navigator.mediaDevices.getUserMedia({
+                    audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true }
+                });
+                const newTrack = newStream.getAudioTracks()[0];
+                if (isMuted) newTrack.enabled = false;
 
-                } else if (type === 'mic') {
-                    currentMicId = deviceId;
-                    const audioTrack = localStream.getAudioTracks()[0];
-                    const newStream = await navigator.mediaDevices.getUserMedia({
-                        audio: { deviceId: { exact: deviceId }, echoCancellation: true, noiseSuppression: true }
-                    });
-                    const newTrack = newStream.getAudioTracks()[0];
-                    if (activeCall && activeCall.peerConnection) {
-                        const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'audio');
-                        if (sender) await sender.replaceTrack(newTrack);
-                    }
-                    audioTrack.stop();
-                    localStream.removeTrack(audioTrack);
-                    localStream.addTrack(newTrack);
-
-                } else if (type === 'speaker') {
-                    currentSpeakerId = deviceId;
-                    await applySpeakerToElement(remoteVideo, deviceId);
+                if (activeCall && activeCall.peerConnection) {
+                    const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'audio');
+                    if (sender) await sender.replaceTrack(newTrack);
                 }
-
-                await renderDevicesList(); // Refresh UI
-                showToast(`Switched ${type}`);
-            } catch (err) {
-                console.error(err);
-                showToast(`Failed to switch ${type}`);
-            }
+                const oldTrack = localStream.getAudioTracks()[0];
+                if (oldTrack) localStream.removeTrack(oldTrack);
+                localStream.addTrack(newTrack);
+                currentMicId = deviceId;
+                closeDevicesSheet();
+            } catch (err) { alert("બદલી શકાયું નહીં."); }
         }
 
-        async function applySpeakerToElement(el, id = currentSpeakerId) {
-            if (typeof el.setSinkId === 'function') {
-                try {
-                    await el.setSinkId(id);
-                } catch (e) {
-                    console.warn("setSinkId failed", e);
-                }
-            }
-        }
-
-        // ==========================================
-        // 7. CONTROLS & UTILS
-        // ==========================================
+        // 5. અન્ય કંટ્રોલ્સ
         function toggleMic() {
-            if (!localStream) return;
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
-            const btn = document.getElementById('mic-btn');
-            btn.className = isMuted ? 'btn-danger' : '';
-            btn.querySelector('span').innerText = isMuted ? 'Unmute' : 'Mute';
+            document.getElementById('mic-btn').innerHTML = isMuted ? '🔇 Unmute' : '🎙️ Mute';
         }
-
         function toggleCam() {
-            if (!localStream) return;
             isCamOff = !isCamOff;
             localStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
-            const btn = document.getElementById('cam-btn');
-            btn.className = isCamOff ? 'btn-danger' : '';
-            btn.querySelector('span').innerText = isCamOff ? 'Cam Off' : 'Camera';
+            document.getElementById('cam-btn').innerHTML = isCamOff ? '🚫 Cam Off' : '📷 Camera';
         }
-
         function toggleDataSaver() {
             isDataSaver = !isDataSaver;
-            const btn = document.getElementById('saver-btn');
-            if (isDataSaver) {
-                btn.className = 'btn-saver active';
-                btn.querySelector('span').innerText = 'Data Saver';
-                showToast("Data Saver: ON (240p)");
-            } else {
-                btn.className = 'btn-saver';
-                btn.querySelector('span').innerText = 'HD Mode';
-                showToast("Data Saver: OFF (720p)");
-            }
-            applyVideoBitrate();
+            document.getElementById('saver-btn').classList.toggle('active', isDataSaver);
+            document.getElementById('saver-btn').innerHTML = isDataSaver ? '📉 Data Saver' : '📈 HD Mode';
         }
-
-        function applyVideoBitrate() {
-            if (!activeCall || !activeCall.peerConnection) return;
-            const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-            if (!sender) return;
-            const params = sender.getParameters();
-            if (!params.encodings) params.encodings = [{}];
-            if (isDataSaver) {
-                params.encodings[0].maxBitrate = 150000;
-                params.encodings[0].scaleResolutionDownBy = 2.0;
-            } else {
-                params.encodings[0].maxBitrate = 1000000;
-                params.encodings[0].scaleResolutionDownBy = 1.0;
-            }
-            sender.setParameters(params).catch(e => console.warn(e));
-        }
-
+        function closeDevicesSheet(e) { if (e && e.target !== e.currentTarget) return; document.getElementById('devices-sheet-overlay').classList.remove('active'); }
         function endCall() {
             if (activeCall) activeCall.close();
             if (localStream) localStream.getTracks().forEach(t => t.stop());
             if (peer) peer.destroy();
             location.reload();
         }
-
-        function showToast(msg) {
-            toastEl.innerText = msg;
-            toastEl.classList.add('show');
-            setTimeout(() => toastEl.classList.remove('show'), 2000);
-        }
-
-        // Start
-        startApp();
     </script>
 </body>
 </html>
