@@ -345,7 +345,8 @@
 
             peer.on('call', (call) => {
                 activeCall = call;
-                if (call.metadata && call.metadata.name) {
+                // કસ્ટમ નામ (URL માંથી) હોય તો તેને ઓવરરાઇડ ના કરો
+                if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
                     peerName = call.metadata.name;
                     updateUI();
                 }
@@ -365,16 +366,30 @@
 
         function setupDataConn() {
             if (!dataConn) return;
-            dataConn.on('open', () => {
-                dataConn.send({ type: 'NAME', name: myName });
-                dataConn.send({ type: 'MODE', active: isAutoHD }); // કનેક્ટ થાય ત્યારે મોડ મોકલો
-            });
+            
+            const sendInit = () => {
+                try {
+                    dataConn.send({ type: 'NAME', name: myName });
+                    dataConn.send({ type: 'MODE', active: isAutoHD }); 
+                } catch(e) {}
+            };
+
+            // જો કનેક્શન પહેલેથી ઓપન હોય તો તરત જ મોકલો
+            if (dataConn.open) {
+                sendInit();
+            } else {
+                dataConn.on('open', sendInit);
+            }
+
             dataConn.on('data', (data) => {
                 if (data.type === 'NAME') {
-                    peerName = data.name;
-                    updateUI();
+                    // જો પહેલેથી યોગ્ય નામ હોય તો બદલો નહીં
+                    if (peerName === 'Connecting...' || peerName === 'User') {
+                        peerName = data.name;
+                        updateUI();
+                    }
                 } else if (data.type === 'END_CALL') {
-                    endCall(true); // true means ended by remote
+                    endCall(true);
                 } else if (data.type === 'MODE') {
                     // સામેવાળાએ મોડ બદલ્યો હોય તો અપડેટ કરો
                     if (isAutoHD !== data.active) {
@@ -396,7 +411,7 @@
             }
             activeCall = peer.call(targetId, localStream, { metadata: { name: myName } });
             if (activeCall) {
-                if (activeCall.metadata && activeCall.metadata.name) {
+                if (peerName === 'Connecting...' && activeCall.metadata && activeCall.metadata.name) {
                     peerName = activeCall.metadata.name;
                     updateUI();
                 }
