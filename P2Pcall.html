@@ -51,24 +51,33 @@
 
     /* Floating Controls */
     .controls-container {
-        position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 20px; right: 20px;
+        position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 10px; right: 10px;
         background: rgba(30, 35, 50, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        border-radius: 40px; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center;
+        border-radius: 24px; padding: 10px; display: flex; justify-content: space-around; align-items: center;
         z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);
     }
+    
+    /* Buttons with Text Below */
     .ctrl-btn {
-        width: 50px; height: 50px; border-radius: 50%; border: none; background: var(--surface-hover);
-        color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer;
-        transition: 0.2s; font-size: 20px;
+        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+        background: transparent; border: none; color: var(--text); cursor: pointer;
+        transition: 0.2s; width: 65px; padding: 8px 2px; border-radius: 12px;
     }
     .ctrl-btn:active { transform: scale(0.9); }
-    .ctrl-btn.active { background: rgba(255,255,255,0.2); color: #fff; }
-    .ctrl-btn.danger { background: var(--danger); color: #fff; }
+    .ctrl-btn span { font-size: 11px; font-weight: 600; color: #aaa; text-align: center; line-height: 1.1; }
+    .ctrl-btn svg, .ctrl-btn .icon { width: 24px; height: 24px; fill: currentColor; }
     
-    /* Data Saver / Auto HD Button */
-    #saver-btn { font-size: 18px; font-weight: bold; }
-    #saver-btn.active { background: #422006; color: #fde047; border: 1px solid #f59e0b; }
-    #saver-btn.hd-mode { background: #14532d; color: #bbf7d0; border: 1px solid var(--success); }
+    /* Button States */
+    .ctrl-btn.active { background: rgba(255,255,255,0.1); }
+    .ctrl-btn.active span { color: #fff; }
+    .ctrl-btn.danger { background: var(--danger); }
+    .ctrl-btn.danger span { color: #fff; }
+    
+    /* Data Saver & Auto HD Colors */
+    .ctrl-btn.saver-mode { background: #422006; border: 1px solid #f59e0b; }
+    .ctrl-btn.saver-mode span { color: #fde047; }
+    .ctrl-btn.hd-mode { background: #14532d; border: 1px solid var(--success); }
+    .ctrl-btn.hd-mode span { color: #bbf7d0; }
 
     /* Devices Sheet */
     .sheet-overlay {
@@ -125,23 +134,29 @@
         <!-- Controls -->
         <div class="controls-container">
             <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                <span>Mute</span>
             </button>
             
             <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                <span>Video</span>
             </button>
 
-            <button id="saver-btn" class="ctrl-btn active" onclick="toggleDataSaver()">
-                🪶
+            <!-- Default Data Saver -->
+            <button id="saver-btn" class="ctrl-btn saver-mode" onclick="toggleDataSaver()">
+                <span style="font-size: 22px; line-height: 1;">🪶</span>
+                <span id="saver-text">Data Saver</span>
             </button>
 
             <button class="ctrl-btn" onclick="openDevices()">
-                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                <span>Devices</span>
             </button>
 
-            <button class="ctrl-btn danger" onclick="endCall()">
-                <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            <button class="ctrl-btn danger" onclick="endCall(false)">
+                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                <span>End</span>
             </button>
         </div>
     </div>
@@ -180,8 +195,9 @@
 
         let peer = null, activeCall = null, dataConn = null, localStream = null;
         let currentMicId = null;
-        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0;
+        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; // isAutoHD=false means Data Saver is ON
         let callTimerInterval = null, callSeconds = 0;
+        let callEnded = false;
 
         const remoteVideo = document.getElementById('remote-video');
         const localVideo = document.getElementById('local-video');
@@ -227,7 +243,7 @@
                         if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
                     };
                     set('useinbandfec', '1');
-                    set('usedtx', '1'); // Zangi trick: stop sending data when silent
+                    set('usedtx', '1'); // Stop sending data when silent
                     set('stereo', '0');
                     set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); // HD=24k, Saver=12k
                     set('maxplaybackrate', isAutoHD ? '24000' : '12000');
@@ -298,7 +314,7 @@
         }
 
         // ==========================================
-        // 4. PEERJS CONNECTION
+        // 4. PEERJS CONNECTION & END CALL SYNC
         // ==========================================
         async function startApp() {
             const hasMedia = await initMedia();
@@ -347,12 +363,14 @@
                 if (data.type === 'NAME') {
                     peerName = data.name;
                     updateUI();
+                } else if (data.type === 'END_CALL') {
+                    endCall(true); // true means ended by remote
                 }
             });
         }
 
         function makeCall(targetId) {
-            if (!peer || peer.destroyed) return;
+            if (!peer || peer.destroyed || callEnded) return;
             if (!dataConn) {
                 dataConn = peer.connect(targetId);
                 setupDataConn();
@@ -396,13 +414,21 @@
                 }, 1000);
             });
             
+            // If connection drops
             call.on('close', () => {
-                endCall();
+                endCall(true);
             });
         }
 
+        // Sync end call if tab is closed
+        window.addEventListener('beforeunload', () => {
+            if (!callEnded && dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
+            }
+        });
+
         // ==========================================
-        // 5. DEVICES SHEET & ROUTING (Android Hack)
+        // 5. DEVICES SHEET & ROUTING
         // ==========================================
         async function openDevices() {
             document.getElementById('devices-overlay').classList.add('active');
@@ -441,7 +467,6 @@
             document.getElementById('devices-overlay').classList.remove('active');
         }
 
-        // Android Mic Switch Trick (Also changes Speaker/Earpiece route)
         async function switchAudio(deviceId) {
             try {
                 const constraints = { audio: { echoCancellation: true, noiseSuppression: true } };
@@ -467,18 +492,14 @@
         }
 
         // ==========================================
-        // 6. CONTROLS
+        // 6. CONTROLS & END CALL
         // ==========================================
         function toggleMic() {
             isMuted = !isMuted;
             if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
             const btn = document.getElementById('mic-btn');
             btn.classList.toggle('active', isMuted);
-            if (isMuted) {
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>';
-            } else {
-                btn.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
-            }
+            btn.querySelector('span').innerText = isMuted ? 'Unmute' : 'Mute';
         }
 
         function toggleVideo() {
@@ -487,18 +508,22 @@
             if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = !isVideoOff);
             const btn = document.getElementById('vid-btn');
             btn.classList.toggle('active', isVideoOff);
+            btn.querySelector('span').innerText = isVideoOff ? 'Cam Off' : 'Video';
         }
 
         function toggleDataSaver() {
             isAutoHD = !isAutoHD;
             const btn = document.getElementById('saver-btn');
+            const text = document.getElementById('saver-text');
             
             if (isAutoHD) {
                 btn.className = 'ctrl-btn hd-mode';
-                btn.innerText = '📈';
+                btn.querySelector('.icon').innerText = '📈';
+                text.innerText = 'Auto HD';
             } else {
-                btn.className = 'ctrl-btn active';
-                btn.innerText = '🪶';
+                btn.className = 'ctrl-btn saver-mode';
+                btn.querySelector('.icon').innerText = '🪶';
+                text.innerText = 'Data Saver';
             }
             
             if (activeCall && activeCall.peerConnection) {
@@ -506,20 +531,28 @@
             }
         }
 
-        function endCall() {
+        function endCall(byRemote = false) {
+            if (callEnded) return;
+            callEnded = true;
+
+            // Notify other side if we ended it
+            if (!byRemote && dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
+            }
+
             if (activeCall) activeCall.close();
             if (localStream) localStream.getTracks().forEach(t => t.stop());
             if (peer) peer.destroy();
             if (callTimerInterval) clearInterval(callTimerInterval);
             
-            // Close window / Return to chat
-            try {
-                window.close();
-            } catch(e) {}
+            statusText.innerText = byRemote ? "Call Ended by Peer" : "Call Ended";
             
+            // Redirect back to chat app
             setTimeout(() => {
-                window.location.href = "https://ppatel240125.github.io/pure-vault-call/"; 
-            }, 500);
+                try { window.close(); } catch(e) {}
+                const chatUrl = document.referrer && document.referrer.includes('http') ? document.referrer : "https://ppatel240125.github.io/pure-vault-call/";
+                window.location.href = chatUrl; 
+            }, 1000);
         }
 
         startApp();
