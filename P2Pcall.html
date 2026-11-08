@@ -11,9 +11,12 @@
         --danger: #ef4444; --success: #22c55e; --border: #2d333b;
     }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    
+    /* સ્ક્રીન સાઇઝ ફિક્સ (100dvh વાપર્યું છે જેથી મોબાઇલમાં કંઈ કપાય નહીં) */
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; }
     body {
         background: var(--bg); color: var(--text); font-family: system-ui, -apple-system, sans-serif;
-        margin: 0; height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+        display: flex; flex-direction: column; height: 100dvh; 
     }
 
     /* 🌟 પહેલી સ્ક્રીન (મેનુ) */
@@ -21,18 +24,18 @@
         position: fixed; inset: 0; background: var(--bg); z-index: 1000;
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px;
     }
-    #start-screen h1 { font-size: 24px; margin-bottom: 10px; color: var(--primary); }
+    #start-screen h1 { font-size: 22px; margin-bottom: 10px; color: var(--primary); }
     .start-btn {
         background: var(--surface); border: 1px solid var(--border); color: var(--text);
         padding: 20px 40px; border-radius: 16px; font-size: 18px; font-weight: bold;
-        display: flex; align-items: center; gap: 15px; width: 250px; cursor: pointer;
+        display: flex; align-items: center; gap: 15px; width: 260px; cursor: pointer;
         transition: 0.2s;
     }
     .start-btn:active { transform: scale(0.95); background: var(--surface-hover); }
     .start-btn svg { width: 28px; height: 28px; fill: var(--primary); }
 
     /* વિડિયો / ઓડિયો કૉલ સ્ક્રીન */
-    #call-ui { display: none; flex: 1; flex-direction: column; height: 100vh; }
+    #call-ui { display: none; flex-direction: column; width: 100%; height: 100%; }
     
     /* Audio Mode માટે */
     #audio-view {
@@ -46,34 +49,39 @@
     }
     @keyframes pulse { 0% { box-shadow: 0 0 0 0 rgba(59,130,246,0.4); } 70% { box-shadow: 0 0 0 20px rgba(59,130,246,0); } 100% { box-shadow: 0 0 0 0 rgba(59,130,246,0); } }
     
-    /* Video Mode માટે (સ્પ્લિટ સ્ક્રીન) */
+    /* Video Mode માટે */
     #video-view { flex: 1; display: none; flex-direction: column; gap: 2px; background: #000; overflow: hidden; }
     .video-box { flex: 1; position: relative; background: #111; overflow: hidden; }
     video { width: 100%; height: 100%; object-fit: cover; }
     #local-video { transform: scaleX(-1); }
 
-    /* સ્ટેટસ બાર */
     #status-bar {
         position: absolute; top: 16px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.7);
         padding: 6px 16px; border-radius: 20px; font-size: 13px; z-index: 10;
-        display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px);
+        display: flex; align-items: center; gap: 8px; backdrop-filter: blur(8px); white-space: nowrap;
     }
     .dot { width: 8px; height: 8px; border-radius: 50%; background: #f59e0b; }
     .dot.connected { background: var(--success); }
 
-    /* કંટ્રોલ્સ */
-    #controls { background: var(--surface); padding: 16px; display: flex; flex-direction: column; gap: 10px; border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 20; }
+    /* કંટ્રોલ્સ (નીચેનો ભાગ) */
+    #controls { 
+        background: var(--surface); padding: 16px; padding-bottom: max(16px, env(safe-area-inset-bottom)); 
+        display: flex; flex-direction: column; gap: 10px; 
+        border-top-left-radius: 20px; border-top-right-radius: 20px; z-index: 20; flex-shrink: 0;
+    }
     .row { display: flex; justify-content: space-between; gap: 10px; }
     button.ctrl {
-        flex: 1; padding: 12px 10px; border: none; border-radius: 12px;
-        font-size: 13px; font-weight: 600; cursor: pointer;
-        display: flex; flex-direction: column; align-items: center; gap: 4px;
+        flex: 1; padding: 14px 10px; border: none; border-radius: 12px;
+        font-size: 14px; font-weight: 600; cursor: pointer;
+        display: flex; flex-direction: column; align-items: center; gap: 6px;
         background: var(--surface-hover); color: var(--text); transition: 0.2s;
     }
     button.ctrl:active { transform: scale(0.95); }
-    button.ctrl svg { width: 22px; height: 22px; fill: currentColor; }
-    .btn-danger { background: #7f1d1d; color: #fca5a5; }
+    .btn-danger { background: var(--danger); color: #fff; font-size: 16px !important; padding: 16px 10px !important; }
     .btn-saver.active { background: #14532d; color: #bbf7d0; border: 1px solid var(--success); }
+    
+    /* End Call બટનને ખાસ હાઇલાઇટ કરવા માટે */
+    #end-btn { flex: 1; width: 100%; border-radius: 14px; margin-top: 5px; }
 
     /* Devices મેનુ */
     .sheet-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 1000; display: none; align-items: flex-end; }
@@ -83,39 +91,38 @@
     .sheet-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .sheet-header h2 { margin: 0; font-size: 20px; }
     .sheet-close { background: none; border: none; color: var(--text-muted); font-size: 24px; }
-    .device-list { background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 15px;}
     .device-group h3 { font-size: 11px; color: var(--text-muted); margin: 0 0 8px 4px; }
+    .device-list { background: var(--surface); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 15px;}
     .device-item { display: flex; justify-content: space-between; padding: 14px 16px; font-size: 15px; border-bottom: 1px solid var(--border); }
     .device-item.active { color: var(--primary); }
 </style>
 </head>
 <body>
 
-    <!-- 1. સ્ટાર્ટ સ્ક્રીન (Audio / Video પસંદ કરવા) -->
+    <!-- 1. સ્ટાર્ટ સ્ક્રીન -->
     <div id="start-screen">
         <h1>સુરક્ષિત કૉલ શરૂ કરો</h1>
         <button class="start-btn" onclick="startCall('audio')">
             <svg viewBox="0 0 24 24"><path d="M20.01 15.38c-1.23 0-2.42-.2-3.53-.56a.977.977 0 0 0-1.01.24l-2.2 2.2a15.045 15.045 0 0 1-6.59-6.59l2.2-2.21a.96.96 0 0 0 .25-1A11.36 11.36 0 0 1 8.5 4c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1 0 9.39 7.61 17 17 17 .55 0 1-.45 1-1v-3.5c0-.55-.45-1-1-1z"/></svg>
-            ઓડિયો કૉલ (Audio)
+            ઓડિયો કૉલ
         </button>
         <button class="start-btn" onclick="startCall('video')">
             <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-            વિડિયો કૉલ (Video)
+            વિડિયો કૉલ
         </button>
     </div>
 
-    <!-- 2. કૉલ સ્ક્રીન (અંદર Audio/Video બંને માટે) -->
+    <!-- 2. કૉલ સ્ક્રીન -->
     <div id="call-ui">
-        <!-- ઓડિયો મોડ વ્યુ -->
+        <!-- ઓડિયો મોડ -->
         <div id="audio-view">
             <div id="status-bar"><div class="dot" id="status-dot"></div><span id="status-text">Connecting...</span></div>
             <div class="avatar-circle">👤</div>
-            <h2 style="margin-top:20px;">ઓડિયો કૉલ</h2>
-            <!-- ઓડિયો પ્લે થવા માટે આ ટેગ જરૂરી છે -->
+            <h2 style="margin-top:20px; color:var(--text-muted);">ઓડિયો કૉલ</h2>
             <audio id="remote-audio" autoplay playsinline></audio>
         </div>
 
-        <!-- વિડિયો મોડ વ્યુ (સ્પ્લિટ સ્ક્રીન) -->
+        <!-- વિડિયો મોડ -->
         <div id="video-view">
             <div class="video-box">
                 <video id="remote-video" autoplay playsinline></video>
@@ -131,18 +138,17 @@
             <div class="row">
                 <button id="mic-btn" class="ctrl" onclick="toggleMic()">🎙️ Mute</button>
                 <button id="cam-btn" class="ctrl" onclick="toggleCam()" style="display:none;">📷 Camera</button>
-            </div>
-            <div class="row">
                 <button id="saver-btn" class="ctrl btn-saver active" onclick="toggleDataSaver()">📉 Data Saver</button>
                 <button id="devices-btn" class="ctrl" onclick="openDevicesSheet()">🎧 Devices</button>
             </div>
-            <div class="row">
-                <button class="ctrl btn-danger" onclick="endCall()">🔴 End Call</button>
-            </div>
+            <!-- END CALL બટન (મોટું અને લાલ) -->
+            <button id="end-btn" class="ctrl btn-danger" onclick="endCall()">
+                🔴 કૉલ સમાપ્ત કરો (End Call)
+            </button>
         </div>
     </div>
 
-    <!-- 3. Devices મેનુ (ઈયરપીસ સપોર્ટ માટે) -->
+    <!-- 3. Devices મેનુ -->
     <div id="devices-sheet-overlay" class="sheet-overlay" onclick="closeDevicesSheet(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">
@@ -155,23 +161,20 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
-        // કોન્ફિગરેશન
         const P = new URLSearchParams(location.search);
         const roomId = (P.get('room') || 'room123').replace(/[^a-zA-Z0-9_-]/g, '');
         const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
         const ICE = [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }];
 
         let peer = null, activeCall = null, localStream = null;
-        let currentMicId = null, callMode = 'audio'; // Default
+        let currentMicId = null, callMode = 'audio';
         let isMuted = false, isCamOff = false, isDataSaver = true, retryCount = 0;
 
-        // 1. કૉલ શરૂ કરવાનું ફંક્શન
         async function startCall(mode) {
             callMode = mode;
             document.getElementById('start-screen').style.display = 'none';
             document.getElementById('call-ui').style.display = 'flex';
 
-            // UI સેટઅપ
             if (mode === 'audio') {
                 document.getElementById('audio-view').style.display = 'flex';
                 document.getElementById('video-view').style.display = 'none';
@@ -181,29 +184,22 @@
                 document.getElementById('cam-btn').style.display = 'flex';
             }
 
-            // મીડિયા અને પીઅર શરૂ કરો
             const hasMedia = await initMedia(mode);
             if (hasMedia) startPeer();
         }
 
-        // 2. મીડિયા લેવું (Audio કે Video)
         async function initMedia(mode) {
             try {
                 const constraints = {
                     audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                 };
-                
                 if (mode === 'video') {
                     constraints.video = isDataSaver ? { width: 320, height: 240, frameRate: 15 } : { width: 1280, height: 720 };
                 }
-
                 if (currentMicId) constraints.audio.deviceId = { exact: currentMicId };
 
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                if (mode === 'video') {
-                    document.getElementById('local-video').srcObject = localStream;
-                }
+                if (mode === 'video') document.getElementById('local-video').srcObject = localStream;
                 return true;
             } catch (err) {
                 alert("પરમિશન નકારી કાઢવામાં આવી.");
@@ -211,7 +207,6 @@
             }
         }
 
-        // 3. પીઅર કનેક્શન
         function startPeer() {
             const myId = `p2p_ds_${roomId}_${role}`;
             const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
@@ -250,6 +245,7 @@
             call.on('stream', (remoteStream) => {
                 if (callMode === 'audio') {
                     document.getElementById('remote-audio').srcObject = remoteStream;
+                    document.getElementById('remote-audio').play().catch(e=>{});
                 } else {
                     document.getElementById('remote-video').srcObject = remoteStream;
                     document.getElementById('remote-video').play().catch(e=>{});
@@ -265,7 +261,7 @@
             document.getElementById('status-text-vid').innerText = msg;
         }
 
-        // 4. ઈયરપીસ મેનુ (Android હેક સાથે)
+        // મેનુ ખોલો
         async function openDevicesSheet() {
             document.getElementById('devices-sheet-overlay').classList.add('active');
             const container = document.getElementById('devices-list-container');
@@ -274,12 +270,8 @@
             try {
                 const devices = await navigator.mediaDevices.enumerateDevices();
                 const mics = devices.filter(d => d.kind === 'audioinput');
-                const cams = devices.filter(d => d.kind === 'videoinput');
 
-                let html = '';
-
-                // માઇક / સ્પીકર લિસ્ટ (ઈયરપીસ અહીંથી બદલાશે)
-                html += `<div class="device-group"><h3>MICROPHONE / SPEAKER</h3><div class="device-list">`;
+                let html = `<div class="device-group"><h3>MICROPHONE / SPEAKER</h3><div class="device-list">`;
                 mics.forEach(d => {
                     let label = d.label || 'Default';
                     if(label.includes('Speakerphone')) label = 'Speakerphone';
@@ -294,7 +286,7 @@
             } catch (e) { container.innerHTML = 'એરર આવી.'; }
         }
 
-        // માઇક બદલતા જ ઈયરપીસ/સ્પીકર બદલાશે (કૉલ તૂટશે નહીં)
+        // ઈયરપીસ સ્વિચ કરવાની ટ્રીક
         async function switchAudio(deviceId) {
             try {
                 if (localStream) localStream.getAudioTracks().forEach(t => t.stop());
@@ -316,28 +308,36 @@
             } catch (err) { alert("બદલી શકાયું નહીં."); }
         }
 
-        // 5. અન્ય કંટ્રોલ્સ
         function toggleMic() {
             isMuted = !isMuted;
             localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
             document.getElementById('mic-btn').innerHTML = isMuted ? '🔇 Unmute' : '🎙️ Mute';
         }
+        
         function toggleCam() {
             isCamOff = !isCamOff;
             localStream.getVideoTracks().forEach(t => t.enabled = !isCamOff);
             document.getElementById('cam-btn').innerHTML = isCamOff ? '🚫 Cam Off' : '📷 Camera';
         }
+        
         function toggleDataSaver() {
             isDataSaver = !isDataSaver;
             document.getElementById('saver-btn').classList.toggle('active', isDataSaver);
             document.getElementById('saver-btn').innerHTML = isDataSaver ? '📉 Data Saver' : '📈 HD Mode';
         }
-        function closeDevicesSheet(e) { if (e && e.target !== e.currentTarget) return; document.getElementById('devices-sheet-overlay').classList.remove('active'); }
+        
+        function closeDevicesSheet(e) { 
+            if (e && e.target !== e.currentTarget) return; 
+            document.getElementById('devices-sheet-overlay').classList.remove('active'); 
+        }
+        
         function endCall() {
-            if (activeCall) activeCall.close();
-            if (localStream) localStream.getTracks().forEach(t => t.stop());
-            if (peer) peer.destroy();
-            location.reload();
+            if (confirm("શું તમે ખરેખર કૉલ કટ કરવા માંગો છો?")) {
+                if (activeCall) activeCall.close();
+                if (localStream) localStream.getTracks().forEach(t => t.stop());
+                if (peer) peer.destroy();
+                location.reload();
+            }
         }
     </script>
 </body>
