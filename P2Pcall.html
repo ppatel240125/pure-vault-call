@@ -145,7 +145,7 @@
 
             <!-- Default Data Saver -->
             <button id="saver-btn" class="ctrl-btn saver-mode" onclick="toggleDataSaver()">
-                <span style="font-size: 22px; line-height: 1;">🪶</span>
+                <span class="icon" style="font-size: 22px; line-height: 1;">🪶</span>
                 <span id="saver-text">Data Saver</span>
             </button>
 
@@ -195,7 +195,7 @@
 
         let peer = null, activeCall = null, dataConn = null, localStream = null;
         let currentMicId = null;
-        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; // isAutoHD=false means Data Saver is ON
+        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; // isAutoHD=false means Data Saver is ON by default
         let callTimerInterval = null, callSeconds = 0;
         let callEnded = false;
 
@@ -243,7 +243,7 @@
                         if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
                     };
                     set('useinbandfec', '1');
-                    set('usedtx', '1'); // Stop sending data when silent
+                    set('usedtx', '1'); // Zangi trick: stop sending data when silent
                     set('stereo', '0');
                     set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); // HD=24k, Saver=12k
                     set('maxplaybackrate', isAutoHD ? '24000' : '12000');
@@ -270,19 +270,28 @@
         function applyVideoBitrate(pc) {
             if (!pc) return;
             const senders = pc.getSenders();
-            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
-            if (videoSender) {
-                const params = videoSender.getParameters();
+            senders.forEach(s => {
+                if (!s.track) return;
+                const params = s.getParameters();
                 if (!params.encodings) params.encodings = [{}];
-                if (isAutoHD) {
-                    params.encodings[0].maxBitrate = 1000000; // 1 Mbps
-                    params.encodings[0].scaleResolutionDownBy = 1.0; // 720p
-                } else {
-                    params.encodings[0].maxBitrate = 150000; // 150 kbps
-                    params.encodings[0].scaleResolutionDownBy = 2.0; // 240p
+
+                if (s.track.kind === 'video') {
+                    if (isAutoHD) {
+                        params.encodings[0].maxBitrate = 1000000; // 1 Mbps
+                        params.encodings[0].scaleResolutionDownBy = 1.0; // 720p
+                    } else {
+                        params.encodings[0].maxBitrate = 150000; // 150 kbps
+                        params.encodings[0].scaleResolutionDownBy = 2.0; // 240p
+                    }
+                } else if (s.track.kind === 'audio') {
+                    if (isAutoHD) {
+                        params.encodings[0].maxBitrate = 24000; // 24 kbps
+                    } else {
+                        params.encodings[0].maxBitrate = 12000; // 12 kbps
+                    }
                 }
-                videoSender.setParameters(params).catch(e => console.log(e));
-            }
+                s.setParameters(params).catch(e => console.log(e));
+            });
         }
 
         // ==========================================
@@ -314,7 +323,7 @@
         }
 
         // ==========================================
-        // 4. PEERJS CONNECTION & END CALL SYNC
+        // 4. PEERJS CONNECTION & SYNC LOGIC
         // ==========================================
         async function startApp() {
             const hasMedia = await initMedia();
@@ -358,6 +367,7 @@
             if (!dataConn) return;
             dataConn.on('open', () => {
                 dataConn.send({ type: 'NAME', name: myName });
+                dataConn.send({ type: 'MODE', active: isAutoHD }); // કનેક્ટ થાય ત્યારે મોડ મોકલો
             });
             dataConn.on('data', (data) => {
                 if (data.type === 'NAME') {
@@ -365,6 +375,15 @@
                     updateUI();
                 } else if (data.type === 'END_CALL') {
                     endCall(true); // true means ended by remote
+                } else if (data.type === 'MODE') {
+                    // સામેવાળાએ મોડ બદલ્યો હોય તો અપડેટ કરો
+                    if (isAutoHD !== data.active) {
+                        isAutoHD = data.active;
+                        updateSaverUI(); 
+                        if (activeCall && activeCall.peerConnection) {
+                            applyVideoBitrate(activeCall.peerConnection);
+                        }
+                    }
                 }
             });
         }
@@ -513,21 +532,32 @@
 
         function toggleDataSaver() {
             isAutoHD = !isAutoHD;
-            const btn = document.getElementById('saver-btn');
-            const text = document.getElementById('saver-text');
-            
-            if (isAutoHD) {
-                btn.className = 'ctrl-btn hd-mode';
-                btn.querySelector('.icon').innerText = '📈';
-                text.innerText = 'Auto HD';
-            } else {
-                btn.className = 'ctrl-btn saver-mode';
-                btn.querySelector('.icon').innerText = '🪶';
-                text.innerText = 'Data Saver';
-            }
+            updateSaverUI();
             
             if (activeCall && activeCall.peerConnection) {
                 applyVideoBitrate(activeCall.peerConnection);
+            }
+
+            // સામેવાળાને મોડ બદલવાનું કહો
+            if (dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
+            }
+        }
+
+        // UI અપડેટ કરવા માટે અલગ ફંક્શન
+        function updateSaverUI() {
+            const btn = document.getElementById('saver-btn');
+            const text = document.getElementById('saver-text');
+            const icon = btn.querySelector('.icon');
+            
+            if (isAutoHD) {
+                btn.className = 'ctrl-btn hd-mode';
+                if(icon) icon.innerText = '📈';
+                if(text) text.innerText = 'Auto HD';
+            } else {
+                btn.className = 'ctrl-btn saver-mode';
+                if(icon) icon.innerText = '🪶';
+                if(text) text.innerText = 'Data Saver';
             }
         }
 
