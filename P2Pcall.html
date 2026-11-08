@@ -46,6 +46,15 @@
     .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
 
+    /* સ્ક્રીન લોક બટન (ઉપર જમણી બાજુ) */
+    #lock-btn {
+        position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px;
+        width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.1);
+        border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
+        z-index: 30; cursor: pointer; backdrop-filter: blur(4px); color: #fff;
+    }
+    #lock-btn:active { background: rgba(255,255,255,0.2); }
+
     .controls-container {
         position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 20px; right: 20px;
         background: rgba(30, 35, 50, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
@@ -98,6 +107,30 @@
         width: 100%; padding: 16px; background: rgba(255,255,255,0.1); color: #fff; border: none;
         border-radius: 16px; font-size: 16px; font-weight: bold; margin-top: 20px; cursor: pointer;
     }
+
+    /* ==========================================
+       🌟 સ્ક્રીન લોક ઓવરલે (કાળો પડદો)
+       ========================================== */
+    #lock-overlay {
+        position: fixed; inset: 0; background: #0f111a; z-index: 9999;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        touch-action: none; /* સ્ક્રોલ અટકાવવા */
+    }
+    #lock-overlay.active { display: flex; }
+    .lock-content {
+        text-align: center; color: #fff; pointer-events: none;
+    }
+    .lock-icon {
+        font-size: 60px; margin-bottom: 20px; animation: pulse 2s infinite;
+    }
+    .lock-text {
+        font-size: 16px; color: #aaa; font-weight: 500;
+    }
+    @keyframes pulse {
+        0% { transform: scale(1); opacity: 0.8; }
+        50% { transform: scale(1.1); opacity: 1; }
+        100% { transform: scale(1); opacity: 0.8; }
+    }
 </style>
 </head>
 <body>
@@ -114,6 +147,11 @@
             <div id="local-video-container">
                 <video id="local-video" autoplay playsinline muted></video>
             </div>
+        </div>
+
+        <!-- સ્ક્રીન લોક બટન -->
+        <div id="lock-btn" onclick="toggleLock(true)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
         </div>
 
         <div class="header">
@@ -149,6 +187,14 @@
         </div>
     </div>
 
+    <!-- સ્ક્રીન લોક ઓવરલે (કાળો પડદો) -->
+    <div id="lock-overlay">
+        <div class="lock-content">
+            <div class="lock-icon">🔒</div>
+            <div class="lock-text">Double tap to unlock</div>
+        </div>
+    </div>
+
     <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">Devices</div>
@@ -173,21 +219,29 @@
         const ICE = [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
         let peer = null, activeCall = null, localStream = null;
-        let callDc = null; 
+        let dataConn = null; 
         let currentMicId = null;
         let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
         let callTimerInterval = null, callSeconds = 0;
         let callEnded = false;
+        let wakeLock = null; // સ્ક્રીન સ્લીપ રોકવા માટે
 
         const remoteVideo = document.getElementById('remote-video');
         const localVideo = document.getElementById('local-video');
         const remoteAudio = document.getElementById('remote-audio');
         const statusText = document.getElementById('call-status');
+
+        function forcePlay() {
+            if(remoteVideo.srcObject) remoteVideo.play().catch(e => console.log(e));
+            if(remoteAudio.srcObject) remoteAudio.play().catch(e => console.log(e));
+        }
+        document.body.addEventListener('click', forcePlay);
 
         if (callType === 'video') {
             document.getElementById('audio-view').style.display = 'none';
@@ -204,6 +258,66 @@
         }
         updateUI();
 
+        // ==========================================
+        // 🌟 સ્ક્રીન લોક અને ડબલ ટચ અનલોક લોજિક
+        // ==========================================
+        const lockOverlay = document.getElementById('lock-overlay');
+        let lastTap = 0;
+
+        function toggleLock(lock) {
+            if (lock) {
+                lockOverlay.classList.add('active');
+            } else {
+                lockOverlay.classList.remove('active');
+            }
+        }
+
+        // ડબલ ટચ ડિટેક્શન
+        lockOverlay.addEventListener('click', (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const now = Date.now();
+            if (now - lastTap < 350) { // 350ms ની અંદર બે વાર ટચ થાય તો
+                toggleLock(false); // અનલોક કરો
+                lastTap = 0;
+            } else {
+                lastTap = now;
+            }
+        });
+
+        // ==========================================
+        // 🌟 સ્ક્રીન સ્લીપ (Wake Lock) લોજિક
+        // ==========================================
+        async function requestWakeLock() {
+            try {
+                if ('wakeLock' in navigator) {
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', () => {
+                        console.log('Wake Lock released');
+                    });
+                    console.log('Wake Lock active');
+                }
+            } catch (err) {
+                console.log('Wake Lock error:', err);
+            }
+        }
+
+        // જો યુઝર ટેબ બદલે અને પાછો આવે તો ફરી વેક લોક માંગો
+        document.addEventListener('visibilitychange', async () => {
+            if (document.visibilityState === 'visible' && !callEnded) {
+                await requestWakeLock();
+            }
+        });
+
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => { wakeLock = null; });
+            }
+        }
+
+        // ==========================================
+        // ડેટા સેવિંગ (SDP MUNGING)
+        // ==========================================
         function mungeSDP(sdp) {
             if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
             const lines = sdp.split('\r\n');
@@ -276,11 +390,7 @@
         async function initMedia() {
             try {
                 const constraints = {
-                    audio: {
-                        echoCancellation: true, 
-                        noiseSuppression: true,
-                        autoGainControl: true
-                    }
+                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
                 };
                 if (callType === 'video') {
                     constraints.video = isAutoHD ? 
@@ -298,32 +408,15 @@
             }
         }
 
-        function setupCallDataChannel(pc, isCaller) {
-            if (isCaller) {
-                callDc = pc.createDataChannel("call_sync");
-                callDc.onopen = () => sendSyncState();
-                callDc.onmessage = handleSyncMessage;
-            } else {
-                pc.ondatachannel = (event) => {
-                    callDc = event.channel;
-                    callDc.onopen = () => sendSyncState();
-                    callDc.onmessage = handleSyncMessage;
-                };
-            }
-        }
+        function setupDataConn() {
+            if (!dataConn) return;
+            
+            dataConn.on('open', () => {
+                dataConn.send({ type: 'NAME', name: myName });
+                dataConn.send({ type: 'MODE', active: isAutoHD });
+            });
 
-        function sendSyncState() {
-            if (callDc && callDc.readyState === 'open') {
-                try {
-                    callDc.send(JSON.stringify({ type: 'NAME', name: myName }));
-                    callDc.send(JSON.stringify({ type: 'MODE', active: isAutoHD }));
-                } catch(e) {}
-            }
-        }
-
-        function handleSyncMessage(event) {
-            try {
-                const data = JSON.parse(event.data);
+            dataConn.on('data', (data) => {
                 if (data.type === 'NAME') {
                     if (peerName === 'Connecting...' || peerName === 'User') {
                         peerName = data.name;
@@ -338,14 +431,16 @@
                         }
                     }
                 } else if (data.type === 'END_CALL') {
-                    endCall(true); 
+                    endCall(true);
                 }
-            } catch(e) {}
+            });
         }
 
         async function startApp() {
             const hasMedia = await initMedia();
             if (!hasMedia) return;
+
+            await requestWakeLock(); // 🌟 કૉલ શરૂ થાય એટલે સ્ક્રીન ઓન રાખો
 
             const myId = `p2p_ds_${roomId}_${role}`;
             const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
@@ -354,6 +449,11 @@
 
             peer.on('open', () => {
                 if (role === 'caller') setTimeout(() => makeCall(targetId), 1500);
+            });
+
+            peer.on('connection', (conn) => {
+                dataConn = conn;
+                setupDataConn();
             });
 
             peer.on('call', (call) => {
@@ -366,8 +466,6 @@
                     isAutoHD = call.metadata.isAutoHD;
                     updateSaverUI();
                 }
-                
-                setupCallDataChannel(call.peerConnection, false);
                 call.answer(localStream);
                 setupCall(call);
             });
@@ -377,7 +475,7 @@
                     if (retryCount < 10) {
                         retryCount++;
                         setTimeout(() => makeCall(targetId), 3000);
-                    } else { statusText.innerText = "Offline"; }
+                    } else { statusText.innerText = "User Offline"; }
                 }
             });
         }
@@ -385,6 +483,11 @@
         function makeCall(targetId) {
             if (!peer || peer.destroyed || callEnded) return;
             
+            if (!dataConn) {
+                dataConn = peer.connect(targetId);
+                setupDataConn();
+            }
+
             activeCall = peer.call(targetId, localStream, { metadata: { name: myName, isAutoHD: isAutoHD } });
             
             if (activeCall) {
@@ -392,19 +495,29 @@
                     peerName = activeCall.metadata.name;
                     updateUI();
                 }
-                setupCallDataChannel(activeCall.peerConnection, true);
                 setupCall(activeCall);
             }
         }
 
         function setupCall(call) {
+            call.peerConnection.oniceconnectionstatechange = () => {
+                const state = call.peerConnection.iceConnectionState;
+                if (state === 'checking') {
+                    statusText.innerText = "Connecting...";
+                } else if (state === 'failed') {
+                    statusText.innerText = "Connection Failed";
+                } else if (state === 'disconnected') {
+                    statusText.innerText = "Disconnected";
+                }
+            };
+
             call.on('stream', (remoteStream) => {
                 if (callType === 'video') {
                     remoteVideo.srcObject = remoteStream;
-                    remoteVideo.play().catch(e=>{});
+                    remoteVideo.play().catch(e => console.log("Autoplay blocked"));
                 } else {
                     remoteAudio.srcObject = remoteStream;
-                    remoteAudio.play().catch(e=>{});
+                    remoteAudio.play().catch(e => console.log(e));
                 }
                 
                 statusText.innerText = "00:00";
@@ -430,8 +543,9 @@
         }
 
         window.addEventListener('beforeunload', () => {
-            if (!callEnded && callDc && callDc.readyState === 'open') {
-                try { callDc.send(JSON.stringify({ type: 'END_CALL' })); } catch(e) {}
+            releaseWakeLock();
+            if (!callEnded && dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
             }
         });
 
@@ -521,8 +635,8 @@
                 applyVideoBitrate(activeCall.peerConnection);
             }
 
-            if (callDc && callDc.readyState === 'open') {
-                try { callDc.send(JSON.stringify({ type: 'MODE', active: isAutoHD })); } catch(e) {}
+            if (dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
             }
         }
 
@@ -546,8 +660,10 @@
             if (callEnded) return;
             callEnded = true;
 
-            if (!byRemote && callDc && callDc.readyState === 'open') {
-                try { callDc.send(JSON.stringify({ type: 'END_CALL' })); } catch(e) {}
+            releaseWakeLock(); // 🌟 કૉલ પૂરો થાય એટલે વેક લોક બંધ કરો
+
+            if (!byRemote && dataConn && dataConn.open) {
+                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
             }
 
             if (activeCall) activeCall.close();
