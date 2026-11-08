@@ -3,23 +3,22 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-<title>P2P Secure Call</title>
+<title>Secure Call</title>
 <style>
     :root {
-        --bg: #0f111a; --surface: #1e2332; --surface-hover: #2a3045;
-        --primary: #3b82f6; --text: #ffffff; --text-muted: #8b92a5;
-        --danger: #ef4444; --success: #22c55e;
+        --bg: #0b0e14; --surface: #1a1d24; --surface-hover: #252932;
+        --primary: #3b82f6; --text: #f3f4f6; --text-muted: #9ca3af;
+        --danger: #ef4444; --success: #22c55e; --border: #2d333b;
     }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
     
-    /* કૉલ સ્ક્રીન બેઝ */
-    #call-ui { display: none; flex-direction: column; width: 100%; height: 100dvh; position: relative; }
+    #call-ui { display: flex; flex-direction: column; width: 100%; height: 100dvh; position: relative; }
     
-    /* ઓડિયો કૉલ બેકગ્રાઉન્ડ */
+    /* Audio Mode */
     #audio-view {
         position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
-        background: radial-gradient(circle at center, #1e2332 0%, #0f111a 70%); z-index: 1;
+        background: radial-gradient(circle at center, #1e2332 0%, #0b0e14 70%); z-index: 1;
     }
     .bg-blur-avatar {
         position: absolute; width: 300px; height: 300px; background: var(--surface-hover);
@@ -29,9 +28,10 @@
         width: 120px; height: 120px; border-radius: 50%; background: var(--surface);
         display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold;
         color: #fff; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        text-transform: uppercase;
     }
 
-    /* વિડિયો કૉલ બેકગ્રાઉન્ડ */
+    /* Video Mode */
     #video-view { position: absolute; inset: 0; display: none; background: #000; z-index: 1; }
     #remote-video { width: 100%; height: 100%; object-fit: cover; }
     #local-video-container {
@@ -41,7 +41,7 @@
     }
     #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-    /* હેડર (નામ અને ટાઇમ) */
+    /* Header (Name & Timer) */
     .header {
         position: absolute; top: max(40px, env(safe-area-inset-top)); left: 0; right: 0;
         display: flex; flex-direction: column; align-items: center; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
@@ -49,7 +49,7 @@
     .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
 
-    /* તરતું કંટ્રોલ પેનલ (Floating Pill) */
+    /* Floating Controls */
     .controls-container {
         position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 20px; right: 20px;
         background: rgba(30, 35, 50, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
@@ -59,15 +59,18 @@
     .ctrl-btn {
         width: 50px; height: 50px; border-radius: 50%; border: none; background: var(--surface-hover);
         color: var(--text); display: flex; align-items: center; justify-content: center; cursor: pointer;
-        transition: 0.2s;
+        transition: 0.2s; font-size: 20px;
     }
     .ctrl-btn:active { transform: scale(0.9); }
-    .ctrl-btn svg { width: 22px; height: 22px; fill: currentColor; }
     .ctrl-btn.active { background: rgba(255,255,255,0.2); color: #fff; }
-    .btn-end { background: var(--danger); color: #fff; width: 60px; height: 50px; border-radius: 25px; }
-    .btn-end svg { fill: #fff; width: 28px; height: 28px; }
+    .ctrl-btn.danger { background: var(--danger); color: #fff; }
+    
+    /* Data Saver / Auto HD Button */
+    #saver-btn { font-size: 18px; font-weight: bold; }
+    #saver-btn.active { background: #422006; color: #fde047; border: 1px solid #f59e0b; }
+    #saver-btn.hd-mode { background: #14532d; color: #bbf7d0; border: 1px solid var(--success); }
 
-    /* ડિવાઇસ મેનુ (Bottom Sheet) */
+    /* Devices Sheet */
     .sheet-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 100;
         display: none; align-items: flex-end; justify-content: center;
@@ -89,7 +92,6 @@
     .device-item:active { background: rgba(255,255,255,0.05); }
     .check-icon { display: none; width: 24px; height: 24px; fill: var(--success); }
     .device-item.active .check-icon { display: block; }
-    
     .done-btn {
         width: 100%; padding: 16px; background: rgba(255,255,255,0.1); color: #fff; border: none;
         border-radius: 16px; font-size: 16px; font-weight: bold; margin-top: 20px; cursor: pointer;
@@ -98,15 +100,15 @@
 </head>
 <body>
 
-    <!-- કૉલ UI -->
     <div id="call-ui">
-        <!-- ઓડિયો મોડ -->
+        <!-- Audio View -->
         <div id="audio-view">
             <div class="bg-blur-avatar"></div>
-            <div class="avatar-circle" id="audio-avatar">P</div>
+            <div class="avatar-circle" id="audio-avatar">?</div>
+            <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
         </div>
 
-        <!-- વિડિયો મોડ -->
+        <!-- Video View -->
         <div id="video-view">
             <video id="remote-video" autoplay playsinline></video>
             <div id="local-video-container">
@@ -114,48 +116,43 @@
             </div>
         </div>
 
-        <!-- હેડર -->
+        <!-- Header -->
         <div class="header">
-            <h1 id="peer-name">p240124</h1>
+            <h1 id="peer-name">Connecting...</h1>
             <p id="call-status">Ringing...</p>
         </div>
 
-        <!-- ઓડિયો ટેગ (અવાજ સાંભળવા માટે) -->
-        <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
-
-        <!-- કંટ્રોલ પેનલ -->
+        <!-- Controls -->
         <div class="controls-container">
             <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
-                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
             </button>
             
             <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
-                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
             </button>
 
-            <button id="flip-btn" class="ctrl-btn" onclick="flipCamera()" style="display:none;">
-                <svg viewBox="0 0 24 24"><path d="M12 6v3l4-4-4-4v3c-4.42 0-8 3.58-8 8 0 1.57.46 3.03 1.24 4.26L6.7 14.8c-.45-.83-.7-1.79-.7-2.8 0-3.31 2.69-6 6-6zm6.76 1.74L17.3 9.2c.44.84.7 1.79.7 2.8 0 3.31-2.69 6-6 6v-3l-4 4 4 4v-3c4.42 0 8-3.58 8-8 0-1.57-.46-3.03-1.24-4.26z"/></svg>
+            <button id="saver-btn" class="ctrl-btn active" onclick="toggleDataSaver()">
+                🪶
             </button>
 
             <button class="ctrl-btn" onclick="openDevices()">
-                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                <svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
             </button>
 
-            <button class="ctrl-btn btn-end" onclick="endCall()">
-                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            <button class="ctrl-btn danger" onclick="endCall()">
+                <svg viewBox="0 0 24 24" width="28" height="28" fill="currentColor"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
             </button>
         </div>
     </div>
 
-    <!-- ડિવાઇસ મેનુ (p2p જેવું જ) -->
+    <!-- Devices Modal -->
     <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">Devices</div>
             <div class="device-group">
-                <h3>MICROPHONE</h3>
-                <div class="device-list" id="device-list-container">
-                    <!-- અહીં ડિવાઇસ લોડ થશે -->
-                </div>
+                <h3>MICROPHONE / SPEAKER</h3>
+                <div class="device-list" id="device-list-container"></div>
             </div>
             <button class="done-btn" onclick="closeDevices()">Done</button>
         </div>
@@ -164,80 +161,144 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
         // ==========================================
-        // 1. કોન્ફિગરેશન (URL માંથી માહિતી લેવી)
+        // 1. CONFIGURATION & PARAMS
         // ==========================================
         const P = new URLSearchParams(location.search);
         const roomId = (P.get('room') || '123').replace(/[^a-zA-Z0-9_-]/g, '');
         const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
         const callType = P.get('type') === 'video' ? 'video' : 'audio';
         
-        const peerName = P.get('name') || 'p240124'; // તમે ચેટ એપમાંથી નામ મોકલી શકો છો
+        const myName = P.get('name') || 'User'; 
+        let peerName = P.get('peerName') || 'Connecting...';
 
         const ICE = [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' }
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
-        let peer = null, activeCall = null, localStream = null;
-        let currentMicId = null, currentFacingMode = 'user';
-        let isMuted = false, isVideoOff = false, retryCount = 0;
+        let peer = null, activeCall = null, dataConn = null, localStream = null;
+        let currentMicId = null;
+        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0;
+        let callTimerInterval = null, callSeconds = 0;
 
         const remoteVideo = document.getElementById('remote-video');
         const localVideo = document.getElementById('local-video');
         const remoteAudio = document.getElementById('remote-audio');
         const statusText = document.getElementById('call-status');
-        const callTimerEl = document.getElementById('call-status');
-        
-        let callTimerInterval = null;
-        let callSeconds = 0;
 
-        // UI સેટઅપ
-        document.getElementById('peer-name').innerText = peerName;
-        document.getElementById('audio-avatar').innerText = peerName.charAt(0).toUpperCase();
-
+        // UI Setup
         if (callType === 'video') {
             document.getElementById('audio-view').style.display = 'none';
             document.getElementById('video-view').style.display = 'block';
             document.getElementById('vid-btn').style.display = 'flex';
-            document.getElementById('flip-btn').style.display = 'flex';
         } else {
             document.getElementById('audio-view').style.display = 'flex';
             document.getElementById('video-view').style.display = 'none';
         }
-        document.getElementById('call-ui').style.display = 'flex';
+
+        function updateUI() {
+            document.getElementById('peer-name').innerText = peerName;
+            document.getElementById('audio-avatar').innerText = peerName !== 'Connecting...' ? peerName.charAt(0) : '?';
+        }
+        updateUI();
 
         // ==========================================
-        // 2. મીડિયા શરૂ કરો (ઈયરપીસ હેક સાથે)
+        // 2. ZANGI STYLE SDP MUNGING & BITRATE LOGIC
+        // ==========================================
+        function mungeSDP(sdp) {
+            if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
+            const lines = sdp.split('\r\n');
+            let pt = null;
+            for (const l of lines) {
+                const m = l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
+                if (m) { pt = m[1]; break; }
+            }
+            if (!pt) return sdp;
+
+            const out = [];
+            for (const l of lines) {
+                const pre = 'a=fmtp:' + pt + ' ';
+                if (l.startsWith(pre)) {
+                    let parts = l.substring(pre.length).split(';').map(s => s.trim()).filter(Boolean);
+                    const set = (k, v) => {
+                        const i = parts.findIndex(p => p.startsWith(k + '='));
+                        if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
+                    };
+                    set('useinbandfec', '1');
+                    set('usedtx', '1'); // Zangi trick: stop sending data when silent
+                    set('stereo', '0');
+                    set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); // HD=24k, Saver=12k
+                    set('maxplaybackrate', isAutoHD ? '24000' : '12000');
+                    out.push(pre + parts.join(';'));
+                } else out.push(l);
+            }
+            return out.join('\r\n');
+        }
+
+        const _origOffer = RTCPeerConnection.prototype.createOffer;
+        const _origAnswer = RTCPeerConnection.prototype.createAnswer;
+
+        RTCPeerConnection.prototype.createOffer = async function(...a) {
+            const o = await _origOffer.apply(this, a);
+            if (o && o.sdp) o.sdp = mungeSDP(o.sdp);
+            return o;
+        };
+        RTCPeerConnection.prototype.createAnswer = async function(...a) {
+            const x = await _origAnswer.apply(this, a);
+            if (x && x.sdp) x.sdp = mungeSDP(x.sdp);
+            return x;
+        };
+
+        function applyVideoBitrate(pc) {
+            if (!pc) return;
+            const senders = pc.getSenders();
+            const videoSender = senders.find(s => s.track && s.track.kind === 'video');
+            if (videoSender) {
+                const params = videoSender.getParameters();
+                if (!params.encodings) params.encodings = [{}];
+                if (isAutoHD) {
+                    params.encodings[0].maxBitrate = 1000000; // 1 Mbps
+                    params.encodings[0].scaleResolutionDownBy = 1.0; // 720p
+                } else {
+                    params.encodings[0].maxBitrate = 150000; // 150 kbps
+                    params.encodings[0].scaleResolutionDownBy = 2.0; // 240p
+                }
+                videoSender.setParameters(params).catch(e => console.log(e));
+            }
+        }
+
+        // ==========================================
+        // 3. MEDIA SETUP (Earpiece Logic)
         // ==========================================
         async function initMedia() {
             try {
                 const constraints = {
-                    audio: { 
-                        echoCancellation: true, // ઈયરપીસ ફોર્સ કરવા માટે
-                        noiseSuppression: true, 
-                        autoGainControl: true 
+                    audio: {
+                        echoCancellation: true, // Android Earpiece Force
+                        noiseSuppression: true,
+                        autoGainControl: true
                     }
                 };
-                
                 if (callType === 'video') {
-                    constraints.video = { facingMode: currentFacingMode, width: { ideal: 640 }, height: { ideal: 480 } };
+                    constraints.video = isAutoHD ? 
+                        { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: 30 } : 
+                        { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: 15 };
                 }
                 if (currentMicId) constraints.audio.deviceId = { exact: currentMicId };
 
                 localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                
-                if (callType === 'video') {
-                    localVideo.srcObject = localStream;
-                }
+                if (callType === 'video') localVideo.srcObject = localStream;
                 return true;
             } catch (err) {
-                alert("માઇક/કેમેરાની પરમિશન આપો.");
+                alert("Camera/Mic permission denied.");
                 return false;
             }
         }
 
         // ==========================================
-        // 3. પીઅર કનેક્શન
+        // 4. PEERJS CONNECTION
         // ==========================================
         async function startApp() {
             const hasMedia = await initMedia();
@@ -252,8 +313,17 @@
                 if (role === 'caller') setTimeout(() => makeCall(targetId), 1500);
             });
 
+            peer.on('connection', (conn) => {
+                dataConn = conn;
+                setupDataConn();
+            });
+
             peer.on('call', (call) => {
                 activeCall = call;
+                if (call.metadata && call.metadata.name) {
+                    peerName = call.metadata.name;
+                    updateUI();
+                }
                 call.answer(localStream);
                 setupCall(call);
             });
@@ -268,10 +338,33 @@
             });
         }
 
+        function setupDataConn() {
+            if (!dataConn) return;
+            dataConn.on('open', () => {
+                dataConn.send({ type: 'NAME', name: myName });
+            });
+            dataConn.on('data', (data) => {
+                if (data.type === 'NAME') {
+                    peerName = data.name;
+                    updateUI();
+                }
+            });
+        }
+
         function makeCall(targetId) {
             if (!peer || peer.destroyed) return;
-            activeCall = peer.call(targetId, localStream);
-            if (activeCall) setupCall(activeCall);
+            if (!dataConn) {
+                dataConn = peer.connect(targetId);
+                setupDataConn();
+            }
+            activeCall = peer.call(targetId, localStream, { metadata: { name: myName } });
+            if (activeCall) {
+                if (activeCall.metadata && activeCall.metadata.name) {
+                    peerName = activeCall.metadata.name;
+                    updateUI();
+                }
+                setupCall(activeCall);
+            }
         }
 
         function setupCall(call) {
@@ -284,7 +377,7 @@
                     remoteAudio.play().catch(e=>{});
                 }
                 
-                // ટાઇમર શરૂ કરો
+                // Timer Start
                 statusText.innerText = "00:00";
                 if (callTimerInterval) clearInterval(callTimerInterval);
                 callSeconds = 0;
@@ -296,11 +389,20 @@
                 }, 1000);
                 
                 retryCount = 0;
+                
+                // Apply Video Bitrate
+                setTimeout(() => {
+                    if (call.peerConnection) applyVideoBitrate(call.peerConnection);
+                }, 1000);
+            });
+            
+            call.on('close', () => {
+                endCall();
             });
         }
 
         // ==========================================
-        // 4. ડિવાઇસ મેનુ (p2p જેવું જ)
+        // 5. DEVICES SHEET & ROUTING (Android Hack)
         // ==========================================
         async function openDevices() {
             document.getElementById('devices-overlay').classList.add('active');
@@ -312,20 +414,16 @@
                 const mics = devices.filter(d => d.kind === 'audioinput');
 
                 let html = '';
-                // ડિફોલ્ટ ઓપ્શન
                 let defaultActive = !currentMicId || currentMicId === 'default';
                 html += `<div class="device-item ${defaultActive ? 'active' : ''}" onclick="switchAudio('default')">
                     <span>Default</span>
                     <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                 </div>`;
 
-                // અન્ય ડિવાઇસ
                 mics.forEach(d => {
                     if (d.deviceId === 'default' || d.deviceId === 'communications') return;
                     let label = d.label || 'Audio Device';
                     const isActive = currentMicId === d.deviceId;
-                    
-                    // નામ સુંદર બનાવો
                     if(label.includes('Speakerphone')) label = 'Speakerphone';
                     if(label.includes('Earpiece')) label = 'Headset earpiece';
 
@@ -334,7 +432,6 @@
                         <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                     </div>`;
                 });
-                
                 container.innerHTML = html;
             } catch (e) { container.innerHTML = 'Error loading devices.'; }
         }
@@ -344,12 +441,10 @@
             document.getElementById('devices-overlay').classList.remove('active');
         }
 
-        // ઈયરપીસ/સ્પીકર સ્વિચ કરવાની ટ્રીક (કૉલ તૂટ્યા વગર)
+        // Android Mic Switch Trick (Also changes Speaker/Earpiece route)
         async function switchAudio(deviceId) {
             try {
-                const constraints = { 
-                    audio: { echoCancellation: true, noiseSuppression: true } 
-                };
+                const constraints = { audio: { echoCancellation: true, noiseSuppression: true } };
                 if (deviceId !== 'default') constraints.audio.deviceId = { exact: deviceId };
 
                 const newStream = await navigator.mediaDevices.getUserMedia(constraints);
@@ -368,20 +463,22 @@
                 
                 currentMicId = deviceId === 'default' ? null : deviceId;
                 closeDevices();
-            } catch (err) { alert("બદલી શકાયું નહીં."); }
+            } catch (err) { alert("Failed to switch device."); }
         }
 
         // ==========================================
-        // 5. કંટ્રોલ્સ (Mute, Video, Flip, End)
+        // 6. CONTROLS
         // ==========================================
         function toggleMic() {
             isMuted = !isMuted;
             if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
             const btn = document.getElementById('mic-btn');
-            btn.innerHTML = isMuted ? 
-                '<svg viewBox="0 0 24 24"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>' : 
-                '<svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
             btn.classList.toggle('active', isMuted);
+            if (isMuted) {
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 11h-1.7c0 .74-.16 1.43-.43 2.05l1.23 1.23c.56-.98.9-2.09.9-3.28zm-4.02.17c0-.06.02-.11.02-.17V5c0-1.66-1.34-3-3-3S9 3.34 9 5v.18l5.98 5.99zM4.27 3L3 4.27l6.01 6.01V11c0 1.66 1.33 3 2.99 3 .22 0 .44-.03.65-.08l1.66 1.66c-.71.33-1.5.52-2.31.52-2.76 0-5.3-2.1-5.3-5.1H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c.91-.13 1.77-.45 2.54-.9L19.73 21 21 19.73 4.27 3z"/></svg>';
+            } else {
+                btn.innerHTML = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>';
+            }
         }
 
         function toggleVideo() {
@@ -389,39 +486,42 @@
             isVideoOff = !isVideoOff;
             if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = !isVideoOff);
             const btn = document.getElementById('vid-btn');
-            btn.innerHTML = isVideoOff ? 
-                '<svg viewBox="0 0 24 24"><path d="M21 6.5l-4 4V7c0-.55-.45-1-1-1H9.82L21 17.18V6.5zM3.27 2L2 3.27 4.73 6H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.21 0 .39-.08.54-.18L19.73 21 21 19.73 3.27 2z"/></svg>' : 
-                '<svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>';
             btn.classList.toggle('active', isVideoOff);
         }
 
-        async function flipCamera() {
-            if (callType !== 'video') return;
-            currentFacingMode = currentFacingMode === 'user' ? 'environment' : 'user';
-            try {
-                const newStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: currentFacingMode } });
-                const newTrack = newStream.getVideoTracks()[0];
-                
-                if (activeCall && activeCall.peerConnection) {
-                    const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'video');
-                    if (sender) await sender.replaceTrack(newTrack);
-                }
-                
-                const oldTrack = localStream.getVideoTracks()[0];
-                if (oldTrack) { oldTrack.stop(); localStream.removeTrack(oldTrack); }
-                localStream.addTrack(newTrack);
-                localVideo.srcObject = localStream;
-            } catch (e) { console.log("Flip err", e); }
+        function toggleDataSaver() {
+            isAutoHD = !isAutoHD;
+            const btn = document.getElementById('saver-btn');
+            
+            if (isAutoHD) {
+                btn.className = 'ctrl-btn hd-mode';
+                btn.innerText = '📈';
+            } else {
+                btn.className = 'ctrl-btn active';
+                btn.innerText = '🪶';
+            }
+            
+            if (activeCall && activeCall.peerConnection) {
+                applyVideoBitrate(activeCall.peerConnection);
+            }
         }
 
         function endCall() {
             if (activeCall) activeCall.close();
             if (localStream) localStream.getTracks().forEach(t => t.stop());
             if (peer) peer.destroy();
-            window.location.href = "about:blank"; // એપ બંધ કરો
+            if (callTimerInterval) clearInterval(callTimerInterval);
+            
+            // Close window / Return to chat
+            try {
+                window.close();
+            } catch(e) {}
+            
+            setTimeout(() => {
+                window.location.href = "https://ppatel240125.github.io/pure-vault-call/"; 
+            }, 500);
         }
 
-        // સ્ટાર્ટ કરો
         startApp();
     </script>
 </body>
