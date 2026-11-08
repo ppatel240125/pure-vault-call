@@ -1,24 +1,23 @@
 <!DOCTYPE html>
-<html lang="gu">
+<html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Secure Call</title>
 <style>
     :root {
-        --bg: #0b0e14; --surface: #1a1d24; --surface-hover: #252932;
-        --primary: #3b82f6; --text: #f3f4f6; --text-muted: #9ca3af;
-        --danger: #ef4444; --success: #22c55e; --border: #2d333b;
+        --bg: #0f111a; --surface: #1e2332; --surface-hover: #2a3045;
+        --primary: #3b82f6; --text: #ffffff; --text-muted: #8b92a5;
+        --danger: #ef4444; --success: #22c55e;
     }
     * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
     html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
     
     #call-ui { display: flex; flex-direction: column; width: 100%; height: 100dvh; position: relative; }
     
-    /* Audio Mode */
     #audio-view {
         position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
-        background: radial-gradient(circle at center, #1e2332 0%, #0b0e14 70%); z-index: 1;
+        background: radial-gradient(circle at center, #1e2332 0%, #0f111a 70%); z-index: 1;
     }
     .bg-blur-avatar {
         position: absolute; width: 300px; height: 300px; background: var(--surface-hover);
@@ -31,7 +30,6 @@
         text-transform: uppercase;
     }
 
-    /* Video Mode */
     #video-view { position: absolute; inset: 0; display: none; background: #000; z-index: 1; }
     #remote-video { width: 100%; height: 100%; object-fit: cover; }
     #local-video-container {
@@ -41,7 +39,6 @@
     }
     #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-    /* Header (Name & Timer) */
     .header {
         position: absolute; top: max(40px, env(safe-area-inset-top)); left: 0; right: 0;
         display: flex; flex-direction: column; align-items: center; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
@@ -49,37 +46,33 @@
     .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
 
-    /* Floating Controls */
     .controls-container {
-        position: absolute; bottom: max(20px, env(safe-area-inset-bottom)); left: 10px; right: 10px;
+        position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 20px; right: 20px;
         background: rgba(30, 35, 50, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        border-radius: 24px; padding: 10px; display: flex; justify-content: space-around; align-items: center;
+        border-radius: 40px; padding: 12px 16px; display: flex; justify-content: space-around; align-items: center;
         z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);
     }
     
-    /* Buttons with Text Below */
     .ctrl-btn {
         display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
         background: transparent; border: none; color: var(--text); cursor: pointer;
-        transition: 0.2s; width: 65px; padding: 8px 2px; border-radius: 12px;
+        transition: 0.2s; width: 60px; padding: 4px 0;
     }
     .ctrl-btn:active { transform: scale(0.9); }
-    .ctrl-btn span { font-size: 11px; font-weight: 600; color: #aaa; text-align: center; line-height: 1.1; }
+    .ctrl-btn span { font-size: 10px; font-weight: 600; color: #aaa; text-align: center; }
     .ctrl-btn svg, .ctrl-btn .icon { width: 24px; height: 24px; fill: currentColor; }
     
-    /* Button States */
-    .ctrl-btn.active { background: rgba(255,255,255,0.1); }
     .ctrl-btn.active span { color: #fff; }
-    .ctrl-btn.danger { background: var(--danger); }
-    .ctrl-btn.danger span { color: #fff; }
     
-    /* Data Saver & Auto HD Colors */
-    .ctrl-btn.saver-mode { background: #422006; border: 1px solid #f59e0b; }
-    .ctrl-btn.saver-mode span { color: #fde047; }
-    .ctrl-btn.hd-mode { background: #14532d; border: 1px solid var(--success); }
-    .ctrl-btn.hd-mode span { color: #bbf7d0; }
+    #saver-btn.saver-mode { background: #422006; border-radius: 12px; border: 1px solid #f59e0b; }
+    #saver-btn.saver-mode span { color: #fde047; }
+    #saver-btn.hd-mode { background: #14532d; border-radius: 12px; border: 1px solid var(--success); }
+    #saver-btn.hd-mode span { color: #bbf7d0; }
 
-    /* Devices Sheet */
+    .btn-end { background: var(--danger); border-radius: 25px; padding: 12px 20px; width: auto; }
+    .btn-end svg { fill: #fff; width: 24px; height: 24px; }
+    .btn-end span { display: none; }
+
     .sheet-overlay {
         position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 100;
         display: none; align-items: flex-end; justify-content: center;
@@ -110,14 +103,12 @@
 <body>
 
     <div id="call-ui">
-        <!-- Audio View -->
         <div id="audio-view">
             <div class="bg-blur-avatar"></div>
             <div class="avatar-circle" id="audio-avatar">?</div>
             <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
         </div>
 
-        <!-- Video View -->
         <div id="video-view">
             <video id="remote-video" autoplay playsinline></video>
             <div id="local-video-container">
@@ -125,13 +116,11 @@
             </div>
         </div>
 
-        <!-- Header -->
         <div class="header">
             <h1 id="peer-name">Connecting...</h1>
             <p id="call-status">Ringing...</p>
         </div>
 
-        <!-- Controls -->
         <div class="controls-container">
             <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
                 <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
@@ -143,9 +132,8 @@
                 <span>Video</span>
             </button>
 
-            <!-- Default Data Saver -->
             <button id="saver-btn" class="ctrl-btn saver-mode" onclick="toggleDataSaver()">
-                <span class="icon" style="font-size: 22px; line-height: 1;">🪶</span>
+                <span class="icon" style="font-size: 20px;">🪶</span>
                 <span id="saver-text">Data Saver</span>
             </button>
 
@@ -154,14 +142,13 @@
                 <span>Devices</span>
             </button>
 
-            <button class="ctrl-btn danger" onclick="endCall(false)">
+            <button class="ctrl-btn btn-end" onclick="endCall(false)">
                 <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
                 <span>End</span>
             </button>
         </div>
     </div>
 
-    <!-- Devices Modal -->
     <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">Devices</div>
@@ -175,9 +162,6 @@
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
     <script>
-        // ==========================================
-        // 1. CONFIGURATION & PARAMS
-        // ==========================================
         const P = new URLSearchParams(location.search);
         const roomId = (P.get('room') || '123').replace(/[^a-zA-Z0-9_-]/g, '');
         const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
@@ -193,9 +177,10 @@
             { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
-        let peer = null, activeCall = null, dataConn = null, localStream = null;
+        let peer = null, activeCall = null, localStream = null;
+        let callDc = null; 
         let currentMicId = null;
-        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; // isAutoHD=false means Data Saver is ON by default
+        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
         let callTimerInterval = null, callSeconds = 0;
         let callEnded = false;
 
@@ -204,7 +189,6 @@
         const remoteAudio = document.getElementById('remote-audio');
         const statusText = document.getElementById('call-status');
 
-        // UI Setup
         if (callType === 'video') {
             document.getElementById('audio-view').style.display = 'none';
             document.getElementById('video-view').style.display = 'block';
@@ -220,9 +204,6 @@
         }
         updateUI();
 
-        // ==========================================
-        // 2. ZANGI STYLE SDP MUNGING & BITRATE LOGIC
-        // ==========================================
         function mungeSDP(sdp) {
             if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
             const lines = sdp.split('\r\n');
@@ -243,10 +224,9 @@
                         if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
                     };
                     set('useinbandfec', '1');
-                    set('usedtx', '1'); // Zangi trick: stop sending data when silent
+                    set('usedtx', '1'); 
                     set('stereo', '0');
-                    set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); // HD=24k, Saver=12k
-                    set('maxplaybackrate', isAutoHD ? '24000' : '12000');
+                    set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); 
                     out.push(pre + parts.join(';'));
                 } else out.push(l);
             }
@@ -269,39 +249,35 @@
 
         function applyVideoBitrate(pc) {
             if (!pc) return;
-            const senders = pc.getSenders();
-            senders.forEach(s => {
+            pc.getSenders().forEach(s => {
                 if (!s.track) return;
                 const params = s.getParameters();
                 if (!params.encodings) params.encodings = [{}];
 
                 if (s.track.kind === 'video') {
                     if (isAutoHD) {
-                        params.encodings[0].maxBitrate = 1000000; // 1 Mbps
-                        params.encodings[0].scaleResolutionDownBy = 1.0; // 720p
+                        params.encodings[0].maxBitrate = 1000000; 
+                        params.encodings[0].scaleResolutionDownBy = 1.0;
                     } else {
-                        params.encodings[0].maxBitrate = 150000; // 150 kbps
-                        params.encodings[0].scaleResolutionDownBy = 2.0; // 240p
+                        params.encodings[0].maxBitrate = 150000; 
+                        params.encodings[0].scaleResolutionDownBy = 2.0;
                     }
                 } else if (s.track.kind === 'audio') {
                     if (isAutoHD) {
-                        params.encodings[0].maxBitrate = 24000; // 24 kbps
+                        params.encodings[0].maxBitrate = 24000;
                     } else {
-                        params.encodings[0].maxBitrate = 12000; // 12 kbps
+                        params.encodings[0].maxBitrate = 12000;
                     }
                 }
                 s.setParameters(params).catch(e => console.log(e));
             });
         }
 
-        // ==========================================
-        // 3. MEDIA SETUP (Earpiece Logic)
-        // ==========================================
         async function initMedia() {
             try {
                 const constraints = {
                     audio: {
-                        echoCancellation: true, // Android Earpiece Force
+                        echoCancellation: true, 
                         noiseSuppression: true,
                         autoGainControl: true
                     }
@@ -322,9 +298,51 @@
             }
         }
 
-        // ==========================================
-        // 4. PEERJS CONNECTION & SYNC LOGIC
-        // ==========================================
+        function setupCallDataChannel(pc, isCaller) {
+            if (isCaller) {
+                callDc = pc.createDataChannel("call_sync");
+                callDc.onopen = () => sendSyncState();
+                callDc.onmessage = handleSyncMessage;
+            } else {
+                pc.ondatachannel = (event) => {
+                    callDc = event.channel;
+                    callDc.onopen = () => sendSyncState();
+                    callDc.onmessage = handleSyncMessage;
+                };
+            }
+        }
+
+        function sendSyncState() {
+            if (callDc && callDc.readyState === 'open') {
+                try {
+                    callDc.send(JSON.stringify({ type: 'NAME', name: myName }));
+                    callDc.send(JSON.stringify({ type: 'MODE', active: isAutoHD }));
+                } catch(e) {}
+            }
+        }
+
+        function handleSyncMessage(event) {
+            try {
+                const data = JSON.parse(event.data);
+                if (data.type === 'NAME') {
+                    if (peerName === 'Connecting...' || peerName === 'User') {
+                        peerName = data.name;
+                        updateUI();
+                    }
+                } else if (data.type === 'MODE') {
+                    if (isAutoHD !== data.active) {
+                        isAutoHD = data.active;
+                        updateSaverUI(); 
+                        if (activeCall && activeCall.peerConnection) {
+                            applyVideoBitrate(activeCall.peerConnection);
+                        }
+                    }
+                } else if (data.type === 'END_CALL') {
+                    endCall(true); 
+                }
+            } catch(e) {}
+        }
+
         async function startApp() {
             const hasMedia = await initMedia();
             if (!hasMedia) return;
@@ -338,18 +356,18 @@
                 if (role === 'caller') setTimeout(() => makeCall(targetId), 1500);
             });
 
-            peer.on('connection', (conn) => {
-                dataConn = conn;
-                setupDataConn();
-            });
-
             peer.on('call', (call) => {
                 activeCall = call;
-                // કસ્ટમ નામ (URL માંથી) હોય તો તેને ઓવરરાઇડ ના કરો
                 if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
                     peerName = call.metadata.name;
                     updateUI();
                 }
+                if (call.metadata && call.metadata.isAutoHD !== undefined) {
+                    isAutoHD = call.metadata.isAutoHD;
+                    updateSaverUI();
+                }
+                
+                setupCallDataChannel(call.peerConnection, false);
                 call.answer(localStream);
                 setupCall(call);
             });
@@ -364,57 +382,17 @@
             });
         }
 
-        function setupDataConn() {
-            if (!dataConn) return;
-            
-            const sendInit = () => {
-                try {
-                    dataConn.send({ type: 'NAME', name: myName });
-                    dataConn.send({ type: 'MODE', active: isAutoHD }); 
-                } catch(e) {}
-            };
-
-            // જો કનેક્શન પહેલેથી ઓપન હોય તો તરત જ મોકલો
-            if (dataConn.open) {
-                sendInit();
-            } else {
-                dataConn.on('open', sendInit);
-            }
-
-            dataConn.on('data', (data) => {
-                if (data.type === 'NAME') {
-                    // જો પહેલેથી યોગ્ય નામ હોય તો બદલો નહીં
-                    if (peerName === 'Connecting...' || peerName === 'User') {
-                        peerName = data.name;
-                        updateUI();
-                    }
-                } else if (data.type === 'END_CALL') {
-                    endCall(true);
-                } else if (data.type === 'MODE') {
-                    // સામેવાળાએ મોડ બદલ્યો હોય તો અપડેટ કરો
-                    if (isAutoHD !== data.active) {
-                        isAutoHD = data.active;
-                        updateSaverUI(); 
-                        if (activeCall && activeCall.peerConnection) {
-                            applyVideoBitrate(activeCall.peerConnection);
-                        }
-                    }
-                }
-            });
-        }
-
         function makeCall(targetId) {
             if (!peer || peer.destroyed || callEnded) return;
-            if (!dataConn) {
-                dataConn = peer.connect(targetId);
-                setupDataConn();
-            }
-            activeCall = peer.call(targetId, localStream, { metadata: { name: myName } });
+            
+            activeCall = peer.call(targetId, localStream, { metadata: { name: myName, isAutoHD: isAutoHD } });
+            
             if (activeCall) {
                 if (peerName === 'Connecting...' && activeCall.metadata && activeCall.metadata.name) {
                     peerName = activeCall.metadata.name;
                     updateUI();
                 }
+                setupCallDataChannel(activeCall.peerConnection, true);
                 setupCall(activeCall);
             }
         }
@@ -429,7 +407,6 @@
                     remoteAudio.play().catch(e=>{});
                 }
                 
-                // Timer Start
                 statusText.innerText = "00:00";
                 if (callTimerInterval) clearInterval(callTimerInterval);
                 callSeconds = 0;
@@ -442,28 +419,22 @@
                 
                 retryCount = 0;
                 
-                // Apply Video Bitrate
                 setTimeout(() => {
                     if (call.peerConnection) applyVideoBitrate(call.peerConnection);
                 }, 1000);
             });
             
-            // If connection drops
             call.on('close', () => {
                 endCall(true);
             });
         }
 
-        // Sync end call if tab is closed
         window.addEventListener('beforeunload', () => {
-            if (!callEnded && dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
+            if (!callEnded && callDc && callDc.readyState === 'open') {
+                try { callDc.send(JSON.stringify({ type: 'END_CALL' })); } catch(e) {}
             }
         });
 
-        // ==========================================
-        // 5. DEVICES SHEET & ROUTING
-        // ==========================================
         async function openDevices() {
             document.getElementById('devices-overlay').classList.add('active');
             const container = document.getElementById('device-list-container');
@@ -525,9 +496,6 @@
             } catch (err) { alert("Failed to switch device."); }
         }
 
-        // ==========================================
-        // 6. CONTROLS & END CALL
-        // ==========================================
         function toggleMic() {
             isMuted = !isMuted;
             if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
@@ -553,13 +521,11 @@
                 applyVideoBitrate(activeCall.peerConnection);
             }
 
-            // સામેવાળાને મોડ બદલવાનું કહો
-            if (dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
+            if (callDc && callDc.readyState === 'open') {
+                try { callDc.send(JSON.stringify({ type: 'MODE', active: isAutoHD })); } catch(e) {}
             }
         }
 
-        // UI અપડેટ કરવા માટે અલગ ફંક્શન
         function updateSaverUI() {
             const btn = document.getElementById('saver-btn');
             const text = document.getElementById('saver-text');
@@ -580,9 +546,8 @@
             if (callEnded) return;
             callEnded = true;
 
-            // Notify other side if we ended it
-            if (!byRemote && dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
+            if (!byRemote && callDc && callDc.readyState === 'open') {
+                try { callDc.send(JSON.stringify({ type: 'END_CALL' })); } catch(e) {}
             }
 
             if (activeCall) activeCall.close();
@@ -592,7 +557,6 @@
             
             statusText.innerText = byRemote ? "Call Ended by Peer" : "Call Ended";
             
-            // Redirect back to chat app
             setTimeout(() => {
                 try { window.close(); } catch(e) {}
                 const chatUrl = document.referrer && document.referrer.includes('http') ? document.referrer : "https://ppatel240125.github.io/pure-vault-call/";
