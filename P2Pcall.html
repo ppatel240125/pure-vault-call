@@ -210,7 +210,6 @@
         const myName = P.get('name') || 'User'; 
         let peerName = P.get('peerName') || 'Connecting...';
 
-        // ✅ PATCH 4: વિસ્તૃત ICE servers (17 STUN + 3 TURN)
         const ICE = [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
@@ -268,9 +267,7 @@
         }
         updateUI();
 
-        // ==========================================
-        // 🌟 સ્ક્રીન લોક અને ડબલ ટચ અનલોક લોજિક
-        // ==========================================
+        // === સ્ક્રીન લોક ===
         const lockOverlay = document.getElementById('lock-overlay');
         let lastTap = 0;
 
@@ -294,9 +291,7 @@
             }
         });
 
-        // ==========================================
-        // ✅ PATCH 1: સ્ક્રીન સ્લીપ રોકવા — સંપૂર્ણ સુધારેલ Wake Lock
-        // ==========================================
+        // === પેચ 1: સંપૂર્ણ Wake Lock ===
         let _wakeLockTimer = null;
         let _wakeFallbackCtx = null;
 
@@ -363,9 +358,7 @@
             _wakeStopFallback();
         }
 
-        // ==========================================
-        // ડેટા સેવિંગ (SDP MUNGING)
-        // ==========================================
+        // === ડેટા સેવિંગ SDP ===
         function mungeSDP(sdp) {
             if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
             const lines = sdp.split('\r\n');
@@ -456,12 +449,21 @@
             }
         }
 
+        // === પેચ 4: Data channel heartbeat ===
         function setupDataConn() {
             if (!dataConn) return;
             
             dataConn.on('open', () => {
                 dataConn.send({ type: 'NAME', name: myName });
                 dataConn.send({ type: 'MODE', active: isAutoHD });
+                if(window._dcHeartbeat) clearInterval(window._dcHeartbeat);
+                window._dcHeartbeat = setInterval(()=>{
+                    if(callEnded || !dataConn || !dataConn.open){ 
+                        if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; } 
+                        return; 
+                    }
+                    try{ dataConn.send({ type: 'PING', ts: Date.now() }); }catch(e){}
+                }, 20000);
             });
 
             dataConn.on('data', (data) => {
@@ -480,7 +482,15 @@
                     }
                 } else if (data.type === 'END_CALL') {
                     endCall(true);
+                } else if (data.type === 'PING') {
+                    try{ if(dataConn && dataConn.open) dataConn.send({ type: 'PONG', ts: data.ts }); }catch(e){}
+                } else if (data.type === 'PONG') {
+                    // heartbeat reply — ignore
                 }
+            });
+
+            dataConn.on('close', () => {
+                if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; }
             });
         }
 
@@ -518,13 +528,25 @@
                 setupCall(call);
             });
 
+            // === પેચ 5: PeerJS disconnect recovery ===
             peer.on('error', (err) => {
                 if (err.type === 'peer-unavailable') {
                     if (retryCount < 10) {
                         retryCount++;
                         setTimeout(() => makeCall(targetId), 3000);
                     } else { statusText.innerText = "User Offline"; }
+                } else if (err.type === 'network' || err.type === 'server-error' || err.type === 'socket-error') {
+                    statusText.innerText = "Network issue...";
+                    setTimeout(()=>{ 
+                        if(!callEnded && (!peer || peer.destroyed)){ 
+                            try{ startApp(); }catch(e){} 
+                        }
+                    }, 5000);
                 }
+            });
+            peer.on('disconnected', () => {
+                if(callEnded) return;
+                try{ peer.reconnect(); }catch(e){}
             });
         }
 
@@ -547,10 +569,10 @@
             }
         }
 
-        // ==========================================
-        // ✅ PATCH 2: ICE restart — કનેક્શન તૂટે તો ઝડપી recovery
-        // ==========================================
+        // === પેચ 2 + 3: ICE restart × 3 + Watchdog ===
         let _iceRestartTimer = null;
+        let _iceAttempts = 0;
+        let _callWatchdog = null;
 
         function _restoreTimerDisplay(){
             if(callTimerInterval) return;
@@ -564,10 +586,35 @@
         }
 
         function _tryIceRestart(){
-            try{ if(activeCall && activeCall.peerConnection) activeCall.peerConnection.restartIce(); }catch(e){}
+            if(callEnded) return;
+            try{ 
+                if(activeCall && activeCall.peerConnection){
+                    activeCall.peerConnection.restartIce();
+                    _iceAttempts++;
+                }
+            }catch(e){}
+        }
+
+        function _scheduleRetryIceRestart(){
+            if(callEnded) return;
+            if(_iceAttempts >= 3) return;
+            if(_iceRestartTimer) clearTimeout(_iceRestartTimer);
+            _iceRestartTimer = setTimeout(()=>{
+                if(callEnded) return;
+                try{
+                    if(activeCall && activeCall.peerConnection){
+                        const st = activeCall.peerConnection.iceConnectionState;
+                        if(st === 'disconnected' || st === 'failed' || st === 'checking'){
+                            _tryIceRestart();
+                            _scheduleRetryIceRestart();
+                        }
+                    }
+                }catch(e){}
+            }, 4000);
         }
 
         function setupCall(call) {
+            _iceAttempts = 0;
             call.peerConnection.oniceconnectionstatechange = () => {
                 const state = call.peerConnection.iceConnectionState;
                 if (state === 'checking') {
@@ -576,23 +623,14 @@
                     if(callTimerInterval){ clearInterval(callTimerInterval); callTimerInterval = null; }
                     statusText.innerText = "Reconnecting...";
                     _tryIceRestart();
-                    if(_iceRestartTimer) clearTimeout(_iceRestartTimer);
-                    _iceRestartTimer = setTimeout(()=>{
-                        if(!callEnded && call.peerConnection && call.peerConnection.iceConnectionState === 'failed') _tryIceRestart();
-                    }, 3000);
+                    _scheduleRetryIceRestart();
                 } else if (state === 'disconnected') {
                     if(callTimerInterval){ clearInterval(callTimerInterval); callTimerInterval = null; }
                     statusText.innerText = "Reconnecting...";
-                    if(_iceRestartTimer) clearTimeout(_iceRestartTimer);
-                    _iceRestartTimer = setTimeout(()=>{
-                        if(!callEnded && call.peerConnection && 
-                           (call.peerConnection.iceConnectionState === 'disconnected' || 
-                            call.peerConnection.iceConnectionState === 'failed')){
-                            _tryIceRestart();
-                        }
-                    }, 4000);
+                    _scheduleRetryIceRestart();
                 } else if (state === 'connected' || state === 'completed') {
                     if(_iceRestartTimer){ clearTimeout(_iceRestartTimer); _iceRestartTimer = null; }
+                    _iceAttempts = 0;
                     _restoreTimerDisplay();
                 }
             };
@@ -617,25 +655,55 @@
                 }, 1000);
                 
                 retryCount = 0;
+                _iceAttempts = 0;
                 
                 setTimeout(() => {
                     if (call.peerConnection) applyVideoBitrate(call.peerConnection);
                 }, 1000);
+
+                // Watchdog શરૂ
+                if(_callWatchdog) clearInterval(_callWatchdog);
+                _callWatchdog = setInterval(()=>{
+                    if(callEnded){ clearInterval(_callWatchdog); _callWatchdog = null; return; }
+                    try{
+                        const pc = call.peerConnection;
+                        if(!pc) return;
+                        const state = pc.iceConnectionState;
+                        const dcState = pc.connectionState;
+                        if(state === 'failed' || dcState === 'failed'){
+                            if(_iceAttempts < 3){ _tryIceRestart(); _scheduleRetryIceRestart(); }
+                        }
+                    }catch(e){}
+                }, 15000);
             });
             
+            // === પેચ 1: કોલ મધ્યે auto retry ===
             call.on('close', () => {
-                endCall(true);
+                if(callEnded) return;
+                if(retryCount < 5){
+                    retryCount++;
+                    statusText.innerText = "Reconnecting...";
+                    setTimeout(()=>{
+                        if(!callEnded){ 
+                            try{ 
+                                const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
+                                makeCall(targetId); 
+                            }catch(e){} 
+                        }
+                    }, 2000);
+                } else {
+                    endCall(true);
+                }
             });
         }
 
-        // ==========================================
-        // ✅ PATCH 3: નેટવર્ક બદલાય (WiFi↔4G) તો ICE restart
-        // ==========================================
+        // === પેચ 3: Network change recovery ===
         window.addEventListener('online', () => {
             if(callEnded) return;
             requestWakeLock();
             setTimeout(()=>{ 
                 if(!callEnded && activeCall && activeCall.peerConnection){ 
+                    _iceAttempts = 0;
                     try{ activeCall.peerConnection.restartIce(); }catch(e){} 
                 }
             }, 1000);
@@ -648,6 +716,8 @@
 
         window.addEventListener('beforeunload', () => {
             releaseWakeLock();
+            if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); }
+            if(_callWatchdog){ clearInterval(_callWatchdog); }
             if (!callEnded && dataConn && dataConn.open) {
                 try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
             }
@@ -765,6 +835,9 @@
             callEnded = true;
 
             releaseWakeLock();
+            if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; }
+            if(_callWatchdog){ clearInterval(_callWatchdog); _callWatchdog = null; }
+            if(_iceRestartTimer){ clearTimeout(_iceRestartTimer); _iceRestartTimer = null; }
 
             if (!byRemote && dataConn && dataConn.open) {
                 try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
@@ -787,4 +860,4 @@
         startApp();
     </script>
 </body>
-</html>
+    </html>
