@@ -46,7 +46,6 @@
     .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
     .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
 
-    /* સ્ક્રીન લોક બટન (ઉપર જમણી બાજુ) */
     #lock-btn {
         position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px;
         width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.1);
@@ -108,13 +107,10 @@
         border-radius: 16px; font-size: 16px; font-weight: bold; margin-top: 20px; cursor: pointer;
     }
 
-    /* ==========================================
-       🌟 સ્ક્રીન લોક ઓવરલે (કાળો પડદો)
-       ========================================== */
     #lock-overlay {
         position: fixed; inset: 0; background: #0f111a; z-index: 9999;
         display: none; flex-direction: column; align-items: center; justify-content: center;
-        touch-action: none; /* સ્ક્રોલ અટકાવવા */
+        touch-action: none;
     }
     #lock-overlay.active { display: flex; }
     .lock-content {
@@ -149,7 +145,6 @@
             </div>
         </div>
 
-        <!-- સ્ક્રીન લોક બટન -->
         <div id="lock-btn" onclick="toggleLock(true)">
             <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
         </div>
@@ -187,7 +182,6 @@
         </div>
     </div>
 
-    <!-- સ્ક્રીન લોક ઓવરલે (કાળો પડદો) -->
     <div id="lock-overlay">
         <div class="lock-content">
             <div class="lock-icon">🔒</div>
@@ -216,12 +210,28 @@
         const myName = P.get('name') || 'User'; 
         let peerName = P.get('peerName') || 'Connecting...';
 
+        // ✅ PATCH 4: વિસ્તૃત ICE servers (17 STUN + 3 TURN)
         const ICE = [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
             { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun3.l.google.com:19302' },
+            { urls: 'stun:stun4.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'stun:stun.cloudflare.com:53' },
+            { urls: 'stun:stun.services.mozilla.com:3478' },
+            { urls: 'stun:stun.nextcloud.com:3478' },
+            { urls: 'stun:stun.sipgate.net:3478' },
+            { urls: 'stun:stun.voip.blackberry.com:3478' },
+            { urls: 'stun:stun.voiparound.com:3478' },
+            { urls: 'stun:stun.voipbuster.com:3478' },
+            { urls: 'stun:stun.voxgratia.org:3478' },
+            { urls: 'stun:stun.antisip.com:3478' },
+            { urls: 'stun:stun.epygi.com:3478' },
+            { urls: 'stun:stunserver.stunprotocol.org:3478' },
             { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' }
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
         let peer = null, activeCall = null, localStream = null;
@@ -230,7 +240,7 @@
         let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
         let callTimerInterval = null, callSeconds = 0;
         let callEnded = false;
-        let wakeLock = null; // સ્ક્રીન સ્લીપ રોકવા માટે
+        let wakeLock = null;
 
         const remoteVideo = document.getElementById('remote-video');
         const localVideo = document.getElementById('local-video');
@@ -272,13 +282,12 @@
             }
         }
 
-        // ડબલ ટચ ડિટેક્શન
         lockOverlay.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
             const now = Date.now();
-            if (now - lastTap < 350) { // 350ms ની અંદર બે વાર ટચ થાય તો
-                toggleLock(false); // અનલોક કરો
+            if (now - lastTap < 350) {
+                toggleLock(false);
                 lastTap = 0;
             } else {
                 lastTap = now;
@@ -286,23 +295,62 @@
         });
 
         // ==========================================
-        // 🌟 સ્ક્રીન સ્લીપ (Wake Lock) લોજિક
+        // ✅ PATCH 1: સ્ક્રીન સ્લીપ રોકવા — સંપૂર્ણ સુધારેલ Wake Lock
         // ==========================================
-        async function requestWakeLock() {
-            try {
-                if ('wakeLock' in navigator) {
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', () => {
-                        console.log('Wake Lock released');
-                    });
-                    console.log('Wake Lock active');
-                }
-            } catch (err) {
-                console.log('Wake Lock error:', err);
-            }
+        let _wakeLockTimer = null;
+        let _wakeFallbackCtx = null;
+
+        function _wakeStartFallback(){
+            if(_wakeFallbackCtx) return;
+            try{
+                _wakeFallbackCtx = new (window.AudioContext || window.webkitAudioContext)();
+                const gain = _wakeFallbackCtx.createGain();
+                gain.gain.value = 0.0001;
+                const osc = _wakeFallbackCtx.createOscillator();
+                osc.frequency.value = 20000;
+                osc.connect(gain).connect(_wakeFallbackCtx.destination);
+                osc.start();
+            }catch(e){}
         }
 
-        // જો યુઝર ટેબ બદલે અને પાછો આવે તો ફરી વેક લોક માંગો
+        function _wakeStopFallback(){
+            try{ if(_wakeFallbackCtx){ _wakeFallbackCtx.close(); } }catch(e){}
+            _wakeFallbackCtx = null;
+        }
+
+        async function _acquireWakeLockOnce(){
+            try{
+                if('wakeLock' in navigator && navigator.wakeLock){
+                    wakeLock = await navigator.wakeLock.request('screen');
+                    wakeLock.addEventListener('release', ()=>{
+                        if(!callEnded && document.visibilityState === 'visible'){
+                            setTimeout(()=>{
+                                if(!callEnded && document.visibilityState === 'visible') requestWakeLock();
+                            }, 1500);
+                        }
+                    });
+                    _wakeStopFallback();
+                    return true;
+                }
+            }catch(e){}
+            return false;
+        }
+
+        async function requestWakeLock(){
+            if(callEnded) return;
+            const ok = await _acquireWakeLockOnce();
+            if(!ok) _wakeStartFallback();
+            if(_wakeLockTimer) clearInterval(_wakeLockTimer);
+            _wakeLockTimer = setInterval(async ()=>{
+                if(callEnded){ clearInterval(_wakeLockTimer); _wakeLockTimer = null; return; }
+                if(document.visibilityState !== 'visible') return;
+                if(!wakeLock || wakeLock.released){
+                    const ok2 = await _acquireWakeLockOnce();
+                    if(!ok2) _wakeStartFallback();
+                }
+            }, 20000);
+        }
+
         document.addEventListener('visibilitychange', async () => {
             if (document.visibilityState === 'visible' && !callEnded) {
                 await requestWakeLock();
@@ -310,9 +358,9 @@
         });
 
         function releaseWakeLock() {
-            if (wakeLock !== null) {
-                wakeLock.release().then(() => { wakeLock = null; });
-            }
+            if(_wakeLockTimer){ clearInterval(_wakeLockTimer); _wakeLockTimer = null; }
+            try{ if(wakeLock){ wakeLock.release().then(()=>{ wakeLock = null; }); } }catch(e){}
+            _wakeStopFallback();
         }
 
         // ==========================================
@@ -440,7 +488,7 @@
             const hasMedia = await initMedia();
             if (!hasMedia) return;
 
-            await requestWakeLock(); // 🌟 કૉલ શરૂ થાય એટલે સ્ક્રીન ઓન રાખો
+            await requestWakeLock();
 
             const myId = `p2p_ds_${roomId}_${role}`;
             const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
@@ -499,15 +547,53 @@
             }
         }
 
+        // ==========================================
+        // ✅ PATCH 2: ICE restart — કનેક્શન તૂટે તો ઝડપી recovery
+        // ==========================================
+        let _iceRestartTimer = null;
+
+        function _restoreTimerDisplay(){
+            if(callTimerInterval) return;
+            if(callSeconds <= 0) return;
+            callTimerInterval = setInterval(() => {
+                callSeconds++;
+                const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+                const s = String(callSeconds % 60).padStart(2, '0');
+                statusText.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function _tryIceRestart(){
+            try{ if(activeCall && activeCall.peerConnection) activeCall.peerConnection.restartIce(); }catch(e){}
+        }
+
         function setupCall(call) {
             call.peerConnection.oniceconnectionstatechange = () => {
                 const state = call.peerConnection.iceConnectionState;
                 if (state === 'checking') {
-                    statusText.innerText = "Connecting...";
+                    if(!callTimerInterval) statusText.innerText = "Connecting...";
                 } else if (state === 'failed') {
-                    statusText.innerText = "Connection Failed";
+                    if(callTimerInterval){ clearInterval(callTimerInterval); callTimerInterval = null; }
+                    statusText.innerText = "Reconnecting...";
+                    _tryIceRestart();
+                    if(_iceRestartTimer) clearTimeout(_iceRestartTimer);
+                    _iceRestartTimer = setTimeout(()=>{
+                        if(!callEnded && call.peerConnection && call.peerConnection.iceConnectionState === 'failed') _tryIceRestart();
+                    }, 3000);
                 } else if (state === 'disconnected') {
-                    statusText.innerText = "Disconnected";
+                    if(callTimerInterval){ clearInterval(callTimerInterval); callTimerInterval = null; }
+                    statusText.innerText = "Reconnecting...";
+                    if(_iceRestartTimer) clearTimeout(_iceRestartTimer);
+                    _iceRestartTimer = setTimeout(()=>{
+                        if(!callEnded && call.peerConnection && 
+                           (call.peerConnection.iceConnectionState === 'disconnected' || 
+                            call.peerConnection.iceConnectionState === 'failed')){
+                            _tryIceRestart();
+                        }
+                    }, 4000);
+                } else if (state === 'connected' || state === 'completed') {
+                    if(_iceRestartTimer){ clearTimeout(_iceRestartTimer); _iceRestartTimer = null; }
+                    _restoreTimerDisplay();
                 }
             };
 
@@ -541,6 +627,24 @@
                 endCall(true);
             });
         }
+
+        // ==========================================
+        // ✅ PATCH 3: નેટવર્ક બદલાય (WiFi↔4G) તો ICE restart
+        // ==========================================
+        window.addEventListener('online', () => {
+            if(callEnded) return;
+            requestWakeLock();
+            setTimeout(()=>{ 
+                if(!callEnded && activeCall && activeCall.peerConnection){ 
+                    try{ activeCall.peerConnection.restartIce(); }catch(e){} 
+                }
+            }, 1000);
+        });
+        window.addEventListener('offline', () => {
+            if(callEnded) return;
+            if(callTimerInterval){ clearInterval(callTimerInterval); callTimerInterval = null; }
+            statusText.innerText = "Network Lost...";
+        });
 
         window.addEventListener('beforeunload', () => {
             releaseWakeLock();
@@ -660,7 +764,7 @@
             if (callEnded) return;
             callEnded = true;
 
-            releaseWakeLock(); // 🌟 કૉલ પૂરો થાય એટલે વેક લોક બંધ કરો
+            releaseWakeLock();
 
             if (!byRemote && dataConn && dataConn.open) {
                 try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
