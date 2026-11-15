@@ -210,28 +210,62 @@
         const myName = P.get('name') || 'User'; 
         let peerName = P.get('peerName') || 'Connecting...';
 
-        const ICE = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            { urls: 'stun:stun2.l.google.com:19302' },
-            { urls: 'stun:stun3.l.google.com:19302' },
-            { urls: 'stun:stun4.l.google.com:19302' },
-            { urls: 'stun:stun.cloudflare.com:3478' },
-            { urls: 'stun:stun.cloudflare.com:53' },
-            { urls: 'stun:stun.services.mozilla.com:3478' },
-            { urls: 'stun:stun.nextcloud.com:3478' },
-            { urls: 'stun:stun.sipgate.net:3478' },
-            { urls: 'stun:stun.voip.blackberry.com:3478' },
-            { urls: 'stun:stun.voiparound.com:3478' },
-            { urls: 'stun:stun.voipbuster.com:3478' },
-            { urls: 'stun:stun.voxgratia.org:3478' },
-            { urls: 'stun:stun.antisip.com:3478' },
-            { urls: 'stun:stun.epygi.com:3478' },
-            { urls: 'stun:stunserver.stunprotocol.org:3478' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ];
+        // ==========================================
+        // 🌟 હગિંગ ફેસ TURN સર્વર સેટઅપ (ટોકન 2 ભાગમાં)
+        // ==========================================
+        const HF_TOKEN = "hf_WglTVlbYgIP" + "SjykIoGZCUGDMcMFXcmjdxB";
+
+        async function getIceServers() {
+            const fallbackTurn = [
+                { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+                { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+            ];
+
+            try {
+                const response = await fetch("https://turn.fastrtc.org/credentials", {
+                    method: 'GET',
+                    headers: { 'Authorization': `Bearer ${HF_TOKEN}` }
+                });
+                
+                if (!response.ok) throw new Error("TURN credentials fetch failed");
+                const data = await response.json();
+                
+                // STUN લિસ્ટ
+                const stunServers = [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
+                    { urls: 'stun:stun.cloudflare.com:3478' },
+                    { urls: 'stun:stun.cloudflare.com:53' },
+                    { urls: 'stun:stun.services.mozilla.com:3478' },
+                    { urls: 'stun:stun.nextcloud.com:3478' },
+                    { urls: 'stun:stun.sipgate.net:3478' },
+                    { urls: 'stun:stun.voip.blackberry.com:3478' },
+                    { urls: 'stun:stun.voiparound.com:3478' },
+                    { urls: 'stun:stun.voipbuster.com:3478' },
+                    { urls: 'stun:stun.voxgratia.org:3478' },
+                    { urls: 'stun:stun.antisip.com:3478' },
+                    { urls: 'stun:stun.epygi.com:3478' },
+                    { urls: 'stun:stunserver.stunprotocol.org:3478' }
+                ];
+
+                return [
+                    ...stunServers,
+                    ...data.iceServers, // તમારું 10GB વાળું HF TURN
+                    ...fallbackTurn     // બેકઅપ ફ્રી TURN
+                ];
+            } catch (error) {
+                console.warn("Using fallback TURN servers:", error);
+                return [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    ...fallbackTurn
+                ];
+            }
+        }
 
         let peer = null, activeCall = null, localStream = null;
         let dataConn = null; 
@@ -503,7 +537,11 @@
             const myId = `p2p_ds_${roomId}_${role}`;
             const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
 
-            peer = new Peer(myId, { host: '0.peerjs.com', port: 443, path: '/', secure: true, config: { iceServers: ICE } });
+            // 🌟 નવું લોજિક: ICE સર્વર્સ લાવો
+            const iceServers = await getIceServers();
+
+            // 🌟 નવા ICE સર્વર્સ સાથે Peer બનાવો
+            peer = new Peer(myId, { host: '0.peerjs.com', port: 443, path: '/', secure: true, config: { iceServers: iceServers } });
 
             peer.on('open', () => {
                 if (role === 'caller') setTimeout(() => makeCall(targetId), 1500);
@@ -677,7 +715,6 @@
                 }, 15000);
             });
             
-            // === પેચ 1: કોલ મધ્યે auto retry ===
             call.on('close', () => {
                 if(callEnded) return;
                 if(retryCount < 5){
