@@ -119,7 +119,7 @@
     }
     .lock-icon {
         font-size: 28px; line-height: 1; margin: 0;
-        animation: none;
+        animation: none; pointer-events: auto;
     }
     @keyframes pulse {
         0% { transform: scale(1); opacity: 0.8; }
@@ -302,8 +302,10 @@
         lockOverlay.addEventListener('click', (e) => {
             e.preventDefault();
             e.stopPropagation();
+            // Unlock only when the centered lock icon itself is double-tapped.
+            if (!e.target.closest('.lock-icon')) return;
             const now = Date.now();
-            if (now - lastTap < 350) {
+            if (now - lastTap < 400) {
                 toggleLock(false);
                 lastTap = 0;
             } else {
@@ -525,6 +527,9 @@
             if (_appStarting || callEnded) return;
             _appStarting = true;
             try {
+                // Fetch TURN credentials while microphone/camera permission and media
+                // initialization are in progress, instead of waiting for them serially.
+                const iceServersPromise = getIceServers();
                 const mediaAlreadyReady = !!(localStream && localStream.getTracks().some(t => t.readyState === 'live'));
                 const hasMedia = mediaAlreadyReady || await initMedia();
                 if (!hasMedia || callEnded) return;
@@ -532,7 +537,7 @@
 
                 const myId = `p2p_ds_${roomId}_${role}`;
                 const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
-                const iceServers = await getIceServers();
+                const iceServers = await iceServersPromise;
                 if (callEnded) return;
 
                 peer = new Peer(myId, {
