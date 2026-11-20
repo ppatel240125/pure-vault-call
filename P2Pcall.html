@@ -254,7 +254,7 @@
         let dataConn = null;
         let currentMicId = null;
         let _appStarting = false, _peerReady = false, _callEverConnected = false;
-        let _callRetryTimer = null, _disconnectGraceTimer = null, _dataRetryTimer = null;
+        let _callRetryTimer = null, _disconnectGraceTimer = null, _dataRetryTimer = null, _pendingCallTimer = null;
         // Faster initial retries when the other phone is still opening its room.
         let _callRetryDelay = 500, _recoveryBusy = false;
         let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
@@ -686,6 +686,7 @@
             if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
             const oldCall = activeCall;
             activeCall = null;
+            if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
             if (oldCall) { try { oldCall.close(); } catch (e) {} }
             _recoveryBusy = false;
             scheduleCallRetry(500);
@@ -733,6 +734,19 @@
 
         function setupCall(call) {
             _iceAttempts = 0;
+            // A PeerJS call can be created locally while the other phone never
+            // receives/answers it. Without a pending-call timeout, activeCall
+            // stays set forever and the caller never retries.
+            if (role === 'caller') {
+                if (_pendingCallTimer) clearTimeout(_pendingCallTimer);
+                _pendingCallTimer = setTimeout(() => {
+                    _pendingCallTimer = null;
+                    if (!callEnded && activeCall === call && !_callEverConnected) {
+                        console.warn('Outgoing call timed out before remote stream; retrying.');
+                        recoverMediaCall('answer-timeout', true);
+                    }
+                }, 12000);
+            }
             const pc = call.peerConnection;
             if (pc) {
                 pc.addEventListener('iceconnectionstatechange', () => _onIceState(call));
@@ -745,6 +759,7 @@
 
             call.on('stream', (remoteStream) => {
                 if (activeCall !== call || callEnded) return;
+                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
                 if (callType === 'video') {
                     remoteVideo.srcObject = remoteStream;
                     remoteVideo.play().catch(e => console.log('Autoplay blocked', e));
@@ -793,8 +808,18 @@
                 }, 5000);
             });
 
+            call.on('error', (err) => {
+                console.warn('Media call error:', err);
+                if (activeCall !== call || callEnded) return;
+                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
+                activeCall = null;
+                try { call.close(); } catch (e) {}
+                if (role === 'caller') scheduleCallRetry(700);
+            });
+
             call.on('close', () => {
                 if (activeCall !== call || callEnded) return;
+                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
                 activeCall = null;
                 if (_callWatchdog) { clearInterval(_callWatchdog); _callWatchdog = null; }
                 if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
@@ -835,6 +860,7 @@
             if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); }
             if(_callWatchdog){ clearInterval(_callWatchdog); }
             if(_callRetryTimer){ clearTimeout(_callRetryTimer); }
+            if(_pendingCallTimer){ clearTimeout(_pendingCallTimer); }
             if(_disconnectGraceTimer){ clearTimeout(_disconnectGraceTimer); }
             if(_networkChangeTimer){ clearTimeout(_networkChangeTimer); }
             if (!callEnded && dataConn && dataConn.open) {
