@@ -720,7 +720,7 @@
                         call.peerConnection.iceConnectionState === 'disconnected') {
                         recoverMediaCall('ice-disconnected');
                     }
-                }, 7000);
+                }, 6000);
             } else if (state === 'failed') {
                 statusText.innerText = 'Reconnecting...';
                 recoverMediaCall('ice-failed', true);
@@ -745,7 +745,7 @@
                         console.warn('Outgoing call timed out before remote stream; retrying.');
                         recoverMediaCall('answer-timeout', true);
                     }
-                }, 12000);
+                }, 6000);
             }
             const pc = call.peerConnection;
             if (pc) {
