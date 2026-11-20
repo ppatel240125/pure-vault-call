@@ -134,7 +134,7 @@
         <div id="audio-view">
             <div class="bg-blur-avatar"></div>
             <div class="avatar-circle" id="audio-avatar">?</div>
-            <audio id="remote-audio" autoplay playsinline style="display:none;"></audio>
+            <audio id="remote-audio" autoplay playsinline preload="auto" style="display:none;"></audio>
         </div>
 
         <div id="video-view">
@@ -255,7 +255,8 @@
         let currentMicId = null;
         let _appStarting = false, _peerReady = false, _callEverConnected = false;
         let _callRetryTimer = null, _disconnectGraceTimer = null, _dataRetryTimer = null;
-        let _callRetryDelay = 1000, _recoveryBusy = false;
+        // Faster initial retries when the other phone is still opening its room.
+        let _callRetryDelay = 500, _recoveryBusy = false;
         let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
         let callTimerInterval = null, callSeconds = 0;
         let callEnded = false;
@@ -629,8 +630,9 @@
 
         function makeCall(targetId) {
             if (!peer || peer.destroyed || callEnded || !_peerReady || activeCall) return;
-            connectDataChannel(targetId);
             try {
+                // Start the media call first; the auxiliary data channel is not
+                // allowed to get in front of the actual audio/video connection.
                 const nextCall = peer.call(targetId, localStream, {
                     metadata: { name: myName, isAutoHD: isAutoHD }
                 });
@@ -640,6 +642,10 @@
                 }
                 activeCall = nextCall;
                 setupCall(nextCall);
+                // Name/mode/heartbeat channel is secondary to media setup.
+                setTimeout(() => {
+                    if (!callEnded && activeCall === nextCall) connectDataChannel(targetId);
+                }, 250);
             } catch (error) {
                 console.warn('Call attempt failed:', error);
                 if (role === 'caller') scheduleCallRetry();
@@ -658,14 +664,16 @@
                 }
                 if (peer.disconnected) {
                     try { peer.reconnect(); } catch (e) {}
-                    scheduleCallRetry(2000);
+                    scheduleCallRetry(1200);
                     return;
                 }
                 _peerReady = !!peer.open;
                 if (_peerReady) makeCall(`p2p_ds_${roomId}_receiver`);
-                else scheduleCallRetry(2000);
+                else scheduleCallRetry(1200);
             }, wait);
-            _callRetryDelay = Math.min(Math.max(_callRetryDelay * 1.7, 1500), 10000);
+            // Retry quickly while the receiver is coming online, without
+            // hammering PeerJS signaling with long exponential delays.
+            _callRetryDelay = Math.min(Math.max(_callRetryDelay * 1.35, 700), 2000);
         }
 
         function recoverMediaCall(reason, force = false) {
@@ -718,7 +726,7 @@
             } else if (state === 'connected' || state === 'completed') {
                 if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
                 _iceAttempts = 0;
-                _callRetryDelay = 1000;
+                _callRetryDelay = 500;
                 _restoreTimerDisplay();
             }
         }
@@ -741,8 +749,19 @@
                     remoteVideo.srcObject = remoteStream;
                     remoteVideo.play().catch(e => console.log('Autoplay blocked', e));
                 } else {
+                    remoteAudio.autoplay = true;
+                    remoteAudio.playsInline = true;
+                    remoteAudio.muted = false;
+                    remoteAudio.volume = 1;
                     remoteAudio.srcObject = remoteStream;
-                    remoteAudio.play().catch(e => console.log(e));
+                    const playAudio = () => remoteAudio.play().catch(e => console.log('Audio playback waiting for user interaction:', e));
+                    playAudio();
+                    // Some mobile browsers need a second play attempt once the
+                    // incoming audio track has become live.
+                    remoteStream.getAudioTracks().forEach(track => {
+                        if (track.readyState === 'live') playAudio();
+                        else track.addEventListener('unmute', playAudio, { once: true });
+                    });
                 }
 
                 if (!_callEverConnected) {
@@ -752,7 +771,7 @@
                 }
                 _restoreTimerDisplay();
                 retryCount = 0;
-                _callRetryDelay = 1000;
+                _callRetryDelay = 500;
 
                 setTimeout(() => {
                     if (activeCall === call && call.peerConnection) applyVideoBitrate(call.peerConnection);
