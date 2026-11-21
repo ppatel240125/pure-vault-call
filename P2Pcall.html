@@ -2,1010 +2,127 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
 <title>Secure Call</title>
 <style>
-    :root {
-        --bg: #0f111a; --surface: #1e2332; --surface-hover: #2a3045;
-        --primary: #3b82f6; --text: #ffffff; --text-muted: #8b92a5;
-        --danger: #ef4444; --success: #22c55e;
-    }
-    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
-    
-    #call-ui { display: flex; flex-direction: column; width: 100%; height: 100dvh; position: relative; }
-    
-    #audio-view {
-        position: absolute; inset: 0; display: none; flex-direction: column; align-items: center; justify-content: center;
-        background: radial-gradient(circle at center, #1e2332 0%, #0f111a 70%); z-index: 1;
-    }
-    .bg-blur-avatar {
-        position: absolute; width: 300px; height: 300px; background: var(--surface-hover);
-        border-radius: 50%; filter: blur(80px); opacity: 0.5; z-index: -1;
-    }
-    .avatar-circle {
-        width: 120px; height: 120px; border-radius: 50%; background: var(--surface);
-        display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold;
-        color: #fff; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        text-transform: uppercase;
-    }
-
-    #video-view { position: absolute; inset: 0; display: none; background: #000; z-index: 1; }
-    #remote-video { width: 100%; height: 100%; object-fit: cover; }
-    #local-video-container {
-        position: absolute; top: 60px; right: 20px; width: 90px; height: 130px;
-        border-radius: 16px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;
-    }
-    #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
-
-    .header {
-        position: absolute; top: max(40px, env(safe-area-inset-top)); left: 0; right: 0;
-        display: flex; flex-direction: column; align-items: center; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-    }
-    .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
-    .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
-
-    #lock-btn {
-        position: absolute; top: max(20px, env(safe-area-inset-top)); right: 20px;
-        width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.1);
-        border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center;
-        z-index: 30; cursor: pointer; backdrop-filter: blur(4px); color: #fff;
-    }
-    #lock-btn:active { background: rgba(255,255,255,0.2); }
-
-    .controls-container {
-        position: absolute; bottom: max(30px, env(safe-area-inset-bottom)); left: 20px; right: 20px;
-        background: rgba(30, 35, 50, 0.85); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-        border-radius: 40px; padding: 12px 16px; display: flex; justify-content: space-around; align-items: center;
-        z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.05);
-    }
-    
-    .ctrl-btn {
-        display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
-        background: transparent; border: none; color: var(--text); cursor: pointer;
-        transition: 0.2s; width: 60px; padding: 4px 0;
-    }
-    .ctrl-btn:active { transform: scale(0.9); }
-    .ctrl-btn span { font-size: 10px; font-weight: 600; color: #aaa; text-align: center; }
-    .ctrl-btn svg, .ctrl-btn .icon { width: 24px; height: 24px; fill: currentColor; }
-    
-    .ctrl-btn.active span { color: #fff; }
-    
-    #saver-btn.saver-mode { background: #422006; border-radius: 12px; border: 1px solid #f59e0b; }
-    #saver-btn.saver-mode span { color: #fde047; }
-    #saver-btn.hd-mode { background: #14532d; border-radius: 12px; border: 1px solid var(--success); }
-    #saver-btn.hd-mode span { color: #bbf7d0; }
-
-    .btn-end { background: var(--danger); border-radius: 25px; padding: 12px 20px; width: auto; }
-    .btn-end svg { fill: #fff; width: 24px; height: 24px; }
-    .btn-end span { display: none; }
-
-    .sheet-overlay {
-        position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(2px); z-index: 100;
-        display: none; align-items: flex-end; justify-content: center;
-    }
-    .sheet-overlay.active { display: flex; }
-    .sheet-content {
-        background: #141824; width: 100%; border-radius: 24px 24px 0 0; padding: 20px; padding-bottom: max(20px, env(safe-area-inset-bottom));
-        animation: slideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
-    .sheet-header { font-size: 20px; font-weight: bold; margin-bottom: 20px; }
-    .device-group h3 { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; margin: 0 0 8px 4px; font-weight: 600; }
-    .device-list { background: #1e2332; border-radius: 16px; overflow: hidden; }
-    .device-item {
-        display: flex; justify-content: space-between; align-items: center;
-        padding: 16px; font-size: 16px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.05);
-    }
-    .device-item:last-child { border-bottom: none; }
-    .device-item:active { background: rgba(255,255,255,0.05); }
-    .check-icon { display: none; width: 24px; height: 24px; fill: var(--success); }
-    .device-item.active .check-icon { display: block; }
-    .done-btn {
-        width: 100%; padding: 16px; background: rgba(255,255,255,0.1); color: #fff; border: none;
-        border-radius: 16px; font-size: 16px; font-weight: bold; margin-top: 20px; cursor: pointer;
-    }
-
-    #lock-overlay {
-        position: fixed; inset: 0; background: #000; z-index: 99999;
-        display: none; align-items: center; justify-content: center;
-        touch-action: none; overscroll-behavior: contain;
-    }
-    #lock-overlay.active { display: flex; }
-    .lock-content {
-        display: flex; align-items: center; justify-content: center;
-        color: #fff; pointer-events: none;
-    }
-    .lock-icon {
-        font-size: 28px; line-height: 1; margin: 0;
-        animation: none; pointer-events: auto;
-    }
-    @keyframes pulse {
-        0% { transform: scale(1); opacity: 0.8; }
-        50% { transform: scale(1.1); opacity: 1; }
-        100% { transform: scale(1); opacity: 0.8; }
-    }
+:root{--bg:#0f111a;--surface:#1e2332;--surface-hover:#2a3045;--text:#fff;--text-muted:#8b92a5;--danger:#ef4444;--success:#22c55e}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{height:100%;margin:0;padding:0;overflow:hidden;background:var(--bg);font-family:system-ui,-apple-system,sans-serif}
+#call-ui{display:flex;flex-direction:column;width:100%;height:100dvh;position:relative}
+#audio-view{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;background:radial-gradient(circle at center,#1e2332 0%,#0f111a 70%);z-index:1}
+.bg-blur-avatar{position:absolute;width:300px;height:300px;background:var(--surface-hover);border-radius:50%;filter:blur(80px);opacity:.5;z-index:-1}
+.avatar-circle{width:120px;height:120px;border-radius:50%;background:var(--surface);display:flex;align-items:center;justify-content:center;font-size:50px;font-weight:700;color:#fff;border:2px solid rgba(255,255,255,.1);box-shadow:0 10px 30px rgba(0,0,0,.5);text-transform:uppercase}
+#video-view{position:absolute;inset:0;display:none;background:#000;z-index:1}
+#remote-video,#local-video{width:100%;height:100%;object-fit:cover}
+#local-video-container{position:absolute;top:60px;right:20px;width:90px;height:130px;border-radius:16px;overflow:hidden;border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:10}
+#local-video{transform:scaleX(-1)}
+.header{position:absolute;top:max(40px,env(safe-area-inset-top));left:0;right:0;display:flex;flex-direction:column;align-items:center;z-index:10;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+.header h1{margin:0;font-size:22px;font-weight:600;color:var(--text)}
+.header p{margin:4px 0 0;font-size:14px;color:#ddd}
+#lock-btn{position:absolute;top:max(20px,env(safe-area-inset-top));right:20px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;z-index:30;cursor:pointer;backdrop-filter:blur(4px);color:#fff}
+#lock-btn:active{background:rgba(255,255,255,.2)}
+.controls-container{position:absolute;bottom:max(30px,env(safe-area-inset-bottom));left:20px;right:20px;background:rgba(30,35,50,.85);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border-radius:40px;padding:12px 16px;display:flex;justify-content:space-around;align-items:center;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.05)}
+.ctrl-btn{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;background:0 0;border:none;color:var(--text);cursor:pointer;transition:.2s;width:60px;padding:4px 0}
+.ctrl-btn:active{transform:scale(.9)}
+.ctrl-btn span{font-size:10px;font-weight:600;color:#aaa;text-align:center}
+.ctrl-btn svg,.ctrl-btn .icon{width:24px;height:24px;fill:currentColor}
+.ctrl-btn.active span{color:#fff}
+#saver-btn.saver-mode{background:#422006;border-radius:12px;border:1px solid #f59e0b}
+#saver-btn.saver-mode span{color:#fde047}
+#saver-btn.hd-mode{background:#14532d;border-radius:12px;border:1px solid var(--success)}
+#saver-btn.hd-mode span{color:#bbf7d0}
+.btn-end{background:var(--danger);border-radius:25px;padding:12px 20px;width:auto}
+.btn-end svg{fill:#fff;width:24px;height:24px}
+.btn-end span{display:none}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(2px);z-index:100;display:none;align-items:flex-end;justify-content:center}
+.sheet-overlay.active{display:flex}
+.sheet-content{background:#141824;width:100%;border-radius:24px 24px 0 0;padding:20px;padding-bottom:max(20px,env(safe-area-inset-bottom));animation:slideUp .3s cubic-bezier(.16,1,.3,1);color:#fff}
+@keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+.sheet-header{font-size:20px;font-weight:700;margin-bottom:20px}
+.device-group h3{font-size:11px;color:var(--text-muted);letter-spacing:1px;margin:0 0 8px 4px;font-weight:600}
+.device-list{background:#1e2332;border-radius:16px;overflow:hidden}
+.device-item{display:flex;justify-content:space-between;align-items:center;padding:16px;font-size:16px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.05)}
+.device-item:last-child{border-bottom:none}
+.device-item:active{background:rgba(255,255,255,.05)}
+.check-icon{display:none;width:24px;height:24px;fill:var(--success)}
+.device-item.active .check-icon{display:block}
+.done-btn{width:100%;padding:16px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:16px;font-size:16px;font-weight:700;margin-top:20px;cursor:pointer}
+#lock-overlay{position:fixed;inset:0;background:#000;z-index:99999;display:none;align-items:center;justify-content:center;touch-action:none;overscroll-behavior:contain}
+#lock-overlay.active{display:flex}
+.lock-content{display:flex;align-items:center;justify-content:center;color:#fff;pointer-events:none}
+.lock-icon{font-size:28px;line-height:1;margin:0;pointer-events:auto}
 </style>
 </head>
 <body>
-
-    <div id="call-ui">
-        <div id="audio-view">
-            <div class="bg-blur-avatar"></div>
-            <div class="avatar-circle" id="audio-avatar">?</div>
-            <audio id="remote-audio" autoplay playsinline preload="auto" style="display:none;"></audio>
-        </div>
-
-        <div id="video-view">
-            <video id="remote-video" autoplay playsinline></video>
-            <div id="local-video-container">
-                <video id="local-video" autoplay playsinline muted></video>
-            </div>
-        </div>
-
-        <div id="lock-btn" onclick="toggleLock(true)">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
-        </div>
-
-        <div class="header">
-            <h1 id="peer-name">Connecting...</h1>
-            <p id="call-status">Ringing...</p>
-        </div>
-
-        <div class="controls-container">
-            <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
-                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                <span>Mute</span>
-            </button>
-            
-            <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
-                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                <span>Video</span>
-            </button>
-
-            <button id="saver-btn" class="ctrl-btn saver-mode" onclick="toggleDataSaver()">
-                <span class="icon" style="font-size: 20px;">🪶</span>
-                <span id="saver-text">Data Saver</span>
-            </button>
-
-            <button class="ctrl-btn" onclick="openDevices()">
-                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                <span>Devices</span>
-            </button>
-
-            <button class="ctrl-btn btn-end" onclick="endCall(false)">
-                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-                <span>End</span>
-            </button>
-        </div>
-    </div>
-
-    <div id="lock-overlay">
-        <div class="lock-content" aria-hidden="true">
-            <div class="lock-icon">🔒</div>
-        </div>
-    </div>
-
-    <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
-        <div class="sheet-content" onclick="event.stopPropagation()">
-            <div class="sheet-header">Devices</div>
-            <div class="device-group">
-                <h3>MICROPHONE / SPEAKER</h3>
-                <div class="device-list" id="device-list-container"></div>
-            </div>
-            <button class="done-btn" onclick="closeDevices()">Done</button>
-        </div>
-    </div>
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
-    <script>
-        const P = new URLSearchParams(location.search);
-        const roomId = (P.get('room') || '123').replace(/[^a-zA-Z0-9_-]/g, '');
-        const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
-        const callType = P.get('type') === 'video' ? 'video' : 'audio';
-        
-        const myName = P.get('name') || 'User'; 
-        let peerName = P.get('peerName') || 'Connecting...';
-
-        // ==========================================
-        // ઝડપી ICE કનેક્શન: Direct P2P પ્રથમ, FastRTC TURN fallback
-        // મૂળની જેમ HF token વપરાય છે; token ને કોડમાં નાના ભાગોમાં જોડ્યો છે.
-        // નોંધ: ભાગોમાં લખવાથી token સુરક્ષિત/છુપાયેલો થતો નથી; GitHub HTML જાહેર હોય છે.
-        // ==========================================
-        const HF_TOKEN =
-            'hf_WglTVlbY' +
-            'gIPSjykIoGZC' +
-            'UGDMcMFXcmjdxB';
-        const ICE_CREDENTIALS_TIMEOUT_MS = 1500;
-        const STUN_SERVERS = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun.cloudflare.com:3478' }
-        ];
-        const BACKUP_TURN_SERVERS = [
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ];
-
-        async function getIceServers() {
-            let managedTurn = [];
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), ICE_CREDENTIALS_TIMEOUT_MS);
-            try {
-                const response = await fetch('https://turn.fastrtc.org/credentials', {
-                    method: 'GET', cache: 'no-store',
-                    headers: { 'Authorization': `Bearer ${HF_TOKEN}`, 'Accept': 'application/json' },
-                    signal: controller.signal
-                });
-                if (!response.ok) throw new Error(`FastRTC TURN credentials HTTP ${response.status}`);
-                const data = await response.json();
-                if (Array.isArray(data.iceServers)) managedTurn = data.iceServers;
-            } catch (error) {
-                console.warn('FastRTC TURN unavailable; continuing with direct P2P/STUN and backup TURN.', error);
-            } finally {
-                clearTimeout(timeout);
-            }
-            // Direct P2P remains preferred; FastRTC TURN and public TURN are fallbacks.
-            return [...STUN_SERVERS, ...managedTurn, ...BACKUP_TURN_SERVERS];
-        }
-
-        let peer = null, activeCall = null, localStream = null;
-        let dataConn = null;
-        let currentMicId = null;
-        let _appStarting = false, _peerReady = false, _callEverConnected = false;
-        let _callRetryTimer = null, _disconnectGraceTimer = null, _dataRetryTimer = null, _pendingCallTimer = null;
-        // Faster initial retries when the other phone is still opening its room.
-        let _callRetryDelay = 500, _recoveryBusy = false;
-        let isMuted = false, isVideoOff = false, isAutoHD = false, retryCount = 0; 
-        let callTimerInterval = null, callSeconds = 0;
-        let callEnded = false;
-        let wakeLock = null;
-
-        const remoteVideo = document.getElementById('remote-video');
-        const localVideo = document.getElementById('local-video');
-        const remoteAudio = document.getElementById('remote-audio');
-        const statusText = document.getElementById('call-status');
-
-        function forcePlay() {
-            if(remoteVideo.srcObject) remoteVideo.play().catch(e => console.log(e));
-            if(remoteAudio.srcObject) remoteAudio.play().catch(e => console.log(e));
-        }
-        document.body.addEventListener('click', forcePlay);
-
-        if (callType === 'video') {
-            document.getElementById('audio-view').style.display = 'none';
-            document.getElementById('video-view').style.display = 'block';
-            document.getElementById('vid-btn').style.display = 'flex';
-        } else {
-            document.getElementById('audio-view').style.display = 'flex';
-            document.getElementById('video-view').style.display = 'none';
-        }
-
-        function updateUI() {
-            document.getElementById('peer-name').innerText = peerName;
-            document.getElementById('audio-avatar').innerText = peerName !== 'Connecting...' ? peerName.charAt(0) : '?';
-        }
-        updateUI();
-
-        // === સ્ક્રીન લોક ===
-        const lockOverlay = document.getElementById('lock-overlay');
-        let lastTap = 0;
-
-        function toggleLock(lock) {
-            if (lock) {
-                lockOverlay.classList.add('active');
-            } else {
-                lockOverlay.classList.remove('active');
-            }
-        }
-
-        lockOverlay.addEventListener('click', (e) => {
-            e.preventDefault();
-            e.stopPropagation();
-            // Unlock only when the centered lock icon itself is double-tapped.
-            if (!e.target.closest('.lock-icon')) return;
-            const now = Date.now();
-            if (now - lastTap < 400) {
-                toggleLock(false);
-                lastTap = 0;
-            } else {
-                lastTap = now;
-            }
-        });
-
-        // === પેચ 1: સંપૂર્ણ Wake Lock ===
-        let _wakeLockTimer = null;
-        let _wakeFallbackCtx = null;
-
-        function _wakeStartFallback(){
-            if(_wakeFallbackCtx) return;
-            try{
-                _wakeFallbackCtx = new (window.AudioContext || window.webkitAudioContext)();
-                const gain = _wakeFallbackCtx.createGain();
-                gain.gain.value = 0.0001;
-                const osc = _wakeFallbackCtx.createOscillator();
-                osc.frequency.value = 20000;
-                osc.connect(gain).connect(_wakeFallbackCtx.destination);
-                osc.start();
-            }catch(e){}
-        }
-
-        function _wakeStopFallback(){
-            try{ if(_wakeFallbackCtx){ _wakeFallbackCtx.close(); } }catch(e){}
-            _wakeFallbackCtx = null;
-        }
-
-        async function _acquireWakeLockOnce(){
-            try{
-                if('wakeLock' in navigator && navigator.wakeLock){
-                    wakeLock = await navigator.wakeLock.request('screen');
-                    wakeLock.addEventListener('release', ()=>{
-                        if(!callEnded && document.visibilityState === 'visible'){
-                            setTimeout(()=>{
-                                if(!callEnded && document.visibilityState === 'visible') requestWakeLock();
-                            }, 1500);
-                        }
-                    });
-                    _wakeStopFallback();
-                    return true;
-                }
-            }catch(e){}
-            return false;
-        }
-
-        async function requestWakeLock(){
-            if(callEnded) return;
-            const ok = await _acquireWakeLockOnce();
-            if(!ok) _wakeStartFallback();
-            if(_wakeLockTimer) clearInterval(_wakeLockTimer);
-            _wakeLockTimer = setInterval(async ()=>{
-                if(callEnded){ clearInterval(_wakeLockTimer); _wakeLockTimer = null; return; }
-                if(document.visibilityState !== 'visible') return;
-                if(!wakeLock || wakeLock.released){
-                    const ok2 = await _acquireWakeLockOnce();
-                    if(!ok2) _wakeStartFallback();
-                }
-            }, 20000);
-        }
-
-        document.addEventListener('visibilitychange', async () => {
-            if (document.visibilityState === 'visible' && !callEnded) {
-                await requestWakeLock();
-            }
-        });
-
-        function releaseWakeLock() {
-            if(_wakeLockTimer){ clearInterval(_wakeLockTimer); _wakeLockTimer = null; }
-            try{ if(wakeLock){ wakeLock.release().then(()=>{ wakeLock = null; }); } }catch(e){}
-            _wakeStopFallback();
-        }
-
-        // === ડેટા સેવિંગ SDP ===
-        function mungeSDP(sdp) {
-            if (!sdp || !/opus\/48000/i.test(sdp)) return sdp;
-            const lines = sdp.split('\r\n');
-            let pt = null;
-            for (const l of lines) {
-                const m = l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
-                if (m) { pt = m[1]; break; }
-            }
-            if (!pt) return sdp;
-
-            const out = [];
-            for (const l of lines) {
-                const pre = 'a=fmtp:' + pt + ' ';
-                if (l.startsWith(pre)) {
-                    let parts = l.substring(pre.length).split(';').map(s => s.trim()).filter(Boolean);
-                    const set = (k, v) => {
-                        const i = parts.findIndex(p => p.startsWith(k + '='));
-                        if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
-                    };
-                    set('useinbandfec', '1');
-                    set('usedtx', '1'); 
-                    set('stereo', '0');
-                    set('maxaveragebitrate', isAutoHD ? '24000' : '12000'); 
-                    out.push(pre + parts.join(';'));
-                } else out.push(l);
-            }
-            return out.join('\r\n');
-        }
-
-        const _origOffer = RTCPeerConnection.prototype.createOffer;
-        const _origAnswer = RTCPeerConnection.prototype.createAnswer;
-
-        RTCPeerConnection.prototype.createOffer = async function(...a) {
-            const o = await _origOffer.apply(this, a);
-            if (o && o.sdp) o.sdp = mungeSDP(o.sdp);
-            return o;
-        };
-        RTCPeerConnection.prototype.createAnswer = async function(...a) {
-            const x = await _origAnswer.apply(this, a);
-            if (x && x.sdp) x.sdp = mungeSDP(x.sdp);
-            return x;
-        };
-
-        function applyVideoBitrate(pc) {
-            if (!pc) return;
-            pc.getSenders().forEach(s => {
-                if (!s.track) return;
-                const params = s.getParameters();
-                if (!params.encodings) params.encodings = [{}];
-
-                if (s.track.kind === 'video') {
-                    if (isAutoHD) {
-                        params.encodings[0].maxBitrate = 1000000; 
-                        params.encodings[0].scaleResolutionDownBy = 1.0;
-                    } else {
-                        params.encodings[0].maxBitrate = 150000; 
-                        params.encodings[0].scaleResolutionDownBy = 2.0;
-                    }
-                } else if (s.track.kind === 'audio') {
-                    if (isAutoHD) {
-                        params.encodings[0].maxBitrate = 24000;
-                    } else {
-                        params.encodings[0].maxBitrate = 12000;
-                    }
-                }
-                s.setParameters(params).catch(e => console.log(e));
-            });
-        }
-
-        async function initMedia() {
-            try {
-                const constraints = {
-                    audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
-                };
-                if (callType === 'video') {
-                    constraints.video = isAutoHD ? 
-                        { width: { ideal: 1280 }, height: { ideal: 720 }, frameRate: 30 } : 
-                        { width: { ideal: 320 }, height: { ideal: 240 }, frameRate: 15 };
-                }
-                if (currentMicId) constraints.audio.deviceId = { exact: currentMicId };
-
-                localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                if (callType === 'video') localVideo.srcObject = localStream;
-                return true;
-            } catch (err) {
-                alert("Camera/Mic permission denied.");
-                return false;
-            }
-        }
-
-        // === પેચ 4: Data channel heartbeat ===
-        function setupDataConn() {
-            if (!dataConn) return;
-            
-            dataConn.on('open', () => {
-                dataConn.send({ type: 'NAME', name: myName });
-                dataConn.send({ type: 'MODE', active: isAutoHD });
-                if(window._dcHeartbeat) clearInterval(window._dcHeartbeat);
-                window._dcHeartbeat = setInterval(()=>{
-                    if(callEnded || !dataConn || !dataConn.open){ 
-                        if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; } 
-                        return; 
-                    }
-                    try{ dataConn.send({ type: 'PING', ts: Date.now() }); }catch(e){}
-                }, 20000);
-            });
-
-            dataConn.on('data', (data) => {
-                if (data.type === 'NAME') {
-                    if (peerName === 'Connecting...' || peerName === 'User') {
-                        peerName = data.name;
-                        updateUI();
-                    }
-                } else if (data.type === 'MODE') {
-                    if (isAutoHD !== data.active) {
-                        isAutoHD = data.active;
-                        updateSaverUI(); 
-                        if (activeCall && activeCall.peerConnection) {
-                            applyVideoBitrate(activeCall.peerConnection);
-                        }
-                    }
-                } else if (data.type === 'END_CALL') {
-                    endCall(true);
-                } else if (data.type === 'PING') {
-                    try{ if(dataConn && dataConn.open) dataConn.send({ type: 'PONG', ts: data.ts }); }catch(e){}
-                } else if (data.type === 'PONG') {
-                    // heartbeat reply — ignore
-                }
-            });
-
-            const thisConn = dataConn;
-            dataConn.on('close', () => {
-                if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; }
-                if (dataConn === thisConn) dataConn = null;
-                if (!callEnded && role === 'caller') {
-                    const targetId = `p2p_ds_${roomId}_receiver`;
-                    if (_dataRetryTimer) clearTimeout(_dataRetryTimer);
-                    _dataRetryTimer = setTimeout(() => { _dataRetryTimer = null; connectDataChannel(targetId); }, 1500);
-                }
-            });
-        }
-
-        async function startApp() {
-            if (_appStarting || callEnded) return;
-            _appStarting = true;
-            try {
-                // Fetch TURN credentials while microphone/camera permission and media
-                // initialization are in progress, instead of waiting for them serially.
-                const iceServersPromise = getIceServers();
-                const mediaAlreadyReady = !!(localStream && localStream.getTracks().some(t => t.readyState === 'live'));
-                const hasMedia = mediaAlreadyReady || await initMedia();
-                if (!hasMedia || callEnded) return;
-                await requestWakeLock();
-
-                const myId = `p2p_ds_${roomId}_${role}`;
-                const targetId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
-                const iceServers = await iceServersPromise;
-                if (callEnded) return;
-
-                peer = new Peer(myId, {
-                    host: '0.peerjs.com', port: 443, path: '/', secure: true,
-                    config: {
-                        iceServers,
-                        iceTransportPolicy: 'all',
-                        iceCandidatePoolSize: 4,
-                        bundlePolicy: 'max-bundle',
-                        rtcpMuxPolicy: 'require'
-                    }
-                });
-
-                peer.on('open', () => {
-                    _peerReady = true;
-                    if (role === 'caller') {
-                        connectDataChannel(targetId);
-                        if (!activeCall) scheduleCallRetry(250);
-                    }
-                });
-
-                peer.on('connection', (conn) => {
-                    dataConn = conn;
-                    setupDataConn();
-                });
-
-                peer.on('call', (call) => {
-                    const previousCall = activeCall;
-                    activeCall = call;
-                    if (previousCall && previousCall !== call) {
-                        try { previousCall.close(); } catch (e) {}
-                    }
-                    if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
-                        peerName = call.metadata.name;
-                        updateUI();
-                    }
-                    if (call.metadata && call.metadata.isAutoHD !== undefined) {
-                        isAutoHD = call.metadata.isAutoHD;
-                        updateSaverUI();
-                    }
-                    call.answer(localStream);
-                    setupCall(call);
-                });
-
-                peer.on('error', (err) => {
-                    console.warn('PeerJS error:', err);
-                    if (err.type === 'peer-unavailable') {
-                        if (role === 'caller') {
-                            const pendingCall = activeCall;
-                            activeCall = null;
-                            if (pendingCall) { try { pendingCall.close(); } catch (e) {} }
-                            scheduleCallRetry();
-                        }
-                    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
-                        statusText.innerText = 'Network issue...';
-                        try { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) {}
-                        if (role === 'caller') scheduleCallRetry(2500);
-                    }
-                });
-
-                peer.on('disconnected', () => {
-                    _peerReady = false;
-                    if (callEnded) return;
-                    // Signaling reconnect is separate from the live media path.
-                    // Do not close a working media call just because signaling drops.
-                    try { if (peer && !peer.destroyed) peer.reconnect(); } catch (e) {}
-                    if (role === 'caller') scheduleCallRetry(3000);
-                });
-            } catch (error) {
-                console.error('Call startup failed:', error);
-                statusText.innerText = 'Connection issue...';
-                if (!callEnded && role === 'caller') scheduleCallRetry(2500);
-            } finally {
-                _appStarting = false;
-            }
-        }
-
-        function connectDataChannel(targetId) {
-            if (callEnded || !peer || peer.destroyed || !_peerReady || dataConn) return;
-            try {
-                dataConn = peer.connect(targetId, { reliable: true });
-                setupDataConn();
-            } catch (error) {
-                dataConn = null;
-                if (_dataRetryTimer) clearTimeout(_dataRetryTimer);
-                _dataRetryTimer = setTimeout(() => connectDataChannel(targetId), 2500);
-            }
-        }
-
-        function makeCall(targetId) {
-            if (!peer || peer.destroyed || callEnded || !_peerReady || activeCall) return;
-            try {
-                // Start the media call first; the auxiliary data channel is not
-                // allowed to get in front of the actual audio/video connection.
-                const nextCall = peer.call(targetId, localStream, {
-                    metadata: { name: myName, isAutoHD: isAutoHD }
-                });
-                if (!nextCall) {
-                    if (role === 'caller') scheduleCallRetry();
-                    return;
-                }
-                activeCall = nextCall;
-                setupCall(nextCall);
-                // Name/mode/heartbeat channel is secondary to media setup.
-                setTimeout(() => {
-                    if (!callEnded && activeCall === nextCall) connectDataChannel(targetId);
-                }, 250);
-            } catch (error) {
-                console.warn('Call attempt failed:', error);
-                if (role === 'caller') scheduleCallRetry();
-            }
-        }
-
-        function scheduleCallRetry(delay) {
-            if (callEnded || role !== 'caller' || _callRetryTimer) return;
-            const wait = Number.isFinite(delay) ? delay : _callRetryDelay;
-            _callRetryTimer = setTimeout(() => {
-                _callRetryTimer = null;
-                if (callEnded || role !== 'caller') return;
-                if (!peer || peer.destroyed) {
-                    startApp();
-                    return;
-                }
-                if (peer.disconnected) {
-                    try { peer.reconnect(); } catch (e) {}
-                    scheduleCallRetry(1200);
-                    return;
-                }
-                _peerReady = !!peer.open;
-                if (_peerReady) makeCall(`p2p_ds_${roomId}_receiver`);
-                else scheduleCallRetry(1200);
-            }, wait);
-            // Retry quickly while the receiver is coming online, without
-            // hammering PeerJS signaling with long exponential delays.
-            _callRetryDelay = Math.min(Math.max(_callRetryDelay * 1.35, 700), 2000);
-        }
-
-        function recoverMediaCall(reason, force = false) {
-            if (callEnded || role !== 'caller' || _recoveryBusy) return;
-            const pc = activeCall && activeCall.peerConnection;
-            const state = pc && pc.iceConnectionState;
-            if (!force && state && ['connected', 'completed'].includes(state)) return;
-            _recoveryBusy = true;
-            statusText.innerText = 'Reconnecting...';
-            if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
-            const oldCall = activeCall;
-            activeCall = null;
-            if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
-            if (oldCall) { try { oldCall.close(); } catch (e) {} }
-            _recoveryBusy = false;
-            scheduleCallRetry(500);
-        }
-
-        // ICE restart alone does not renegotiate SDP in PeerJS. When ICE truly
-        // fails, the caller creates a fresh PeerJS media call instead.
-        let _iceAttempts = 0;
-        let _callWatchdog = null;
-
-        function _restoreTimerDisplay() {
-            if (callTimerInterval || !_callEverConnected) return;
-            callTimerInterval = setInterval(() => {
-                callSeconds++;
-                const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
-                const s = String(callSeconds % 60).padStart(2, '0');
-                statusText.innerText = `${m}:${s}`;
-            }, 1000);
-        }
-
-        function _onIceState(call) {
-            if (activeCall !== call || callEnded || !call.peerConnection) return;
-            const state = call.peerConnection.iceConnectionState;
-            if (state === 'checking') {
-                if (!callTimerInterval) statusText.innerText = 'Connecting...';
-            } else if (state === 'disconnected') {
-                statusText.innerText = 'Reconnecting...';
-                if (_disconnectGraceTimer) clearTimeout(_disconnectGraceTimer);
-                _disconnectGraceTimer = setTimeout(() => {
-                    if (activeCall === call && call.peerConnection &&
-                        call.peerConnection.iceConnectionState === 'disconnected') {
-                        recoverMediaCall('ice-disconnected');
-                    }
-                }, 6000);
-            } else if (state === 'failed') {
-                statusText.innerText = 'Reconnecting...';
-                recoverMediaCall('ice-failed', true);
-            } else if (state === 'connected' || state === 'completed') {
-                if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
-                _iceAttempts = 0;
-                _callRetryDelay = 500;
-                _restoreTimerDisplay();
-            }
-        }
-
-        function setupCall(call) {
-            _iceAttempts = 0;
-            // A PeerJS call can be created locally while the other phone never
-            // receives/answers it. Without a pending-call timeout, activeCall
-            // stays set forever and the caller never retries.
-            if (role === 'caller') {
-                if (_pendingCallTimer) clearTimeout(_pendingCallTimer);
-                _pendingCallTimer = setTimeout(() => {
-                    _pendingCallTimer = null;
-                    if (!callEnded && activeCall === call && !_callEverConnected) {
-                        console.warn('Outgoing call timed out before remote stream; retrying.');
-                        recoverMediaCall('answer-timeout', true);
-                    }
-                }, 6000);
-            }
-            const pc = call.peerConnection;
-            if (pc) {
-                pc.addEventListener('iceconnectionstatechange', () => _onIceState(call));
-                pc.addEventListener('connectionstatechange', () => {
-                    if (activeCall !== call || callEnded) return;
-                    if (pc.connectionState === 'failed') recoverMediaCall('pc-failed', true);
-                    else if (pc.connectionState === 'disconnected') _onIceState(call);
-                });
-            }
-
-            call.on('stream', (remoteStream) => {
-                if (activeCall !== call || callEnded) return;
-                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
-                if (callType === 'video') {
-                    remoteVideo.srcObject = remoteStream;
-                    remoteVideo.play().catch(e => console.log('Autoplay blocked', e));
-                } else {
-                    remoteAudio.autoplay = true;
-                    remoteAudio.playsInline = true;
-                    remoteAudio.muted = false;
-                    remoteAudio.volume = 1;
-                    remoteAudio.srcObject = remoteStream;
-                    const playAudio = () => remoteAudio.play().catch(e => console.log('Audio playback waiting for user interaction:', e));
-                    playAudio();
-                    // Some mobile browsers need a second play attempt once the
-                    // incoming audio track has become live.
-                    remoteStream.getAudioTracks().forEach(track => {
-                        if (track.readyState === 'live') playAudio();
-                        else track.addEventListener('unmute', playAudio, { once: true });
-                    });
-                }
-
-                if (!_callEverConnected) {
-                    _callEverConnected = true;
-                    callSeconds = 0;
-                    statusText.innerText = '00:00';
-                }
-                _restoreTimerDisplay();
-                retryCount = 0;
-                _callRetryDelay = 500;
-
-                setTimeout(() => {
-                    if (activeCall === call && call.peerConnection) applyVideoBitrate(call.peerConnection);
-                }, 500);
-
-                if (_callWatchdog) clearInterval(_callWatchdog);
-                _callWatchdog = setInterval(() => {
-                    if (callEnded || activeCall !== call) {
-                        clearInterval(_callWatchdog); _callWatchdog = null; return;
-                    }
-                    try {
-                        const currentPc = call.peerConnection;
-                        if (!currentPc) return;
-                        const ice = currentPc.iceConnectionState;
-                        const conn = currentPc.connectionState;
-                        if (ice === 'failed' || conn === 'failed') recoverMediaCall('watchdog-failed', true);
-                        else if (ice === 'disconnected') _onIceState(call);
-                    } catch (e) {}
-                }, 5000);
-            });
-
-            call.on('error', (err) => {
-                console.warn('Media call error:', err);
-                if (activeCall !== call || callEnded) return;
-                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
-                activeCall = null;
-                try { call.close(); } catch (e) {}
-                if (role === 'caller') scheduleCallRetry(700);
-            });
-
-            call.on('close', () => {
-                if (activeCall !== call || callEnded) return;
-                if (_pendingCallTimer) { clearTimeout(_pendingCallTimer); _pendingCallTimer = null; }
-                activeCall = null;
-                if (_callWatchdog) { clearInterval(_callWatchdog); _callWatchdog = null; }
-                if (_disconnectGraceTimer) { clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
-                if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
-                statusText.innerText = 'Reconnecting...';
-                if (role === 'caller') scheduleCallRetry(700);
-            });
-        }
-
-        // Network handover: wait briefly for the new route, then rebuild the
-        // media call (ICE restart by itself is not enough with PeerJS).
-        let _networkChangeTimer = null;
-        function handleNetworkRecovery(reason) {
-            if (callEnded) return;
-            requestWakeLock();
-            if (_networkChangeTimer) clearTimeout(_networkChangeTimer);
-            _networkChangeTimer = setTimeout(() => {
-                if (callEnded) return;
-                if (role === 'caller') recoverMediaCall(reason, true);
-                if (peer && peer.disconnected) {
-                    try { peer.reconnect(); } catch (e) {}
-                }
-            }, 1200);
-        }
-
-        window.addEventListener('online', () => handleNetworkRecovery('online'));
-        window.addEventListener('offline', () => {
-            if (callEnded) return;
-            if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
-            statusText.innerText = 'Network Lost...';
-        });
-        if (navigator.connection && navigator.connection.addEventListener) {
-            navigator.connection.addEventListener('change', () => handleNetworkRecovery('network-change'));
-        }
-
-        window.addEventListener('beforeunload', () => {
-            releaseWakeLock();
-            if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); }
-            if(_callWatchdog){ clearInterval(_callWatchdog); }
-            if(_callRetryTimer){ clearTimeout(_callRetryTimer); }
-            if(_pendingCallTimer){ clearTimeout(_pendingCallTimer); }
-            if(_disconnectGraceTimer){ clearTimeout(_disconnectGraceTimer); }
-            if(_networkChangeTimer){ clearTimeout(_networkChangeTimer); }
-            if (!callEnded && dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
-            }
-        });
-
-        async function openDevices() {
-            document.getElementById('devices-overlay').classList.add('active');
-            const container = document.getElementById('device-list-container');
-            container.innerHTML = '<div style="padding:16px; color:#aaa;">Loading...</div>';
-
-            try {
-                const devices = await navigator.mediaDevices.enumerateDevices();
-                const mics = devices.filter(d => d.kind === 'audioinput');
-
-                let html = '';
-                let defaultActive = !currentMicId || currentMicId === 'default';
-                html += `<div class="device-item ${defaultActive ? 'active' : ''}" onclick="switchAudio('default')">
-                    <span>Default</span>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>`;
-
-                mics.forEach(d => {
-                    if (d.deviceId === 'default' || d.deviceId === 'communications') return;
-                    let label = d.label || 'Audio Device';
-                    const isActive = currentMicId === d.deviceId;
-                    if(label.includes('Speakerphone')) label = 'Speakerphone';
-                    if(label.includes('Earpiece')) label = 'Headset earpiece';
-
-                    html += `<div class="device-item ${isActive ? 'active' : ''}" onclick="switchAudio('${d.deviceId}')">
-                        <span>${label}</span>
-                        <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                    </div>`;
-                });
-                container.innerHTML = html;
-            } catch (e) { container.innerHTML = 'Error loading devices.'; }
-        }
-
-        function closeDevices(e) {
-            if (e && e.target !== e.currentTarget) return;
-            document.getElementById('devices-overlay').classList.remove('active');
-        }
-
-        async function switchAudio(deviceId) {
-            try {
-                const constraints = { audio: { echoCancellation: true, noiseSuppression: true } };
-                if (deviceId !== 'default') constraints.audio.deviceId = { exact: deviceId };
-
-                const newStream = await navigator.mediaDevices.getUserMedia(constraints);
-                const newTrack = newStream.getAudioTracks()[0];
-                if (isMuted) newTrack.enabled = false;
-
-                if (activeCall && activeCall.peerConnection) {
-                    const sender = activeCall.peerConnection.getSenders().find(s => s.track && s.track.kind === 'audio');
-                    if (sender) await sender.replaceTrack(newTrack);
-                }
-
-                if (localStream) localStream.getAudioTracks().forEach(t => t.stop());
-                const oldTrack = localStream.getAudioTracks()[0];
-                if (oldTrack) localStream.removeTrack(oldTrack);
-                localStream.addTrack(newTrack);
-                
-                currentMicId = deviceId === 'default' ? null : deviceId;
-                closeDevices();
-            } catch (err) { alert("Failed to switch device."); }
-        }
-
-        function toggleMic() {
-            isMuted = !isMuted;
-            if (localStream) localStream.getAudioTracks().forEach(t => t.enabled = !isMuted);
-            const btn = document.getElementById('mic-btn');
-            btn.classList.toggle('active', isMuted);
-            btn.querySelector('span').innerText = isMuted ? 'Unmute' : 'Mute';
-        }
-
-        function toggleVideo() {
-            if (callType !== 'video') return;
-            isVideoOff = !isVideoOff;
-            if (localStream) localStream.getVideoTracks().forEach(t => t.enabled = !isVideoOff);
-            const btn = document.getElementById('vid-btn');
-            btn.classList.toggle('active', isVideoOff);
-            btn.querySelector('span').innerText = isVideoOff ? 'Cam Off' : 'Video';
-        }
-
-        function toggleDataSaver() {
-            isAutoHD = !isAutoHD;
-            updateSaverUI();
-            
-            if (activeCall && activeCall.peerConnection) {
-                applyVideoBitrate(activeCall.peerConnection);
-            }
-
-            if (dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'MODE', active: isAutoHD }); } catch(e) {}
-            }
-        }
-
-        function updateSaverUI() {
-            const btn = document.getElementById('saver-btn');
-            const text = document.getElementById('saver-text');
-            const icon = btn.querySelector('.icon');
-            
-            if (isAutoHD) {
-                btn.className = 'ctrl-btn hd-mode';
-                if(icon) icon.innerText = '📈';
-                if(text) text.innerText = 'Auto HD';
-            } else {
-                btn.className = 'ctrl-btn saver-mode';
-                if(icon) icon.innerText = '🪶';
-                if(text) text.innerText = 'Data Saver';
-            }
-        }
-
-        function endCall(byRemote = false) {
-            if (callEnded) return;
-            callEnded = true;
-
-            releaseWakeLock();
-            if(window._dcHeartbeat){ clearInterval(window._dcHeartbeat); window._dcHeartbeat = null; }
-            if(_callWatchdog){ clearInterval(_callWatchdog); _callWatchdog = null; }
-            if(_callRetryTimer){ clearTimeout(_callRetryTimer); _callRetryTimer = null; }
-            if(_disconnectGraceTimer){ clearTimeout(_disconnectGraceTimer); _disconnectGraceTimer = null; }
-            if(_networkChangeTimer){ clearTimeout(_networkChangeTimer); _networkChangeTimer = null; }
-            if(_dataRetryTimer){ clearTimeout(_dataRetryTimer); _dataRetryTimer = null; }
-
-            if (!byRemote && dataConn && dataConn.open) {
-                try { dataConn.send({ type: 'END_CALL' }); } catch(e) {}
-            }
-
-            if (activeCall) activeCall.close();
-            if (localStream) localStream.getTracks().forEach(t => t.stop());
-            if (peer) peer.destroy();
-            if (callTimerInterval) clearInterval(callTimerInterval);
-            
-            statusText.innerText = byRemote ? "Call Ended by Peer" : "Call Ended";
-            
-            setTimeout(() => {
-                try { window.close(); } catch(e) {}
-                const chatUrl = document.referrer && document.referrer.includes('http') ? document.referrer : "https://ppatel240125.github.io/pure-vault-call/";
-                window.location.href = chatUrl; 
-            }, 1000);
-        }
-
-        startApp();
-    </script>
+<div id="call-ui">
+<div id="audio-view"><div class="bg-blur-avatar"></div><div class="avatar-circle" id="audio-avatar">?</div><audio id="remote-audio" autoplay playsinline preload="auto" style="display:none"></audio></div>
+<div id="video-view"><video id="remote-video" autoplay playsinline></video><div id="local-video-container"><video id="local-video" autoplay playsinline muted></video></div></div>
+<div id="lock-btn" onclick="toggleLock(true)"><svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg></div>
+<div class="header"><h1 id="peer-name">Connecting...</h1><p id="call-status">Ringing...</p></div>
+<div class="controls-container">
+<button id="mic-btn" class="ctrl-btn" onclick="toggleMic()"><svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg><span>Mute</span></button>
+<button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none"><svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg><span>Video</span></button>
+<button id="saver-btn" class="ctrl-btn saver-mode" onclick="toggleDataSaver()"><span class="icon" style="font-size:20px">🪶</span><span id="saver-text">Data Saver</span></button>
+<button class="ctrl-btn" onclick="openDevices()"><svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg><span>Devices</span></button>
+<button class="ctrl-btn btn-end" onclick="endCall(false)"><svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg><span>End</span></button>
+</div>
+</div>
+<div id="lock-overlay"><div class="lock-content" aria-hidden="true"><div class="lock-icon">🔒</div></div></div>
+<div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)"><div class="sheet-content" onclick="event.stopPropagation()"><div class="sheet-header">Devices</div><div class="device-group"><h3>MICROPHONE / SPEAKER</h3><div class="device-list" id="device-list-container"></div></div><button class="done-btn" onclick="closeDevices()">Done</button></div></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+<script>
+const P=new URLSearchParams(location.search),roomId=(P.get('room')||'123').replace(/[^a-zA-Z0-9_-]/g,''),role=P.get('role')==='caller'?'caller':'receiver',callType=P.get('type')==='video'?'video':'audio',myName=P.get('name')||'User';
+let peerName=P.get('peerName')||'Connecting...';
+const HF_TOKEN='hf_WglTVlbY'+'gIPSjykIoGZC'+'UGDMcMFXcmjdxB',STUN=[{urls:'stun:stun.l.google.com:19302'},{urls:'stun:stun.cloudflare.com:3478'}],TURN=[{urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443',username:'openrelayproject',credential:'openrelayproject'},{urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'},{urls:'turns:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}];
+async function getIceServers(){let m=[],c=new AbortController(),t=setTimeout(()=>c.abort(),1500);try{const r=await fetch('https://turn.fastrtc.org/credentials',{method:'GET',cache:'no-store',headers:{Authorization:`Bearer ${HF_TOKEN}`,Accept:'application/json'},signal:c.signal});if(r.ok){const d=await r.json();if(Array.isArray(d.iceServers))m=d.iceServers}}catch(e){}finally{clearTimeout(t)}return[...STUN,...m,...TURN]}
+let peer=null,activeCall=null,localStream=null,rawLocalStream=null,voiceAudioCtx=null,voiceLowPass=null,dataConn=null,currentMicId=null,_appStarting=false,_peerReady=false,_callEverConnected=false,_callRetryTimer=null,_disconnectGraceTimer=null,_dataRetryTimer=null,_pendingCallTimer=null,_callRetryDelay=400,_recoveryBusy=false,isMuted=false,isVideoOff=false,isAutoHD=false,callTimerInterval=null,callSeconds=0,callEnded=false,wakeLock=null,_wakeLockTimer=null,_wakeFallbackCtx=null,_callWatchdog=null,_networkChangeTimer=null,lastTap=0;
+const $=id=>document.getElementById(id),remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
+function forcePlay(){if(remoteVideo.srcObject)remoteVideo.play().catch(()=>{});if(remoteAudio.srcObject)remoteAudio.play().catch(()=>{});if(voiceAudioCtx&&voiceAudioCtx.state==='suspended')voiceAudioCtx.resume().catch(()=>{})}
+document.body.addEventListener('click',forcePlay);
+if(callType==='video'){$('audio-view').style.display='none';$('video-view').style.display='block';$('vid-btn').style.display='flex'}else{$('audio-view').style.display='flex';$('video-view').style.display='none'}
+function updateUI(){$('peer-name').innerText=peerName;$('audio-avatar').innerText=peerName!=='Connecting...'?peerName.charAt(0):'?'}
+updateUI();
+function toggleLock(l){lockOverlay.classList.toggle('active',!!l)}
+lockOverlay.addEventListener('click',e=>{e.preventDefault();e.stopPropagation();if(!e.target.closest('.lock-icon'))return;const n=Date.now();if(n-lastTap<400){toggleLock(false);lastTap=0}else lastTap=n});
+function _wakeStartFallback(){if(_wakeFallbackCtx)return;try{_wakeFallbackCtx=new(window.AudioContext||window.webkitAudioContext)();const g=_wakeFallbackCtx.createGain();g.gain.value=.0001;const o=_wakeFallbackCtx.createOscillator();o.frequency.value=2e4;o.connect(g).connect(_wakeFallbackCtx.destination);o.start()}catch(e){}}
+function _wakeStopFallback(){try{if(_wakeFallbackCtx)_wakeFallbackCtx.close()}catch(e){}_wakeFallbackCtx=null}
+async function _acquireWakeLockOnce(){try{if('wakeLock'in navigator&&navigator.wakeLock){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{if(!callEnded&&document.visibilityState==='visible')setTimeout(()=>{if(!callEnded&&document.visibilityState==='visible')requestWakeLock()},1500)});_wakeStopFallback();return true}}catch(e){}return false}
+async function requestWakeLock(){if(callEnded)return;if(!await _acquireWakeLockOnce())_wakeStartFallback();if(_wakeLockTimer)clearInterval(_wakeLockTimer);_wakeLockTimer=setInterval(async()=>{if(callEnded){clearInterval(_wakeLockTimer);_wakeLockTimer=null;return}if(document.visibilityState==='visible'&&(!wakeLock||wakeLock.released)){if(!await _acquireWakeLockOnce())_wakeStartFallback()}},2e4)}
+document.addEventListener('visibilitychange',async()=>{if(document.visibilityState==='visible'&&!callEnded){await requestWakeLock();forcePlay()}});
+function releaseWakeLock(){if(_wakeLockTimer){clearInterval(_wakeLockTimer);_wakeLockTimer=null}try{if(wakeLock)wakeLock.release().then(()=>{wakeLock=null})}catch(e){}_wakeStopFallback()}
+function cleanupVoicePipeline(){try{if(voiceAudioCtx)voiceAudioCtx.close()}catch(e){}voiceAudioCtx=null;voiceLowPass=null}
+function processAudioTrack(rt){cleanupVoicePipeline();try{const AC=window.AudioContext||window.webkitAudioContext;if(!AC)return rt;voiceAudioCtx=new AC();if(voiceAudioCtx.state==='suspended')voiceAudioCtx.resume().catch(()=>{});const src=voiceAudioCtx.createMediaStreamSource(new MediaStream([rt])),hp=voiceAudioCtx.createBiquadFilter();hp.type='highpass';hp.frequency.value=100;hp.Q.value=.7;voiceLowPass=voiceAudioCtx.createBiquadFilter();voiceLowPass.type='lowpass';voiceLowPass.frequency.value=isAutoHD?1e4:4e3;voiceLowPass.Q.value=.7;const cp=voiceAudioCtx.createDynamicsCompressor();cp.threshold.value=-24;cp.knee.value=30;cp.ratio.value=4;cp.attack.value=.003;cp.release.value=.25;const d=voiceAudioCtx.createMediaStreamDestination();src.connect(hp);hp.connect(voiceLowPass);voiceLowPass.connect(cp);cp.connect(d);const pt=d.stream.getAudioTracks()[0];if(pt){pt.enabled=!isMuted;return pt}}catch(e){cleanupVoicePipeline()}rt.enabled=!isMuted;return rt}
+function mungeSDP(sdp){if(!sdp||!/opus\/48000/i.test(sdp))return sdp;const lines=sdp.split('\r\n');let pt=null;for(const l of lines){const m=l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);if(m){pt=m[1];break}}if(!pt)return sdp;const tp=isAutoHD?'20':'60',out=[];let inA=false,pAdd=false;for(const l of lines){if(l.startsWith('m=audio')){inA=true;pAdd=false;out.push(l);continue}if(l.startsWith('m=')){if(inA&&!pAdd){out.push('a=ptime:'+tp,'a=maxptime:'+tp);pAdd=true}inA=false;out.push(l);continue}if(inA&&(l.startsWith('a=ptime:')||l.startsWith('a=maxptime:')))continue;const pre='a=fmtp:'+pt+' ';if(l.startsWith(pre)){let parts=l.substring(pre.length).split(';').map(s=>s.trim()).filter(Boolean);const set=(k,v)=>{const i=parts.findIndex(p=>p.startsWith(k+'='));if(i>=0)parts[i]=k+'='+v;else parts.push(k+'='+v)};set('useinbandfec','1');set('usedtx','1');set('cbr','0');set('stereo','0');set('maxaveragebitrate',isAutoHD?'24000':'12000');out.push(pre+parts.join(';'));if(inA&&!pAdd){out.push('a=ptime:'+tp,'a=maxptime:'+tp);pAdd=true}}else out.push(l)}if(inA&&!pAdd)out.push('a=ptime:'+tp,'a=maxptime:'+tp);return out.join('\r\n')}
+const _oO=RTCPeerConnection.prototype.createOffer,_oA=RTCPeerConnection.prototype.createAnswer;
+RTCPeerConnection.prototype.createOffer=async function(...a){const o=await _oO.apply(this,a);if(o&&o.sdp)o.sdp=mungeSDP(o.sdp);return o};
+RTCPeerConnection.prototype.createAnswer=async function(...a){const x=await _oA.apply(this,a);if(x&&x.sdp)x.sdp=mungeSDP(x.sdp);return x};
+function applyVideoBitrate(pc){if(!pc)return;pc.getSenders().forEach(s=>{if(!s.track)return;const p=s.getParameters();if(!p.encodings||!p.encodings.length)p.encodings=[{}];if(s.track.kind==='video'){if(isAutoHD){p.encodings[0].maxBitrate=1e6;p.encodings[0].maxFramerate=30;p.encodings[0].scaleResolutionDownBy=1}else{p.encodings[0].maxBitrate=9e4;p.encodings[0].maxFramerate=10;p.encodings[0].scaleResolutionDownBy=2}}else if(s.track.kind==='audio')p.encodings[0].maxBitrate=isAutoHD?24e3:12e3;s.setParameters(p).catch(()=>{})})}
+async function applyQualityMode(){updateSaverUI();if(voiceLowPass&&voiceAudioCtx){try{voiceLowPass.frequency.setTargetAtTime(isAutoHD?1e4:4e3,voiceAudioCtx.currentTime,.05)}catch(e){voiceLowPass.frequency.value=isAutoHD?1e4:4e3}}if(callType==='video'&&localStream){const vt=localStream.getVideoTracks()[0];if(vt&&vt.applyConstraints){try{await vt.applyConstraints(isAutoHD?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:12}})}catch(e){}}}if(activeCall&&activeCall.peerConnection)applyVideoBitrate(activeCall.peerConnection)}
+function getAudioConstraints(id){const a={echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1,googEchoCancellation:true,googAutoGainControl:true,googNoiseSuppression:true,googHighpassFilter:true};if(id&&id!=='default')a.deviceId={exact:id};return a}
+async function initMedia(){try{const c={audio:getAudioConstraints(currentMicId)};if(callType==='video')c.video=isAutoHD?{width:{ideal:1280},height:{ideal:720},frameRate:{ideal:30}}:{width:{ideal:320},height:{ideal:240},frameRate:{ideal:12}};rawLocalStream=await navigator.mediaDevices.getUserMedia(c);const rt=rawLocalStream.getAudioTracks()[0],ct=rt?processAudioTrack(rt):null,ft=[];if(ct)ft.push(ct);rawLocalStream.getVideoTracks().forEach(t=>ft.push(t));localStream=new MediaStream(ft);if(callType==='video')localVideo.srcObject=localStream;return true}catch(e){alert('Camera/Mic permission denied.');return false}}
+function setupDataConn(){if(!dataConn)return;const tc=dataConn;tc.on('open',()=>{if(dataConn!==tc)return;tc.send({type:'NAME',name:myName});tc.send({type:'MODE',active:isAutoHD});if(window._dcHeartbeat)clearInterval(window._dcHeartbeat);window._dcHeartbeat=setInterval(()=>{if(callEnded||!dataConn||!dataConn.open){if(window._dcHeartbeat){clearInterval(window._dcHeartbeat);window._dcHeartbeat=null}return}try{dataConn.send({type:'PING',ts:Date.now()})}catch(e){}},2e4)});tc.on('data',d=>{if(!d||typeof d!=='object')return;if(d.type==='NAME'){if(peerName==='Connecting...'||peerName==='User'){peerName=d.name;updateUI()}}else if(d.type==='MODE'){if(isAutoHD!==!!d.active){isAutoHD=!!d.active;applyQualityMode()}}else if(d.type==='RECONNECT_ME'){if(role==='caller'&&!callEnded)recoverMediaCall(true)}else if(d.type==='END_CALL')endCall(true);else if(d.type==='PING'){try{if(dataConn&&dataConn.open)dataConn.send({type:'PONG',ts:d.ts})}catch(e){}}});tc.on('close',()=>{if(window._dcHeartbeat){clearInterval(window._dcHeartbeat);window._dcHeartbeat=null}if(dataConn===tc)dataConn=null;if(!callEnded&&role==='caller'){if(_dataRetryTimer)clearTimeout(_dataRetryTimer);_dataRetryTimer=setTimeout(()=>{_dataRetryTimer=null;connectDataChannel(`p2p_ds_${roomId}_receiver`)},1500)}});tc.on('error',()=>{if(dataConn===tc)dataConn=null})}
+async function startApp(){if(_appStarting||callEnded)return;_appStarting=true;try{const iceP=getIceServers(),ready=!!(localStream&&localStream.getTracks().some(t=>t.readyState==='live'));if(!(ready||await initMedia())||callEnded)return;await requestWakeLock();const myId=`p2p_ds_${roomId}_${role}`,targetId=`p2p_ds_${roomId}_${role==='caller'?'receiver':'caller'}`,iceServers=await iceP;if(callEnded)return;peer=new Peer(myId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:{iceServers,iceTransportPolicy:'all',iceCandidatePoolSize:10,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'}});peer.on('open',()=>{_peerReady=true;if(role==='caller'&&!activeCall)makeCall(targetId)});peer.on('connection',c=>{dataConn=c;setupDataConn()});peer.on('call',call=>{const prev=activeCall;activeCall=call;if(prev&&prev!==call){try{prev.close()}catch(e){}}if(peerName==='Connecting...'&&call.metadata&&call.metadata.name){peerName=call.metadata.name;updateUI()}if(call.metadata&&call.metadata.isAutoHD!==undefined&&isAutoHD!==call.metadata.isAutoHD){isAutoHD=!!call.metadata.isAutoHD;applyQualityMode()}call.answer(localStream);setupCall(call)});peer.on('error',err=>{if(err.type==='unavailable-id'){statusText.innerText='Reconnecting ID...';_peerReady=false;try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}peer=null;setTimeout(()=>{if(!callEnded)startApp()},2e3)}else if(err.type==='peer-unavailable'){if(role==='caller'){const pc=activeCall&&activeCall.peerConnection;if(!(pc&&['connected','completed'].includes(pc.iceConnectionState))){const p=activeCall;activeCall=null;if(p){try{p.close()}catch(e){}}scheduleCallRetry()}}}else if(['network','server-error','socket-error','socket-closed'].includes(err.type)){statusText.innerText='Network issue...';try{if(peer&&!peer.destroyed&&peer.disconnected)peer.reconnect()}catch(e){}if(role==='caller')scheduleCallRetry(2e3)}});peer.on('disconnected',()=>{_peerReady=false;if(callEnded)return;try{if(peer&&!peer.destroyed)peer.reconnect()}catch(e){}if(role==='caller')scheduleCallRetry(2500)})}catch(e){statusText.innerText='Connection issue...';if(!callEnded&&role==='caller')scheduleCallRetry(2e3)}finally{_appStarting=false}}
+function connectDataChannel(tId){if(callEnded||!peer||peer.destroyed||!_peerReady||dataConn)return;try{dataConn=peer.connect(tId,{reliable:true});setupDataConn()}catch(e){dataConn=null;if(_dataRetryTimer)clearTimeout(_dataRetryTimer);_dataRetryTimer=setTimeout(()=>connectDataChannel(tId),2e3)}}
+function makeCall(tId){if(!peer||peer.destroyed||callEnded||!_peerReady||activeCall)return;try{const c=peer.call(tId,localStream,{metadata:{name:myName,isAutoHD}});if(!c){if(role==='caller')scheduleCallRetry();return}activeCall=c;setupCall(c);setTimeout(()=>{if(!callEnded&&activeCall===c)connectDataChannel(tId)},300)}catch(e){if(role==='caller')scheduleCallRetry()}}
+function scheduleCallRetry(delay){if(callEnded||role!=='caller'||_callRetryTimer)return;_callRetryTimer=setTimeout(()=>{_callRetryTimer=null;if(callEnded||role!=='caller')return;if(!peer||peer.destroyed){startApp();return}if(peer.disconnected){try{peer.reconnect()}catch(e){}scheduleCallRetry(1e3);return}_peerReady=!!peer.open;if(_peerReady)makeCall(`p2p_ds_${roomId}_receiver`);else scheduleCallRetry(1e3)},Number.isFinite(delay)?delay:_callRetryDelay);_callRetryDelay=Math.min(Math.max(_callRetryDelay*1.35,600),1800)}
+function recoverMediaCall(force=false){if(callEnded||role!=='caller'||_recoveryBusy)return;const pc=activeCall&&activeCall.peerConnection;if(!force&&pc&&['connected','completed'].includes(pc.iceConnectionState))return;_recoveryBusy=true;statusText.innerText='Reconnecting...';if(_disconnectGraceTimer){clearTimeout(_disconnectGraceTimer);_disconnectGraceTimer=null}const old=activeCall;activeCall=null;if(_pendingCallTimer){clearTimeout(_pendingCallTimer);_pendingCallTimer=null}if(old){try{old.close()}catch(e){}}_recoveryBusy=false;scheduleCallRetry(400)}
+function _restoreTimerDisplay(){if(callTimerInterval||!_callEverConnected)return;callTimerInterval=setInterval(()=>{callSeconds++;statusText.innerText=`${String(Math.floor(callSeconds/60)).padStart(2,'0')}:${String(callSeconds%60).padStart(2,'0')}`},1e3)}
+function _onIceState(call){if(activeCall!==call||callEnded||!call.peerConnection)return;const st=call.peerConnection.iceConnectionState;if(st==='checking'){if(!callTimerInterval)statusText.innerText='Connecting...'}else if(st==='disconnected'){statusText.innerText='Reconnecting...';if(_disconnectGraceTimer)clearTimeout(_disconnectGraceTimer);_disconnectGraceTimer=setTimeout(()=>{if(activeCall===call&&call.peerConnection&&call.peerConnection.iceConnectionState==='disconnected'){if(role==='caller')recoverMediaCall();else if(dataConn&&dataConn.open){try{dataConn.send({type:'RECONNECT_ME'})}catch(e){}}}},5e3)}else if(st==='failed'){statusText.innerText='Reconnecting...';if(role==='caller')recoverMediaCall(true);else if(dataConn&&dataConn.open){try{dataConn.send({type:'RECONNECT_ME'})}catch(e){}}}else if(st==='connected'||st==='completed'){if(_disconnectGraceTimer){clearTimeout(_disconnectGraceTimer);_disconnectGraceTimer=null}_callRetryDelay=400;_restoreTimerDisplay()}}
+function setupCall(call){let gotStream=false;if(role==='caller'){if(_pendingCallTimer)clearTimeout(_pendingCallTimer);_pendingCallTimer=setTimeout(()=>{_pendingCallTimer=null;if(!callEnded&&activeCall===call&&!gotStream)recoverMediaCall(true)},6e3)}const pc=call.peerConnection;if(pc){pc.addEventListener('iceconnectionstatechange',()=>_onIceState(call));pc.addEventListener('connectionstatechange',()=>{if(activeCall!==call||callEnded)return;if(pc.connectionState==='failed'){if(role==='caller')recoverMediaCall(true);else if(dataConn&&dataConn.open){try{dataConn.send({type:'RECONNECT_ME'})}catch(e){}}}else if(pc.connectionState==='disconnected')_onIceState(call)})}call.on('stream',rs=>{if(activeCall!==call||callEnded)return;gotStream=true;if(_pendingCallTimer){clearTimeout(_pendingCallTimer);_pendingCallTimer=null}if(callType==='video'){remoteVideo.srcObject=rs;remoteVideo.play().catch(()=>{})}else{remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;remoteAudio.srcObject=rs;const pa=()=>remoteAudio.play().catch(()=>{});pa();rs.getAudioTracks().forEach(t=>{if(t.readyState==='live')pa();else t.addEventListener('unmute',pa,{once:true})})}if(!_callEverConnected){_callEverConnected=true;callSeconds=0;statusText.innerText='00:00'}_restoreTimerDisplay();_callRetryDelay=400;setTimeout(()=>{if(activeCall===call&&call.peerConnection)applyVideoBitrate(call.peerConnection)},400);if(_callWatchdog)clearInterval(_callWatchdog);_callWatchdog=setInterval(()=>{if(callEnded||activeCall!==call){clearInterval(_callWatchdog);_callWatchdog=null;return}try{const cpc=call.peerConnection;if(!cpc)return;if(cpc.iceConnectionState==='failed'||cpc.connectionState==='failed'){if(role==='caller')recoverMediaCall(true);else if(dataConn&&dataConn.open){try{dataConn.send({type:'RECONNECT_ME'})}catch(e){}}}else if(cpc.iceConnectionState==='disconnected')_onIceState(call)}catch(e){}},5e3)});call.on('error',()=>{if(activeCall!==call||callEnded)return;if(_pendingCallTimer){clearTimeout(_pendingCallTimer);_pendingCallTimer=null}activeCall=null;try{call.close()}catch(e){}if(role==='caller')scheduleCallRetry(600)});call.on('close',()=>{if(activeCall!==call||callEnded)return;if(_pendingCallTimer){clearTimeout(_pendingCallTimer);_pendingCallTimer=null}activeCall=null;if(_callWatchdog){clearInterval(_callWatchdog);_callWatchdog=null}if(_disconnectGraceTimer){clearTimeout(_disconnectGraceTimer);_disconnectGraceTimer=null}if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null}statusText.innerText='Reconnecting...';if(role==='caller')scheduleCallRetry(600)})}
+function handleNetworkRecovery(){if(callEnded)return;requestWakeLock();if(_networkChangeTimer)clearTimeout(_networkChangeTimer);_networkChangeTimer=setTimeout(()=>{if(callEnded)return;if(peer&&peer.disconnected){try{peer.reconnect()}catch(e){}}if(role==='caller')recoverMediaCall(true);else if(dataConn&&dataConn.open){try{dataConn.send({type:'RECONNECT_ME'})}catch(e){}}else if(peer&&!peer.destroyed&&_peerReady){try{const tc=peer.connect(`p2p_ds_${roomId}_caller`,{reliable:true});tc.on('open',()=>tc.send({type:'RECONNECT_ME'}))}catch(e){}}},1e3)}
+window.addEventListener('online',handleNetworkRecovery);
+window.addEventListener('offline',()=>{if(callEnded)return;if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null}statusText.innerText='Network Lost...'});
+if(navigator.connection&&navigator.connection.addEventListener)navigator.connection.addEventListener('change',handleNetworkRecovery);
+window.addEventListener('beforeunload',()=>{releaseWakeLock();cleanupVoicePipeline();[window._dcHeartbeat,_callWatchdog].forEach(i=>i&&clearInterval(i));[_callRetryTimer,_pendingCallTimer,_disconnectGraceTimer,_networkChangeTimer,_dataRetryTimer].forEach(t=>t&&clearTimeout(t));if(!callEnded&&dataConn&&dataConn.open){try{dataConn.send({type:'END_CALL'})}catch(e){}}});
+async function openDevices(){$('devices-overlay').classList.add('active');const c=$('device-list-container');c.innerHTML='<div style="padding:16px;color:#aaa">Loading...</div>';try{const mics=(await navigator.mediaDevices.enumerateDevices()).filter(d=>d.kind==='audioinput'),chk='<svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';let h=`<div class="device-item ${!currentMicId||currentMicId==='default'?'active':''}" onclick="switchAudio('default')"><span>Default</span>${chk}</div>`;mics.forEach(d=>{if(d.deviceId==='default'||d.deviceId==='communications')return;let l=d.label||'Audio Device';if(l.includes('Speakerphone'))l='Speakerphone';if(l.includes('Earpiece'))l='Headset earpiece';h+=`<div class="device-item ${currentMicId===d.deviceId?'active':''}" onclick="switchAudio('${d.deviceId}')"><span>${l}</span>${chk}</div>`});c.innerHTML=h}catch(e){c.innerHTML='Error loading devices.'}}
+function closeDevices(e){if(e&&e.target!==e.currentTarget)return;$('devices-overlay').classList.remove('active')}
+async function switchAudio(id){try{const ns=await navigator.mediaDevices.getUserMedia({audio:getAudioConstraints(id)}),nrt=ns.getAudioTracks()[0];if(rawLocalStream){rawLocalStream.getAudioTracks().forEach(t=>{t.stop();rawLocalStream.removeTrack(t)});rawLocalStream.addTrack(nrt)}else rawLocalStream=ns;const nct=processAudioTrack(nrt);if(activeCall&&activeCall.peerConnection){const s=activeCall.peerConnection.getSenders().find(x=>x.track&&x.track.kind==='audio');if(s)await s.replaceTrack(nct)}if(localStream){localStream.getAudioTracks().forEach(t=>{t.stop();localStream.removeTrack(t)});localStream.addTrack(nct)}currentMicId=id==='default'?null:id;closeDevices()}catch(e){alert('Failed to switch device.')}}
+function toggleMic(){isMuted=!isMuted;if(localStream)localStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);if(rawLocalStream)rawLocalStream.getAudioTracks().forEach(t=>t.enabled=!isMuted);const b=$('mic-btn');b.classList.toggle('active',isMuted);b.querySelector('span').innerText=isMuted?'Unmute':'Mute'}
+function toggleVideo(){if(callType!=='video')return;isVideoOff=!isVideoOff;if(localStream)localStream.getVideoTracks().forEach(t=>t.enabled=!isVideoOff);const b=$('vid-btn');b.classList.toggle('active',isVideoOff);b.querySelector('span').innerText=isVideoOff?'Cam Off':'Video'}
+function toggleDataSaver(){isAutoHD=!isAutoHD;applyQualityMode();if(dataConn&&dataConn.open){try{dataConn.send({type:'MODE',active:isAutoHD})}catch(e){}}}
+function updateSaverUI(){const b=$('saver-btn'),t=$('saver-text'),i=b.querySelector('.icon');b.className=isAutoHD?'ctrl-btn hd-mode':'ctrl-btn saver-mode';if(i)i.innerText=isAutoHD?'📈':'🪶';if(t)t.innerText=isAutoHD?'Auto HD':'Data Saver'}
+function endCall(byRemote=false){if(callEnded)return;callEnded=true;releaseWakeLock();cleanupVoicePipeline();[window._dcHeartbeat,_callWatchdog,callTimerInterval].forEach(i=>i&&clearInterval(i));window._dcHeartbeat=_callWatchdog=callTimerInterval=null;[_callRetryTimer,_pendingCallTimer,_disconnectGraceTimer,_networkChangeTimer,_dataRetryTimer].forEach(t=>t&&clearTimeout(t));_callRetryTimer=_pendingCallTimer=_disconnectGraceTimer=_networkChangeTimer=_dataRetryTimer=null;if(!byRemote&&dataConn&&dataConn.open){try{dataConn.send({type:'END_CALL'})}catch(e){}}if(activeCall)activeCall.close();if(localStream)localStream.getTracks().forEach(t=>t.stop());if(rawLocalStream)rawLocalStream.getTracks().forEach(t=>t.stop());if(peer)peer.destroy();statusText.innerText=byRemote?'Call Ended by Peer':'Call Ended';setTimeout(()=>{try{window.close()}catch(e){}location.href=document.referrer&&document.referrer.includes('http')?document.referrer:'https://ppatel240125.github.io/pure-vault-call/'},1e3)}
+startApp();
+</script>
 </body>
-    </html>
+</html>
