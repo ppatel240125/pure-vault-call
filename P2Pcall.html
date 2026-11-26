@@ -1,0 +1,1577 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>Secure Call</title>
+<style>
+    :root {
+        --bg: #0f111a; --surface: #1e2332; --surface-hover: #2a3045;
+        --primary: #3b82f6; --text: #ffffff; --text-muted: #8b92a5;
+        --danger: #ef4444; --success: #22c55e;
+    }
+    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
+    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
+    
+    #call-ui { display: flex; flex-direction: column; width: 100%; height: 100%; height: 100dvh; position: relative; }
+    
+    #audio-view {
+        position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        background: radial-gradient(circle at center, #1e2332 0%, #0f111a 70%); z-index: 1;
+    }
+    .bg-blur-avatar {
+        position: absolute; width: 300px; height: 300px; background: var(--surface-hover);
+        border-radius: 50%; filter: blur(80px); opacity: 0.5; z-index: -1;
+    }
+    .avatar-circle {
+        width: 120px; height: 120px; border-radius: 50%; background: var(--surface);
+        display: flex; align-items: center; justify-content: center; font-size: 50px; font-weight: bold;
+        color: #fff; border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        text-transform: uppercase;
+    }
+    #remote-audio {
+        position: fixed; width: 120px; height: 24px; opacity: 0.02; pointer-events: none; bottom: 4px; left: 4px; z-index: 1;
+    }
+
+    #video-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; inset: 0; display: none; background: #000; z-index: 1; }
+    #remote-video { width: 100%; height: 100%; object-fit: cover; }
+    #local-video-container {
+        position: absolute; top: 60px; right: 20px; width: 90px; height: 130px;
+        border-radius: 16px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;
+    }
+    #local-video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+
+    .header {
+        position: absolute; top: 36px; top: max(36px, env(safe-area-inset-top)); left: 0; right: 0;
+        display: flex; flex-direction: column; align-items: center; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+    }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 600; color: var(--text); }
+    .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
+
+    #audio-diag-bar {
+        display: none; align-items: center; justify-content: center; flex-wrap: wrap;
+        margin-top: 10px; max-width: 92vw; padding: 5px 12px; border-radius: 20px;
+        background: rgba(15, 17, 26, 0.78); border: 1px solid rgba(255,255,255,0.1);
+        font-size: 11px; color: #cbd5e1; backdrop-filter: blur(8px);
+    }
+    #audio-diag-bar > span { margin: 0 4px; }
+    .diag-dot {
+        display: inline-block; width: 7px; height: 7px; border-radius: 50%;
+        background: #64748b; margin-right: 4px; vertical-align: middle;
+    }
+    .diag-dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
+    .diag-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
+    .diag-dot.err { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    #txt-route { color: #93c5fd; }
+
+    #tap-audio-hint {
+        display: none; margin-top: 10px; padding: 8px 16px; border-radius: 20px;
+        background: rgba(59, 130, 246, 0.95); color: #fff; font-size: 12px; font-weight: 600;
+        border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+    }
+
+    #lock-btn {
+        position: absolute; top: 20px; top: max(20px, env(safe-area-inset-top)); right: 20px;
+        width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12);
+        border: 1px solid rgba(255,255,255,0.12); display: flex; align-items: center; justify-content: center;
+        z-index: 30; cursor: pointer; backdrop-filter: blur(4px); color: #fff;
+    }
+    #lock-btn:active { background: rgba(255,255,255,0.22); }
+
+    .controls-container {
+        position: absolute; bottom: 28px; bottom: max(28px, env(safe-area-inset-bottom)); left: 10px; right: 10px;
+        background: rgba(30, 35, 50, 0.92); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+        border-radius: 36px; padding: 10px 8px; display: flex; justify-content: space-between; align-items: center;
+        z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06);
+    }
+    .ctrl-btn {
+        display: flex; flex-direction: column; align-items: center; justify-content: center;
+        background: transparent; border: 1px solid transparent; color: var(--text); cursor: pointer;
+        transition: 0.2s; flex: 1; min-width: 44px; padding: 6px 2px; border-radius: 12px; margin: 0 1px;
+    }
+    .ctrl-btn:active { transform: scale(0.92); }
+    .ctrl-btn span { margin-top: 4px; font-size: 9px; font-weight: 600; color: #aaa; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+    .ctrl-btn .icon { margin-top: 0; }
+    .ctrl-btn svg, .ctrl-btn .icon { width: 20px; height: 20px; fill: currentColor; }
+    .ctrl-btn.active span { color: #fff; }
+    
+    #nc-btn.raw-on { background: #422006; border-color: #f59e0b; }
+    #nc-btn.raw-on span { color: #fde047; }
+    #nc-btn.nc-on { background: #1e3a8a; border-color: #3b82f6; }
+    #nc-btn.nc-on span { color: #bfdbfe; }
+    #nc-btn.enc-on { background: #064e3b; border-color: #10b981; }
+    #nc-btn.enc-on span { color: #a7f3d0; }
+    #nc-btn.nc-err { background: #3f1d1d; border-color: #ef4444; }
+    #nc-btn.nc-err span { color: #fca5a5; }
+
+    #saver-btn.q-ultra { background: #422006; border-color: #f59e0b; }
+    #saver-btn.q-ultra span { color: #fde047; }
+    #saver-btn.q-sd { background: #0f2942; border-color: #38bdf8; }
+    #saver-btn.q-sd span { color: #bae6fd; }
+    #saver-btn.q-hd { background: #14532d; border-color: var(--success); }
+    #saver-btn.q-hd span { color: #bbf7d0; }
+    #saver-btn.q-uhd { background: #3b0764; border-color: #c084fc; }
+    #saver-btn.q-uhd span { color: #f3e8ff; }
+
+    .btn-end { background: var(--danger); border-radius: 24px; padding: 12px 14px; flex: 0 0 auto; min-width: 48px; }
+    .btn-end svg { fill: #fff; width: 22px; height: 22px; }
+    .btn-end span { display: none; }
+
+    .sheet-overlay {
+        position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0;
+        background: rgba(0,0,0,0.68); backdrop-filter: blur(3px); z-index: 100;
+        display: none; align-items: flex-end; justify-content: center;
+    }
+    .sheet-overlay.active { display: flex; }
+    .sheet-content {
+        background: #141824; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 20px;
+        padding-bottom: 20px; padding-bottom: max(20px, env(safe-area-inset-bottom));
+        animation: slideUp 0.25s cubic-bezier(0.16, 1, 0.3, 1); color: #fff;
+    }
+    @keyframes slideUp { from { transform: translateY(100%); } to { transform: translateY(0); } }
+    .sheet-header { font-size: 19px; font-weight: bold; margin-bottom: 6px; }
+    .sheet-sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+    .device-group h3 { font-size: 11px; color: var(--text-muted); letter-spacing: 1px; margin: 0 0 8px 4px; font-weight: 600; }
+    .device-list { background: #1e2332; border-radius: 16px; overflow: hidden; }
+    .device-item {
+        display: flex; justify-content: space-between; align-items: center;
+        padding: 14px 16px; font-size: 15px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.06);
+    }
+    .device-item:last-child { border-bottom: none; }
+    .device-item:active { background: rgba(255,255,255,0.06); }
+    .q-item-info { display: flex; flex-direction: column; }
+    .q-item-title { font-weight: 600; font-size: 15px; color: #fff; display: flex; align-items: center; }
+    .q-item-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
+    .q-badge {
+        font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; margin-left: 8px;
+        background: rgba(255,255,255,0.08); color: #cbd5e1;
+    }
+    .check-icon { display: none; width: 22px; height: 22px; fill: var(--success); flex-shrink: 0; }
+    .device-item.active .check-icon { display: block; }
+    .done-btn {
+        width: 100%; padding: 14px; background: rgba(255,255,255,0.1); color: #fff; border: none;
+        border-radius: 16px; font-size: 15px; font-weight: bold; margin-top: 16px; cursor: pointer;
+    }
+
+    #lock-overlay {
+        position: fixed; top: 0; right: 0; bottom: 0; left: 0; inset: 0; background: #000; z-index: 99999;
+        display: none; flex-direction: column; align-items: center; justify-content: center;
+        touch-action: none; overscroll-behavior: contain;
+    }
+    #lock-overlay.active { display: flex; }
+    .lock-content { text-align: center; color: #fff; pointer-events: none; }
+    .lock-icon { font-size: 48px; margin-bottom: 16px; pointer-events: auto; }
+    .lock-text { font-size: 14px; color: #888; font-weight: 500; }
+</style>
+</head>
+<body>
+
+    <div id="call-ui">
+        <div id="audio-view">
+            <div class="bg-blur-avatar"></div>
+            <div class="avatar-circle" id="audio-avatar">?</div>
+            <audio id="remote-audio" autoplay playsinline preload="auto"></audio>
+        </div>
+
+        <div id="video-view">
+            <video id="remote-video" autoplay playsinline></video>
+            <div id="local-video-container">
+                <video id="local-video" autoplay playsinline muted></video>
+            </div>
+        </div>
+
+        <div id="lock-btn" onclick="toggleLock(true)">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
+        </div>
+
+        <div class="header">
+            <h1 id="peer-name">Connecting...</h1>
+            <p id="call-status">Ringing...</p>
+            <div id="audio-diag-bar">
+                <span><i id="dot-out" class="diag-dot"></i><b id="txt-out">Mic: --</b></span>
+                <span>•</span>
+                <span><i id="dot-in" class="diag-dot"></i><b id="txt-in">In: --</b></span>
+                <span>•</span>
+                <span><b id="txt-route">🔍 Direct...</b></span>
+            </div>
+            <button id="tap-audio-hint" onclick="forcePlay()">🔊 Tap to hear audio</button>
+        </div>
+
+        <div class="controls-container">
+            <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
+                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+                <span>Mute</span>
+            </button>
+
+            <button id="nc-btn" class="ctrl-btn" onclick="openNoiseMenu()">
+                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+                <span id="nc-text">Mic Filter</span>
+            </button>
+            
+            <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
+                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+                <span>Video</span>
+            </button>
+
+            <button id="saver-btn" class="ctrl-btn q-sd" onclick="openQualityMenu()">
+                <span class="icon" style="font-size: 17px; line-height: 20px;">📶</span>
+                <span id="saver-text">Auto SD</span>
+            </button>
+
+            <button class="ctrl-btn" onclick="openDevices()">
+                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+                <span>Devices</span>
+            </button>
+
+            <button class="ctrl-btn btn-end" onclick="endCall(false)">
+                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+                <span>End</span>
+            </button>
+        </div>
+    </div>
+
+    <div id="lock-overlay">
+        <div class="lock-content">
+            <div class="lock-icon">🔒</div>
+            <div class="lock-text">Double tap lock to unlock</div>
+        </div>
+    </div>
+
+    <div id="noise-overlay" class="sheet-overlay" onclick="closeNoiseMenu(event)">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-header">Microphone & Audio Filter</div>
+            <div class="sheet-sub">Applies filter if supported by browser, otherwise stays safely Off</div>
+            <div class="device-list" id="noise-list-container">
+                <div class="device-item active" data-nmode="off" onclick="selectNoiseMode('off')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🎙️ Standard Voice <span class="q-badge">Default</span></div>
+                        <div class="q-item-desc">Balanced echo cancellation for clear voice calls</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-nmode="raw" onclick="selectNoiseMode('raw')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🎚️ Natural Audio <span class="q-badge">Unprocessed</span></div>
+                        <div class="q-item-desc">Direct microphone input without audio gating</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-nmode="nc" onclick="selectNoiseMode('nc')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🔇 Noise Cancellation <span class="q-badge">Filter</span></div>
+                        <div class="q-item-desc">Reduces fan, hum & light room background noise</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🛡️ Environment Cancellation <span class="q-badge">Voice Focus</span></div>
+                        <div class="q-item-desc">Isolates voice from heavy traffic, wind & crowd</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+            </div>
+            <button class="done-btn" onclick="closeNoiseMenu()">Close</button>
+        </div>
+    </div>
+
+    <div id="quality-overlay" class="sheet-overlay" onclick="closeQualityMenu(event)">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-header">Call Quality & Data Mode</div>
+            <div class="sheet-sub">Applies automatically to both phones</div>
+            <div class="device-list" id="quality-list-container">
+                <div class="device-item" data-qmode="ultra" onclick="selectQualityMode('ultra')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🪶 Ultra Saving <span class="q-badge">10–12 kbps</span></div>
+                        <div class="q-item-desc">Maximum data saving (~5 MB/hr) • Weak network</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item active" data-qmode="sd" onclick="selectQualityMode('sd')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">📶 Auto SD <span class="q-badge">14–16 kbps</span></div>
+                        <div class="q-item-desc">Balanced & safe for all phones (~6.8 MB/hr)</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-qmode="hd" onclick="selectQualityMode('hd')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">✨ Auto HD <span class="q-badge">20–24 kbps</span></div>
+                        <div class="q-item-desc">Clear voice & smooth 480p video (~10 MB/hr)</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-qmode="uhd" onclick="selectQualityMode('uhd')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">💎 UHD <span class="q-badge">32 kbps</span></div>
+                        <div class="q-item-desc">Crystal studio audio & 720p HD video (~14.5 MB/hr)</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+            </div>
+            <button class="done-btn" onclick="closeQualityMenu()">Close</button>
+        </div>
+    </div>
+
+    <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
+        <div class="sheet-content" onclick="event.stopPropagation()">
+            <div class="sheet-header">Devices</div>
+            <div class="device-group">
+                <h3>MICROPHONE / SPEAKER</h3>
+                <div class="device-list" id="device-list-container"></div>
+            </div>
+            <button class="done-btn" onclick="closeDevices()">Done</button>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.2/peerjs.min.js"></script>
+    <script>
+        /* =========================================================
+           1. UNIVERSAL OLD & NEW PHONE COMPATIBILITY ENGINE
+           ========================================================= */
+        const UA = navigator.userAgent || '';
+        const androidVer = (UA.match(/Android\s+(\d+)/i) || [])[1];
+        const chromeVer = (UA.match(/Chrome\/(\d+)/i) || [])[1];
+        const isLegacyDevice = (androidVer && parseInt(androidVer, 10) <= 11)
+            || (chromeVer && parseInt(chromeVer, 10) < 110)
+            || !('wakeLock' in navigator);
+
+        // Polyfill getUserMedia for very old WebViews / Browsers
+        if (!navigator.mediaDevices) navigator.mediaDevices = {};
+        if (!navigator.mediaDevices.getUserMedia) {
+            const legacyGetUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+            if (legacyGetUM) {
+                navigator.mediaDevices.getUserMedia = constraints => new Promise((resolve, reject) => {
+                    legacyGetUM.call(navigator, constraints, resolve, reject);
+                });
+            }
+        }
+
+        // Polyfill RTCPeerConnection for legacy WebKit browsers
+        if (!window.RTCPeerConnection && window.webkitRTCPeerConnection) {
+            window.RTCPeerConnection = window.webkitRTCPeerConnection;
+        }
+
+        const QUALITY_PRESETS = {
+            ultra: { label: 'Ultra Save', icon: '🪶', className: 'q-ultra', kbpsText: '10–12 kbps', audioBitrate: 11500, videoBitrate: 75000, scaleDown: 2.5, width: 256, height: 144, fps: 10 },
+            sd: { label: 'Auto SD', icon: '📶', className: 'q-sd', kbpsText: '14–16 kbps', audioBitrate: 15000, videoBitrate: 150000, scaleDown: 2.0, width: 320, height: 240, fps: 15 },
+            hd: { label: 'Auto HD', icon: '✨', className: 'q-hd', kbpsText: '20–24 kbps', audioBitrate: 22000, videoBitrate: 550000, scaleDown: 1.5, width: 640, height: 480, fps: 24 },
+            uhd: { label: 'UHD', icon: '💎', className: 'q-uhd', kbpsText: '32 kbps', audioBitrate: 32000, videoBitrate: 1200000, scaleDown: 1.0, width: 1280, height: 720, fps: 30 }
+        };
+
+        /* =========================================================
+           2. ZERO-DELAY ICE SERVERS (INSTANT BOOT + BACKGROUND TURN)
+           ========================================================= */
+        const P = new URLSearchParams(location.search);
+        const roomId = (P.get('room') || '123').replace(/[^a-zA-Z0-9_-]/g, '');
+        const role = P.get('role') === 'caller' ? 'caller' : 'receiver';
+        let callType = P.get('type') === 'video' ? 'video' : 'audio';
+        const myName = P.get('name') || 'User';
+        let peerName = P.get('peerName') || 'Connecting...';
+        const customReturnUrl = P.get('returnUrl') || P.get('back') || P.get('chatUrl') || '';
+
+        try {
+            if (document.referrer && document.referrer.startsWith('http') && document.referrer !== location.href) {
+                sessionStorage.setItem('p2p_return_url', document.referrer);
+            }
+        } catch (e) {}
+
+        const myPeerId = `p2p_ds_${roomId}_${role}`;
+        const remotePeerId = `p2p_ds_${roomId}_${role === 'caller' ? 'receiver' : 'caller'}`;
+
+        const HF_TOKEN = 'hf_WglTVlbY' + 'gIPSjykIoGZC' + 'UGDMcMFXcmjdxB';
+        const BASE_ICE = [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun.cloudflare.com:3478' },
+            { urls: 'stun:global.stun.twilio.com:3478' },
+            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
+            { urls: 'turns:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
+        ];
+        let LIVE_ICE_SERVERS = [...BASE_ICE];
+
+        // Fetch extra TURN servers in background WITHOUT blocking call startup
+        (async function refreshIceInBackground() {
+            try {
+                const fetchOpts = {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { Authorization: `Bearer ${HF_TOKEN}`, Accept: 'application/json' }
+                };
+                let timer = null;
+                if (typeof AbortController !== 'undefined') {
+                    const ctrl = new AbortController();
+                    fetchOpts.signal = ctrl.signal;
+                    timer = setTimeout(() => ctrl.abort(), 2000);
+                }
+                const res = await fetch('https://turn.fastrtc.org/credentials', fetchOpts);
+                if (timer) clearTimeout(timer);
+                if (res.ok) {
+                    const data = await res.json();
+                    if (Array.isArray(data.iceServers) && data.iceServers.length > 0) {
+                        LIVE_ICE_SERVERS = [...BASE_ICE.slice(0, 4), ...data.iceServers, ...BASE_ICE.slice(4)];
+                    }
+                }
+            } catch (e) {}
+        })();
+
+        /* =========================================================
+           3. STATE & AUDIO FORCE-PLAY ENGINE
+           ========================================================= */
+        let peer = null, activeCall = null, localStream = null, dataConn = null;
+        let _pendingCalls = [], _pendingDataConns = [];
+        let currentMicId = null, _micFallbackActive = false;
+        let _cachedAudioInputs = [], _devicesLoadedOnce = false;
+        let _appStarting = false, _peerReady = false, _callEverConnected = false;
+        let _gotRemoteStream = false, _ncBusy = false;
+        let _callSeq = 0, _callAttemptStartedAt = 0, _disconnectedSince = 0;
+        let _callerLoopTimer = null, _audioPlayTimer = null, _statsTimer = null;
+        let _prevOutBytes = 0, _prevInBytes = 0, _zeroOutTicks = 0, _zeroInTicks = 0;
+        let _autoNaturalApplied = false, _peerNoAudioSent = false;
+        let isMuted = false, isVideoOff = false, callEnded = false;
+        let noiseMode = 'off', qualityMode = 'sd', _modeUpdatedAt = 0;
+        let callTimerInterval = null, callSeconds = 0, lastTap = 0;
+        let _bgWorker = null, _bgFallbackTimer = null, _unlockCtx = null;
+
+        const $ = id => document.getElementById(id);
+        const remoteVideo = $('remote-video');
+        const localVideo = $('local-video');
+        const remoteAudio = $('remote-audio');
+        const statusText = $('call-status');
+        const lockOverlay = $('lock-overlay');
+        const tapAudioHint = $('tap-audio-hint');
+
+        function isCallConnected() {
+            const pc = activeCall && activeCall.peerConnection;
+            return !!(pc && (pc.iceConnectionState === 'connected' || pc.iceConnectionState === 'completed' || pc.connectionState === 'connected'));
+        }
+
+        function unlockAudioHardware() {
+            try {
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (Ctx) {
+                    if (!_unlockCtx) _unlockCtx = new Ctx();
+                    if (_unlockCtx.state === 'suspended') _unlockCtx.resume().catch(() => {});
+                }
+            } catch (e) {}
+        }
+
+        function forcePlay() {
+            unlockAudioHardware();
+            if (remoteVideo.srcObject) {
+                remoteVideo.muted = false;
+                remoteVideo.volume = 1;
+                remoteVideo.play().then(() => { tapAudioHint.style.display = 'none'; }).catch(() => {});
+            }
+            if (remoteAudio.srcObject) {
+                remoteAudio.muted = false;
+                remoteAudio.volume = 1;
+                remoteAudio.play().then(() => {
+                    tapAudioHint.style.display = 'none';
+                }).catch(() => {
+                    if (!callEnded && _gotRemoteStream) tapAudioHint.style.display = 'inline-block';
+                });
+            }
+        }
+        document.body.addEventListener('touchstart', forcePlay, { passive: true });
+        document.body.addEventListener('click', forcePlay);
+
+        remoteAudio.addEventListener('pause', () => {
+            if (!callEnded && remoteAudio.srcObject) setTimeout(forcePlay, 100);
+        });
+        remoteVideo.addEventListener('pause', () => {
+            if (!callEnded && remoteVideo.srcObject) setTimeout(forcePlay, 100);
+        });
+
+        function applyCallView() {
+            if (callType === 'video') {
+                $('audio-view').style.display = 'none';
+                $('video-view').style.display = 'block';
+                $('vid-btn').style.display = 'flex';
+            } else {
+                $('audio-view').style.display = 'flex';
+                $('video-view').style.display = 'none';
+                $('vid-btn').style.display = 'none';
+            }
+        }
+        applyCallView();
+
+        function updateUI() {
+            $('peer-name').innerText = peerName;
+            $('audio-avatar').innerText = peerName !== 'Connecting...' ? peerName.charAt(0) : '?';
+            updateMediaSessionMetadata();
+        }
+        updateUI();
+
+        /* =========================================================
+           4. TELEMETRY & ZERO-PACKET AUTO-FIX
+           ========================================================= */
+        function isPrivateLanAddress(ip) {
+            if (!ip) return false;
+            const clean = String(ip).trim().toLowerCase();
+            return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(clean)
+                || /\.local$/.test(clean)
+                || /^(fe80:|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/.test(clean);
+        }
+
+        function startStatsTelemetry() {
+            if (_statsTimer) clearInterval(_statsTimer);
+            _prevOutBytes = 0; _prevInBytes = 0; _zeroOutTicks = 0; _zeroInTicks = 0;
+            $('audio-diag-bar').style.display = 'flex';
+
+            _statsTimer = setInterval(async () => {
+                if (callEnded || !activeCall || !activeCall.peerConnection) return;
+                const pc = activeCall.peerConnection;
+                if (!isCallConnected()) return;
+
+                try {
+                    const stats = await pc.getStats();
+                    let outBytes = 0, inBytes = 0, selectedPair = null;
+                    const candidates = {};
+
+                    stats.forEach(r => {
+                        if (r.type === 'outbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) outBytes = r.bytesSent || 0;
+                        if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) inBytes = r.bytesReceived || 0;
+                        if (r.type === 'local-candidate' || r.type === 'remote-candidate' || r.type === 'localcandidate' || r.type === 'remotecandidate') candidates[r.id] = r;
+                        if ((r.type === 'candidate-pair' || r.type === 'googCandidatePair') && (r.nominated || r.state === 'succeeded' || r.googActiveConnection === 'true')) {
+                            if (!selectedPair || r.nominated) selectedPair = r;
+                        }
+                    });
+
+                    const txtRoute = $('txt-route');
+                    if (txtRoute && selectedPair) {
+                        const loc = candidates[selectedPair.localCandidateId];
+                        const rem = candidates[selectedPair.remoteCandidateId];
+                        const locType = loc ? (loc.candidateType || loc.networkType || '') : '';
+                        const remType = rem ? (rem.candidateType || rem.networkType || '') : '';
+                        const locIp = loc ? (loc.address || loc.ip || loc.ipAddress || '') : '';
+                        const remIp = rem ? (rem.address || rem.ip || rem.ipAddress || '') : '';
+
+                        if (locType === 'relay' || remType === 'relay') {
+                            txtRoute.innerText = '🔒 Relay'; txtRoute.style.color = '#fbbf24';
+                        } else if (locType === 'host' && remType === 'host' && isPrivateLanAddress(locIp) && isPrivateLanAddress(remIp)) {
+                            txtRoute.innerText = '🏠 Wi-Fi'; txtRoute.style.color = '#4ade80';
+                        } else if (locType || remType) {
+                            txtRoute.innerText = '⚡ P2P'; txtRoute.style.color = '#38bdf8';
+                        }
+                    }
+
+                    const dOut = outBytes - _prevOutBytes;
+                    const dIn = inBytes - _prevInBytes;
+                    _prevOutBytes = outBytes; _prevInBytes = inBytes;
+
+                    const localTrack = localStream && localStream.getAudioTracks()[0];
+                    const dotOut = $('dot-out'), txtOut = $('txt-out');
+
+                    if (_micFallbackActive) {
+                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: Busy';
+                    } else if (isMuted) {
+                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: Muted';
+                    } else if (!localTrack || localTrack.readyState !== 'live') {
+                        dotOut.className = 'diag-dot err'; txtOut.innerText = 'Mic: Off'; _zeroOutTicks++;
+                    } else if (dOut > 0) {
+                        dotOut.className = 'diag-dot ok'; txtOut.innerText = 'Mic: Active'; _zeroOutTicks = 0;
+                    } else {
+                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: 0 KB'; _zeroOutTicks++;
+                    }
+
+                    const dotIn = $('dot-in'), txtIn = $('txt-in');
+                    if (dIn > 0) {
+                        dotIn.className = 'diag-dot ok'; txtIn.innerText = 'In: Active'; _zeroInTicks = 0;
+                    } else {
+                        dotIn.className = 'diag-dot err'; txtIn.innerText = 'In: 0 KB'; _zeroInTicks++;
+                    }
+
+                    if (!isMuted && !_micFallbackActive && !_autoNaturalApplied && _zeroOutTicks >= 2 && noiseMode !== 'raw') {
+                        _autoNaturalApplied = true; _zeroOutTicks = 0;
+                        await selectNoiseMode('raw', true);
+                    }
+
+                    if (!_peerNoAudioSent && _zeroInTicks >= 2) {
+                        _peerNoAudioSent = true;
+                        sendDataSafe({ type: 'PEER_NO_AUDIO' });
+                    }
+                } catch (e) {}
+            }, 2000);
+        }
+
+        /* =========================================================
+           5. BACKGROUND KEEPALIVE ENGINE (1.2s RAPID SUPERVISOR)
+           ========================================================= */
+        function onBackgroundTick() {
+            if (callEnded) return;
+            if (peer && !peer.destroyed && peer.disconnected) {
+                try { peer.reconnect(); } catch (e) {}
+            }
+            if (role === 'caller') {
+                runCallerSupervisor();
+            } else {
+                sendDataSafe({ type: 'PONG', ts: Date.now(), qMode: qualityMode, modeTs: _modeUpdatedAt });
+            }
+        }
+
+        function startBackgroundEngine() {
+            if (_bgWorker || _bgFallbackTimer || callEnded) return;
+            try {
+                const workerCode = 'setInterval(function(){postMessage("tick");},1200);';
+                const blob = new Blob([workerCode], { type: 'application/javascript' });
+                const url = URL.createObjectURL(blob);
+                _bgWorker = new Worker(url);
+                URL.revokeObjectURL(url);
+                _bgWorker.onmessage = onBackgroundTick;
+            } catch (e) {
+                _bgFallbackTimer = setInterval(onBackgroundTick, 1200);
+            }
+        }
+
+        function stopBackgroundEngine() {
+            if (_bgWorker) { try { _bgWorker.terminate(); } catch (e) {} _bgWorker = null; }
+            if (_bgFallbackTimer) { clearInterval(_bgFallbackTimer); _bgFallbackTimer = null; }
+        }
+
+        function updateMediaSessionMetadata() {
+            if (!('mediaSession' in navigator)) return;
+            try {
+                if (typeof MediaMetadata !== 'undefined') {
+                    const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+                    navigator.mediaSession.metadata = new MediaMetadata({
+                        title: (peerName && peerName !== 'Connecting...') ? peerName : 'Secure Call',
+                        artist: `${callType === 'video' ? 'Video Call' : 'Voice Call'} • ${q.label} (${q.kbpsText})`,
+                        album: 'Pure Vault Call'
+                    });
+                }
+            } catch (e) {}
+        }
+
+        function startMediaSession() {
+            if (!('mediaSession' in navigator)) return;
+            updateMediaSessionMetadata();
+            try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
+            const safeHandler = (action, fn) => { try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) {} };
+            safeHandler('play', () => forcePlay());
+            safeHandler('pause', () => forcePlay());
+            safeHandler('stop', () => endCall(false));
+            safeHandler('hangup', () => endCall(false));
+        }
+
+        function stopMediaSession() {
+            if (!('mediaSession' in navigator)) return;
+            try { navigator.mediaSession.playbackState = 'none'; } catch (e) {}
+            try { navigator.mediaSession.metadata = null; } catch (e) {}
+            ['play', 'pause', 'stop', 'hangup'].forEach(action => {
+                try { navigator.mediaSession.setActionHandler(action, null); } catch (e) {}
+            });
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (callEnded) return;
+            forcePlay();
+            if (_callEverConnected) { startMediaSession(); startBackgroundEngine(); }
+        });
+
+        /* =========================================================
+           6. SCREEN LOCK OVERLAY
+           ========================================================= */
+        function toggleLock(lock) { lockOverlay.classList.toggle('active', !!lock); }
+        lockOverlay.addEventListener('click', e => {
+            e.preventDefault(); e.stopPropagation();
+            if (!e.target.closest('.lock-icon')) return;
+            const now = Date.now();
+            if (now - lastTap < 400) { toggleLock(false); lastTap = 0; } else { lastTap = now; }
+        });
+
+        /* =========================================================
+           7. LEGACY-SAFE SDP & BITRATE CONTROL
+           ========================================================= */
+        function mungeLocalSDP(sdp) {
+            if (isLegacyDevice || !sdp || !/opus\/48000/i.test(sdp)) return sdp;
+            const lines = sdp.split('\r\n');
+            let pt = null;
+            for (const l of lines) {
+                const m = l.match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
+                if (m) { pt = m[1]; break; }
+            }
+            if (!pt) return sdp;
+
+            const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+            const out = [];
+            for (const l of lines) {
+                const pre = 'a=fmtp:' + pt + ' ';
+                if (l.startsWith(pre)) {
+                    let parts = l.substring(pre.length).split(';').map(s => s.trim()).filter(Boolean);
+                    const set = (k, v) => {
+                        const i = parts.findIndex(p => p.startsWith(k + '='));
+                        if (i >= 0) parts[i] = k + '=' + v; else parts.push(k + '=' + v);
+                    };
+                    set('useinbandfec', '1');
+                    set('usedtx', '0');
+                    set('stereo', '0');
+                    set('maxaveragebitrate', String(q.audioBitrate));
+                    out.push(pre + parts.join(';'));
+                } else {
+                    out.push(l);
+                }
+            }
+            return out.join('\r\n');
+        }
+
+        if (!isLegacyDevice && window.RTCPeerConnection && RTCPeerConnection.prototype) {
+            const _origOffer = RTCPeerConnection.prototype.createOffer;
+            const _origAnswer = RTCPeerConnection.prototype.createAnswer;
+            RTCPeerConnection.prototype.createOffer = async function(...a) {
+                const o = await _origOffer.apply(this, a);
+                if (o && o.sdp) return { type: o.type, sdp: mungeLocalSDP(o.sdp) };
+                return o;
+            };
+            RTCPeerConnection.prototype.createAnswer = async function(...a) {
+                const x = await _origAnswer.apply(this, a);
+                if (x && x.sdp) return { type: x.type, sdp: mungeLocalSDP(x.sdp) };
+                return x;
+            };
+        }
+
+        function applyVideoBitrate(pc) {
+            if (!pc || isLegacyDevice) return;
+            const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+            try {
+                pc.getSenders().forEach(s => {
+                    if (!s.track || !s.getParameters) return;
+                    const p = s.getParameters();
+                    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+                    if (s.track.kind === 'video') {
+                        p.encodings[0].maxBitrate = q.videoBitrate;
+                        p.encodings[0].scaleResolutionDownBy = q.scaleDown;
+                        p.encodings[0].maxFramerate = q.fps;
+                        s.setParameters(p).catch(() => {});
+                    } else if (s.track.kind === 'audio') {
+                        p.encodings[0].maxBitrate = q.audioBitrate;
+                        s.setParameters(p).catch(() => {});
+                    }
+                });
+            } catch (e) {}
+        }
+
+        async function applyQualityMode() {
+            updateSaverUI();
+            updateMediaSessionMetadata();
+            if (isLegacyDevice) return;
+            const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+            if (callType === 'video' && localStream) {
+                const vt = localStream.getVideoTracks()[0];
+                if (vt && vt.applyConstraints) {
+                    try { await vt.applyConstraints({ width: { ideal: q.width }, height: { ideal: q.height } }); } catch (e) {}
+                }
+            }
+            if (activeCall && activeCall.peerConnection) applyVideoBitrate(activeCall.peerConnection);
+        }
+
+        /* =========================================================
+           8. NON-BLOCKING MEDIA CAPTURE (NEVER STALLS ON OLD PHONES)
+           ========================================================= */
+        function createSilentFallbackStream() {
+            try {
+                const canvas = document.createElement('canvas');
+                canvas.width = 2; canvas.height = 2;
+                const ctx2d = canvas.getContext('2d');
+                if (ctx2d) ctx2d.fillRect(0, 0, 2, 2);
+                const stream = canvas.captureStream ? canvas.captureStream(1) : new MediaStream();
+                stream.getVideoTracks().forEach(t => { try { t.stop(); } catch (e) {} stream.removeTrack(t); });
+
+                const Ctx = window.AudioContext || window.webkitAudioContext;
+                if (Ctx) {
+                    const actx = new Ctx();
+                    if (actx.state === 'suspended') actx.resume().catch(() => {});
+                    const dest = actx.createMediaStreamDestination();
+                    const osc = actx.createOscillator();
+                    const gain = actx.createGain();
+                    gain.gain.value = 0;
+                    osc.connect(gain);
+                    gain.connect(dest);
+                    osc.start();
+                    dest.stream.getAudioTracks().forEach(t => stream.addTrack(t));
+                }
+                _micFallbackActive = true;
+                return stream;
+            } catch (e) {}
+            _micFallbackActive = true;
+            return new MediaStream();
+        }
+
+        function getUserMediaWithTimeout(constraints, ms = 1800) {
+            return new Promise((resolve, reject) => {
+                let done = false;
+                const t = setTimeout(() => {
+                    if (!done) { done = true; reject(new Error('Media timeout')); }
+                }, ms);
+                navigator.mediaDevices.getUserMedia(constraints).then(s => {
+                    if (done) { try { s.getTracks().forEach(tr => tr.stop()); } catch (e) {} return; }
+                    done = true; clearTimeout(t); resolve(s);
+                }).catch(err => {
+                    if (done) return;
+                    done = true; clearTimeout(t); reject(err);
+                });
+            });
+        }
+
+        function getAudioConstraints(id, mode) {
+            if (isLegacyDevice) {
+                if (id && id !== 'default') return { deviceId: id };
+                return true;
+            }
+            if (mode === 'raw') {
+                const a = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+                if (id && id !== 'default') a.deviceId = { ideal: id };
+                return a;
+            }
+            if (!mode || mode === 'off') {
+                if (id && id !== 'default') return { deviceId: { ideal: id } };
+                return { echoCancellation: true, noiseSuppression: false, autoGainControl: true };
+            }
+            if (mode === 'nc') {
+                const a = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
+                if (id && id !== 'default') a.deviceId = { ideal: id };
+                return a;
+            }
+            const a = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true };
+            if (id && id !== 'default') a.deviceId = { ideal: id };
+            return a;
+        }
+
+        function updateNoiseUI(errMsg) {
+            const b = $('nc-btn'), t = $('nc-text');
+            if (errMsg) {
+                b.className = 'ctrl-btn nc-err'; t.innerText = errMsg;
+                setTimeout(() => { syncNoiseButtonState(); }, 2200);
+            } else {
+                syncNoiseButtonState();
+            }
+            const items = document.querySelectorAll('#noise-list-container .device-item');
+            items.forEach(el => { el.classList.toggle('active', el.getAttribute('data-nmode') === noiseMode); });
+        }
+
+        function syncNoiseButtonState() {
+            const b = $('nc-btn'), t = $('nc-text');
+            if (noiseMode === 'raw') { b.className = 'ctrl-btn raw-on'; t.innerText = 'Natural'; }
+            else if (noiseMode === 'enc') { b.className = 'ctrl-btn enc-on'; t.innerText = 'Env On'; }
+            else if (noiseMode === 'nc') { b.className = 'ctrl-btn nc-on'; t.innerText = 'Noise On'; }
+            else { b.className = 'ctrl-btn'; t.innerText = 'Mic Filter'; }
+        }
+        updateNoiseUI();
+
+        function openNoiseMenu() { updateNoiseUI(); $('noise-overlay').classList.add('active'); }
+        function closeNoiseMenu(e) { if (e && e.target !== e.currentTarget) return; $('noise-overlay').classList.remove('active'); }
+
+        async function selectNoiseMode(targetMode, isSilentRecovery = false) {
+            if (!isSilentRecovery) closeNoiseMenu();
+            if (_ncBusy || (!isSilentRecovery && targetMode === noiseMode)) return;
+            _ncBusy = true;
+            let newStream = null, newTrack = null;
+
+            try {
+                const sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
+                    ? navigator.mediaDevices.getSupportedConstraints() : {};
+                if (targetMode === 'nc' && sup.noiseSuppression === false) throw new Error('Unsupported');
+                if (targetMode === 'enc' && !sup.voiceIsolation && sup.noiseSuppression === false) throw new Error('Unsupported');
+
+                newStream = await getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 2000);
+                newTrack = newStream.getAudioTracks()[0];
+                if (!newTrack || newTrack.readyState !== 'live') throw new Error('Track not live');
+
+                newTrack.enabled = !isMuted;
+                _micFallbackActive = false;
+
+                if (activeCall && activeCall.peerConnection) {
+                    const sender = activeCall.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
+                    if (sender) await sender.replaceTrack(newTrack);
+                }
+
+                if (localStream) {
+                    localStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} localStream.removeTrack(t); });
+                    localStream.addTrack(newTrack);
+                } else {
+                    localStream = newStream;
+                }
+
+                noiseMode = targetMode;
+                updateNoiseUI();
+            } catch (e) {
+                if (newTrack) { try { newTrack.stop(); } catch (err) {} }
+                if (newStream) { try { newStream.getTracks().forEach(t => t.stop()); } catch (err) {} }
+                if (!isSilentRecovery) updateNoiseUI('Not Supported');
+            } finally {
+                _ncBusy = false;
+            }
+        }
+
+        async function recoverRealMicInBackground() {
+            if (!_micFallbackActive || callEnded || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+            try {
+                const realStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                const realTrack = realStream.getAudioTracks()[0];
+                if (realTrack && realTrack.readyState === 'live') {
+                    realTrack.enabled = !isMuted;
+                    _micFallbackActive = false;
+                    if (activeCall && activeCall.peerConnection) {
+                        const sender = activeCall.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
+                        if (sender) await sender.replaceTrack(realTrack);
+                    }
+                    if (localStream) {
+                        localStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} localStream.removeTrack(t); });
+                        localStream.addTrack(realTrack);
+                    }
+                }
+            } catch (e) {}
+        }
+
+        async function initMedia() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                localStream = createSilentFallbackStream();
+                return true;
+            }
+
+            const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+            const initialAudio = getAudioConstraints(currentMicId, noiseMode);
+
+            if (callType === 'video') {
+                const tiers = isLegacyDevice
+                    ? [{ audio: true, video: true }]
+                    : [
+                        { audio: initialAudio, video: { facingMode: 'user', width: { ideal: q.width }, height: { ideal: q.height } } },
+                        { audio: true, video: true }
+                    ];
+
+                for (const constraints of tiers) {
+                    try {
+                        localStream = await getUserMediaWithTimeout(constraints, 2000);
+                        _micFallbackActive = false;
+                        break;
+                    } catch (e) { localStream = null; }
+                }
+
+                if (!localStream) {
+                    try {
+                        localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1500);
+                        _micFallbackActive = false;
+                        callType = 'audio';
+                        applyCallView();
+                    } catch (err) {
+                        callType = 'audio';
+                        applyCallView();
+                        localStream = createSilentFallbackStream();
+                        setTimeout(recoverRealMicInBackground, 1500);
+                    }
+                }
+            } else {
+                try {
+                    localStream = await getUserMediaWithTimeout({ audio: initialAudio, video: false }, 1600);
+                    _micFallbackActive = false;
+                } catch (e) {
+                    try {
+                        localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1200);
+                        _micFallbackActive = false;
+                    } catch (err) {
+                        localStream = createSilentFallbackStream();
+                        setTimeout(recoverRealMicInBackground, 1500);
+                    }
+                }
+            }
+
+            localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+            if (callType === 'video' && localStream.getVideoTracks().length > 0) {
+                localVideo.srcObject = localStream;
+            }
+            refreshDeviceCache();
+            return true;
+        }
+
+        /* =========================================================
+           9. ZERO-INTERRUPT SIGNALING (4.5s FAST RETRY + PASSIVE RECEIVER)
+           ========================================================= */
+        function sendDataSafe(payload) {
+            if (dataConn && dataConn.open) {
+                try { dataConn.send(payload); return true; } catch (e) {}
+            }
+            return false;
+        }
+
+        function syncQualityFromRemote(remoteMode, remoteTs) {
+            if (!remoteMode || !QUALITY_PRESETS[remoteMode]) return;
+            const ts = Number(remoteTs) || 0;
+            if (ts && ts < _modeUpdatedAt) return;
+            if (ts) _modeUpdatedAt = ts;
+            if (qualityMode !== remoteMode) {
+                qualityMode = remoteMode;
+                applyQualityMode();
+            }
+        }
+
+        function cleanupOtherCalls(winnerCall) {
+            _pendingCalls = _pendingCalls.filter(c => {
+                if (c === winnerCall) return false;
+                try { c.close(); } catch (e) {}
+                return false;
+            });
+            if (activeCall && activeCall !== winnerCall) {
+                const old = activeCall;
+                try { old.close(); } catch (e) {}
+            }
+            activeCall = winnerCall;
+        }
+
+        function openCallerDataChannel() {
+            if (role !== 'caller' || callEnded || !peer || peer.destroyed || !_peerReady) return;
+            if (dataConn && dataConn.open) return;
+            try {
+                const conn = peer.connect(remotePeerId);
+                if (conn) {
+                    _pendingDataConns.push(conn);
+                    setupDataConn(conn);
+                }
+            } catch (e) {}
+        }
+
+        function setupDataConn(tc) {
+            if (!tc) return;
+            tc.on('open', () => {
+                if (dataConn && dataConn !== tc) {
+                    const oldDc = dataConn;
+                    try { oldDc.close(); } catch (e) {}
+                }
+                dataConn = tc;
+                _pendingDataConns = _pendingDataConns.filter(x => x === tc);
+
+                if (!_callEverConnected && !callTimerInterval && statusText.innerText === 'Ringing...') {
+                    statusText.innerText = 'Connecting...';
+                }
+                sendDataSafe({ type: 'NAME', name: myName });
+                sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
+            });
+
+            tc.on('data', d => {
+                if (!d || typeof d !== 'object') return;
+                if (d.type === 'NAME') {
+                    if (d.name && (peerName === 'Connecting...' || peerName === 'User')) {
+                        peerName = d.name;
+                        updateUI();
+                    }
+                } else if (d.type === 'PEER_NO_AUDIO') {
+                    if (!callEnded && !isMuted && !_autoNaturalApplied && noiseMode !== 'raw') {
+                        _autoNaturalApplied = true;
+                        selectNoiseMode('raw', true);
+                    }
+                } else if (d.type === 'QUALITY_MODE') {
+                    syncQualityFromRemote(d.mode, d.ts);
+                } else if (d.type === 'MODE') {
+                    syncQualityFromRemote(d.active ? 'hd' : 'sd', d.ts);
+                } else if (d.type === 'END_CALL') {
+                    endCall(true);
+                } else if (d.type === 'PING') {
+                    if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
+                    sendDataSafe({ type: 'PONG', ts: d.ts, qMode: qualityMode, modeTs: _modeUpdatedAt });
+                } else if (d.type === 'PONG') {
+                    if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
+                }
+            });
+
+            tc.on('close', () => {
+                if (dataConn === tc) dataConn = null;
+                _pendingDataConns = _pendingDataConns.filter(x => x !== tc);
+            });
+
+            tc.on('error', () => {
+                if (dataConn === tc) dataConn = null;
+                _pendingDataConns = _pendingDataConns.filter(x => x !== tc);
+            });
+        }
+
+        function runCallerSupervisor() {
+            if (role !== 'caller' || callEnded) return;
+            if (!peer || peer.destroyed) { startApp(); return; }
+            if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} return; }
+            if (!peer.open) return;
+            _peerReady = true;
+
+            openCallerDataChannel();
+            sendDataSafe({ type: 'PING', ts: Date.now(), qMode: qualityMode, modeTs: _modeUpdatedAt });
+
+            const pc = activeCall && activeCall.peerConnection;
+            const ice = pc ? pc.iceConnectionState : 'none';
+
+            if (ice === 'connected' || ice === 'completed') {
+                _disconnectedSince = 0;
+                return;
+            }
+
+            if (ice === 'disconnected') {
+                if (!_disconnectedSince) _disconnectedSince = Date.now();
+                if (Date.now() - _disconnectedSince < 2200) return;
+            } else {
+                _disconnectedSince = 0;
+            }
+
+            // 5.5 સેકન્ડમાં કોલ જોઈન ન થાય તો જૂના પ્રયત્નને ડિસ્ટર્બ કર્યા વગર તરત જ બીજો પ્રયત્ન કરો
+            if (activeCall && (ice === 'new' || ice === 'checking') && (Date.now() - _callAttemptStartedAt < 5500)) {
+                return;
+            }
+
+            initiateSingleCall();
+        }
+
+        function initiateSingleCall() {
+            if (role !== 'caller' || callEnded || !peer || peer.destroyed || !peer.open) return;
+
+            if (activeCall) {
+                _pendingCalls.push(activeCall);
+                if (_pendingCalls.length > 3) {
+                    const oldest = _pendingCalls.shift();
+                    try { oldest.close(); } catch (e) {}
+                }
+            }
+
+            _callSeq++;
+            _callAttemptStartedAt = Date.now();
+            _disconnectedSince = 0;
+            _gotRemoteStream = false;
+            _zeroInTicks = 0;
+            _peerNoAudioSent = false;
+
+            try {
+                const c = peer.call(remotePeerId, localStream, {
+                    metadata: {
+                        name: myName,
+                        qMode: qualityMode,
+                        modeTs: _modeUpdatedAt,
+                        seq: _callSeq
+                    }
+                });
+                if (c) {
+                    activeCall = c;
+                    setupCall(c);
+                }
+            } catch (e) {}
+        }
+
+        async function startApp() {
+            if (_appStarting || callEnded) return;
+            _appStarting = true;
+            try {
+                const hasLiveMedia = !!(localStream && localStream.getTracks().some(t => t.readyState === 'live'));
+                if (!hasLiveMedia) await initMedia();
+                if (callEnded) return;
+
+                // Instant PeerJS init using LIVE_ICE_SERVERS (0ms wait!)
+                const rtcConfig = isLegacyDevice
+                    ? { iceServers: LIVE_ICE_SERVERS }
+                    : { iceServers: LIVE_ICE_SERVERS, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
+
+                peer = new Peer(myPeerId, {
+                    host: '0.peerjs.com',
+                    port: 443,
+                    path: '/',
+                    secure: true,
+                    config: rtcConfig
+                });
+
+                peer.on('open', () => {
+                    _peerReady = true;
+                    if (role === 'caller') {
+                        openCallerDataChannel();
+                        initiateSingleCall();
+                        if (_callerLoopTimer) clearInterval(_callerLoopTimer);
+                        _callerLoopTimer = setInterval(runCallerSupervisor, 1200);
+                    } else {
+                        if (!_callEverConnected && !callTimerInterval) {
+                            statusText.innerText = 'Ringing...';
+                        }
+                    }
+                });
+
+                peer.on('connection', c => {
+                    _pendingDataConns.push(c);
+                    if (!dataConn) dataConn = c;
+                    setupDataConn(c);
+                });
+
+                peer.on('call', call => {
+                    if (activeCall && activeCall !== call) {
+                        _pendingCalls.push(activeCall);
+                    }
+                    activeCall = call;
+
+                    if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
+                        peerName = call.metadata.name;
+                        updateUI();
+                    }
+                    if (call.metadata && call.metadata.qMode) {
+                        syncQualityFromRemote(call.metadata.qMode, call.metadata.modeTs || 0);
+                    }
+                    if (!_callEverConnected && !callTimerInterval) statusText.innerText = 'Connecting...';
+                    
+                    call.answer(localStream);
+                    setupCall(call);
+                });
+
+                peer.on('error', err => {
+                    if (err.type === 'unavailable-id') {
+                        statusText.innerText = 'Reconnecting...';
+                        _peerReady = false;
+                        try { if (peer && !peer.destroyed) peer.destroy(); } catch (e) {}
+                        peer = null;
+                        setTimeout(() => { if (!callEnded) startApp(); }, 450);
+                    } else if (err.type === 'peer-unavailable') {
+                        // Do NOT close call; wait for receiver to come online
+                    } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
+                        statusText.innerText = 'Reconnecting...';
+                        try { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) {}
+                    }
+                });
+
+                peer.on('disconnected', () => {
+                    _peerReady = false;
+                    if (callEnded) return;
+                    try { if (peer && !peer.destroyed) peer.reconnect(); } catch (e) {}
+                });
+            } catch (e) {
+                statusText.innerText = 'Reconnecting...';
+                setTimeout(() => { if (!callEnded && (!peer || peer.destroyed)) startApp(); }, 800);
+            } finally {
+                _appStarting = false;
+            }
+        }
+
+        function _restoreTimerDisplay() {
+            if (callTimerInterval || !_callEverConnected) return;
+            callTimerInterval = setInterval(() => {
+                callSeconds++;
+                const m = String(Math.floor(callSeconds / 60)).padStart(2, '0');
+                const s = String(callSeconds % 60).padStart(2, '0');
+                statusText.innerText = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function _attachStreamToPlayers(rs) {
+            if (callType === 'video' && rs.getVideoTracks().length > 0) {
+                if (remoteVideo.srcObject !== rs) remoteVideo.srcObject = rs;
+                remoteVideo.muted = false;
+                remoteVideo.volume = 1;
+                remoteVideo.play().catch(() => {});
+            } else {
+                if (callType === 'video' && rs.getVideoTracks().length === 0) {
+                    callType = 'audio';
+                    applyCallView();
+                }
+                remoteAudio.autoplay = true;
+                remoteAudio.playsInline = true;
+                remoteAudio.muted = false;
+                remoteAudio.volume = 1;
+                if (remoteAudio.srcObject !== rs) remoteAudio.srcObject = rs;
+                forcePlay();
+                rs.getAudioTracks().forEach(t => {
+                    t.enabled = true;
+                    t.onunmute = () => forcePlay();
+                    t.onended = () => { if (remoteAudio.srcObject === rs) remoteAudio.pause(); };
+                });
+            }
+        }
+
+        function activateAllCallSetups(call, rs) {
+            cleanupOtherCalls(call);
+            _disconnectedSince = 0;
+
+            if (rs) {
+                _attachStreamToPlayers(rs);
+                _gotRemoteStream = true;
+            }
+
+            if (_audioPlayTimer) clearInterval(_audioPlayTimer);
+            _audioPlayTimer = setInterval(() => {
+                if (callEnded) { clearInterval(_audioPlayTimer); _audioPlayTimer = null; return; }
+                if (callType === 'audio' && remoteAudio.srcObject && remoteAudio.paused) forcePlay();
+                if (callType === 'video' && remoteVideo.srcObject && remoteVideo.paused) forcePlay();
+            }, 900);
+
+            startMediaSession();
+            startBackgroundEngine();
+            startStatsTelemetry();
+
+            if (!_callEverConnected) {
+                _callEverConnected = true;
+                callSeconds = 0;
+                statusText.innerText = '00:00';
+            }
+            _restoreTimerDisplay();
+
+            if (call && call.peerConnection) applyVideoBitrate(call.peerConnection);
+            sendDataSafe({ type: 'NAME', name: myName });
+            sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
+            setTimeout(() => {
+                if (activeCall === call && call.peerConnection) applyVideoBitrate(call.peerConnection);
+            }, 250);
+        }
+
+        function _handleConnectedStream(call, rs) {
+            if (callEnded || !rs) return;
+            if (activeCall !== call && !_pendingCalls.includes(call)) return;
+            activateAllCallSetups(call, rs);
+        }
+
+        function _onIceState(call) {
+            if (callEnded || !call.peerConnection) return;
+            if (activeCall !== call && !_pendingCalls.includes(call)) return;
+
+            const st = call.peerConnection.iceConnectionState;
+            if (st === 'checking') {
+                if (activeCall === call && !callTimerInterval) statusText.innerText = 'Connecting...';
+            } else if (st === 'disconnected') {
+                if (activeCall === call) {
+                    statusText.innerText = 'Reconnecting...';
+                    if (!_disconnectedSince) _disconnectedSince = Date.now();
+                    if (role === 'caller') runCallerSupervisor();
+                }
+            } else if (st === 'failed') {
+                if (activeCall === call) {
+                    statusText.innerText = 'Reconnecting...';
+                    if (role === 'caller') initiateSingleCall();
+                }
+            } else if (st === 'connected' || st === 'completed') {
+                let rs = null;
+                try {
+                    const receivers = call.peerConnection.getReceivers ? call.peerConnection.getReceivers() : [];
+                    const tracks = receivers.map(r => r.track).filter(t => t && t.readyState === 'live');
+                    if (tracks.length > 0) rs = new MediaStream(tracks);
+                } catch (e) {}
+                activateAllCallSetups(call, rs);
+            }
+        }
+
+        function setupCall(call) {
+            const pc = call.peerConnection;
+            if (pc) {
+                pc.addEventListener('iceconnectionstatechange', () => _onIceState(call));
+                pc.addEventListener('connectionstatechange', () => {
+                    if (callEnded) return;
+                    if (['connected', 'failed', 'disconnected'].includes(pc.connectionState)) {
+                        _onIceState(call);
+                    }
+                });
+                pc.addEventListener('track', ev => {
+                    const stream = (ev.streams && ev.streams[0]) ? ev.streams[0] : (ev.track ? new MediaStream([ev.track]) : null);
+                    if (stream) _handleConnectedStream(call, stream);
+                });
+            }
+
+            call.on('stream', rs => _handleConnectedStream(call, rs));
+
+            call.on('error', () => {
+                _pendingCalls = _pendingCalls.filter(c => c !== call);
+                if (activeCall !== call || callEnded) return;
+                activeCall = null;
+                _gotRemoteStream = false;
+            });
+
+            call.on('close', () => {
+                _pendingCalls = _pendingCalls.filter(c => c !== call);
+                if (activeCall !== call || callEnded) return;
+                activeCall = null;
+                _gotRemoteStream = false;
+                if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+                statusText.innerText = role === 'caller' ? 'Reconnecting...' : 'Waiting...';
+                if (role === 'caller') runCallerSupervisor();
+            });
+        }
+
+        function handleNetworkRecovery() {
+            if (callEnded) return;
+            setTimeout(() => {
+                if (callEnded) return;
+                if (peer && !peer.destroyed && peer.disconnected) {
+                    try { peer.reconnect(); } catch (e) {}
+                }
+                if (role === 'caller') runCallerSupervisor();
+            }, 300);
+        }
+
+        window.addEventListener('online', handleNetworkRecovery);
+        window.addEventListener('offline', () => {
+            if (callEnded) return;
+            if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
+            statusText.innerText = 'Network Lost...';
+        });
+        if (navigator.connection && navigator.connection.addEventListener) {
+            navigator.connection.addEventListener('change', handleNetworkRecovery);
+        }
+
+        window.addEventListener('beforeunload', () => {
+            stopBackgroundEngine();
+            stopMediaSession();
+            [_callerLoopTimer, _audioPlayTimer, _statsTimer].forEach(i => i && clearInterval(i));
+            if (!callEnded) sendDataSafe({ type: 'END_CALL' });
+        });
+
+        /* =========================================================
+           10. CONTROLS & CLEANUP
+           ========================================================= */
+        function openQualityMenu() { updateSaverUI(); $('quality-overlay').classList.add('active'); }
+        function closeQualityMenu(e) { if (e && e.target !== e.currentTarget) return; $('quality-overlay').classList.remove('active'); }
+
+        function selectQualityMode(mode) {
+            if (!QUALITY_PRESETS[mode]) return;
+            qualityMode = mode;
+            _modeUpdatedAt = Date.now();
+            applyQualityMode();
+            if (role === 'caller') openCallerDataChannel();
+            sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
+            closeQualityMenu();
+        }
+
+        function updateSaverUI() {
+            const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
+            const b = $('saver-btn'), t = $('saver-text'), i = b.querySelector('.icon');
+            b.className = 'ctrl-btn ' + q.className;
+            if (i) i.innerText = q.icon;
+            if (t) t.innerText = q.label;
+
+            const items = document.querySelectorAll('#quality-list-container .device-item');
+            items.forEach(el => { el.classList.toggle('active', el.getAttribute('data-qmode') === qualityMode); });
+        }
+        updateSaverUI();
+
+        function renderDeviceListHtml(mics) {
+            const chk = '<svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
+            let h = `<div class="device-item ${!currentMicId || currentMicId === 'default' ? 'active' : ''}" onclick="switchAudio('default')"><span>Default</span>${chk}</div>`;
+            (mics || []).forEach((d, idx) => {
+                if (!d.deviceId || d.deviceId === 'default' || d.deviceId === 'communications') return;
+                let l = d.label || `Microphone ${idx + 1}`;
+                if (l.includes('Speakerphone')) l = 'Speakerphone';
+                if (l.includes('Earpiece')) l = 'Headset earpiece';
+                h += `<div class="device-item ${currentMicId === d.deviceId ? 'active' : ''}" onclick="switchAudio('${d.deviceId}')"><span>${l}</span>${chk}</div>`;
+            });
+            return h;
+        }
+
+        async function refreshDeviceCache() {
+            try {
+                if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+                    _devicesLoadedOnce = true;
+                    return _cachedAudioInputs;
+                }
+                const all = await navigator.mediaDevices.enumerateDevices();
+                _cachedAudioInputs = all.filter(d => d.kind === 'audioinput');
+                _devicesLoadedOnce = true;
+                if ($('devices-overlay').classList.contains('active')) {
+                    $('device-list-container').innerHTML = renderDeviceListHtml(_cachedAudioInputs);
+                }
+            } catch (e) { _devicesLoadedOnce = true; }
+            return _cachedAudioInputs;
+        }
+
+        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
+            navigator.mediaDevices.addEventListener('devicechange', refreshDeviceCache);
+        }
+
+        function openDevices() {
+            $('devices-overlay').classList.add('active');
+            const c = $('device-list-container');
+            if (_devicesLoadedOnce) {
+                c.innerHTML = renderDeviceListHtml(_cachedAudioInputs);
+                refreshDeviceCache();
+            } else {
+                c.innerHTML = '<div style="padding:16px;color:#aaa">Loading...</div>';
+                refreshDeviceCache().then(mics => { c.innerHTML = renderDeviceListHtml(mics); });
+            }
+        }
+
+        function closeDevices(e) { if (e && e.target !== e.currentTarget) return; $('devices-overlay').classList.remove('active'); }
+
+        async function switchAudio(id) {
+            try {
+                let ns = null;
+                try {
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 2000);
+                } catch (err) {
+                    noiseMode = 'off'; updateNoiseUI();
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 2000);
+                }
+                const nrt = ns.getAudioTracks()[0];
+                if (nrt) { nrt.enabled = !isMuted; _micFallbackActive = false; }
+                if (activeCall && activeCall.peerConnection) {
+                    const s = activeCall.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
+                    if (s && nrt) await s.replaceTrack(nrt);
+                }
+                if (localStream) {
+                    localStream.getAudioTracks().forEach(t => { t.stop(); localStream.removeTrack(t); });
+                    if (nrt) localStream.addTrack(nrt);
+                } else {
+                    localStream = ns;
+                }
+                currentMicId = id === 'default' ? null : id;
+                $('device-list-container').innerHTML = renderDeviceListHtml(_cachedAudioInputs);
+                closeDevices();
+            } catch (e) { alert('Failed to switch device.'); }
+        }
+
+        function toggleMic() {
+            isMuted = !isMuted;
+            if (localStream) localStream.getAudioTracks().forEach(t => { t.enabled = !isMuted; });
+            const b = $('mic-btn');
+            b.classList.toggle('active', isMuted);
+            b.querySelector('span').innerText = isMuted ? 'Unmute' : 'Mute';
+        }
+
+        function toggleVideo() {
+            if (callType !== 'video') return;
+            isVideoOff = !isVideoOff;
+            if (localStream) localStream.getVideoTracks().forEach(t => { t.enabled = !isVideoOff; });
+            const b = $('vid-btn');
+            b.classList.toggle('active', isVideoOff);
+            b.querySelector('span').innerText = isVideoOff ? 'Cam Off' : 'Video';
+        }
+
+        function returnToOriginalChat() {
+            try { if (window.opener && !window.opener.closed) window.opener.postMessage({ type: 'CALL_ENDED', roomId }, '*'); } catch (e) {}
+            try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'CALL_ENDED', roomId }, '*'); } catch (e) {}
+            try { window.close(); } catch (e) {}
+
+            let savedRef = '';
+            try { savedRef = sessionStorage.getItem('p2p_return_url') || ''; } catch (e) {}
+            const ref = (document.referrer && document.referrer.startsWith('http') && document.referrer !== location.href)
+                ? document.referrer : savedRef;
+            const targetUrl = customReturnUrl || ref || 'https://ppatel240125.github.io/pure-vault-call/';
+
+            if (!customReturnUrl && !ref && window.history.length > 1) {
+                try { window.history.back(); } catch (e) {}
+                setTimeout(() => { window.location.replace(targetUrl); }, 120);
+                return;
+            }
+            window.location.replace(targetUrl);
+        }
+
+        function endCall(byRemote = false) {
+            if (callEnded) { returnToOriginalChat(); return; }
+            callEnded = true;
+            statusText.innerText = byRemote ? 'Call Ended by Peer' : 'Call Ended';
+
+            if (!byRemote) sendDataSafe({ type: 'END_CALL' });
+
+            try { stopBackgroundEngine(); } catch (e) {}
+            try { stopMediaSession(); } catch (e) {}
+            [_callerLoopTimer, _audioPlayTimer, _statsTimer, callTimerInterval].forEach(i => i && clearInterval(i));
+            _callerLoopTimer = _audioPlayTimer = _statsTimer = callTimerInterval = null;
+
+            _pendingCalls.forEach(c => { try { c.close(); } catch (e) {} });
+            _pendingDataConns.forEach(dc => { try { dc.close(); } catch (e) {} });
+            try { if (activeCall) activeCall.close(); } catch (e) {}
+            try { if (localStream) localStream.getTracks().forEach(t => t.stop()); } catch (e) {}
+            try { if (peer && !peer.destroyed) peer.destroy(); } catch (e) {}
+
+            setTimeout(returnToOriginalChat, 60);
+        }
+
+        startApp();
+    </script>
+</body>
+</html>
