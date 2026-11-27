@@ -256,7 +256,7 @@
     <div id="noise-overlay" class="sheet-overlay" onclick="closeNoiseMenu(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">Microphone & Audio Filter</div>
-            <div class="sheet-sub">Auto-connected to highest supported filter • Unsupported modes are blurred</div>
+            <div class="sheet-sub">Your device's supported filters are active • Unsupported modes are blurred</div>
             <div class="device-list" id="noise-list-container">
                 <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
                     <div class="q-item-info">
@@ -443,7 +443,7 @@
         let _micRecoveryBusy = false, _micRecoveryTimer = null;
         let _callerLoopTimer = null, _audioPlayTimer = null, _statsTimer = null;
         let _prevOutBytes = 0, _prevInBytes = 0, _zeroOutTicks = 0, _zeroInTicks = 0;
-        let _autoNaturalApplied = false, _peerNoAudioSent = false;
+        let _autoNaturalApplied = false;
         let isMuted = false, isVideoOff = false, callEnded = false;
         let noiseMode = 'off', qualityMode = 'sd', _modeUpdatedAt = 0;
         let _noiseModeManuallySelected = false;
@@ -690,16 +690,12 @@
                         }
                     }
 
+                    // ફક્ત પોતાના જ ફોનના માઈકમાંથી 4 સેકન્ડ સુધી 0 bytes જાય તો જ પોતાનું ફિલ્ટર બદલો
                     if (!isMuted && !_micFallbackActive && !_autoNaturalApplied && _zeroOutTicks >= 2 && noiseMode !== 'raw') {
                         _autoNaturalApplied = true;
                         _zeroOutTicks = 0;
                         markNoiseUnsupported(noiseMode);
                         await selectNoiseMode('raw', true);
-                    }
-
-                    if (!_peerNoAudioSent && _zeroInTicks >= 2) {
-                        _peerNoAudioSent = true;
-                        sendDataSafe({ type: 'PEER_NO_AUDIO' });
                     }
                 } catch (e) {}
             }, 2000);
@@ -880,25 +876,22 @@
         }
 
         /* =========================================================
-           8. BEST-FIRST SMART MIC CASCADE & UNSUPPORTED BLUR UI
+           8. ACCURATE PER-DEVICE CAPABILITY & BEST-FIRST CASCADE
            ========================================================= */
         function detectBrowserNoiseCapabilities() {
             const sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
                 ? navigator.mediaDevices.getSupportedConstraints()
                 : {};
-            if (!sup.voiceIsolation) _unsupportedNoiseModes.enc = true;
-            if (sup.noiseSuppression === false) {
-                _unsupportedNoiseModes.enc = true;
-                _unsupportedNoiseModes.nc = true;
-            }
-            if (isLegacyDevice) {
-                _unsupportedNoiseModes.enc = true;
-            }
+            // બ્રાઉઝર API સ્પષ્ટ ના પાડે ત્યારે જ બ્લર કરો
+            _unsupportedNoiseModes.enc = (sup.voiceIsolation === false) || isLegacyDevice;
+            _unsupportedNoiseModes.nc = (sup.noiseSuppression === false);
+            _unsupportedNoiseModes.off = false;
+            _unsupportedNoiseModes.raw = false;
         }
         detectBrowserNoiseCapabilities();
 
         function markNoiseUnsupported(mode) {
-            if (mode && mode !== 'raw') {
+            if (mode && mode !== 'raw' && mode !== 'off') {
                 _unsupportedNoiseModes[mode] = true;
             }
             updateNoiseUI();
@@ -933,11 +926,16 @@
             return new MediaStream();
         }
 
-        function getUserMediaWithTimeout(constraints, ms = 1600) {
+        function getUserMediaWithTimeout(constraints, ms = 2200) {
             return new Promise((resolve, reject) => {
                 let done = false;
                 const t = setTimeout(() => {
-                    if (!done) { done = true; reject(new Error('Media timeout')); }
+                    if (!done) {
+                        done = true;
+                        const err = new Error('Media timeout');
+                        err.name = 'TimeoutError';
+                        reject(err);
+                    }
                 }, ms);
                 navigator.mediaDevices.getUserMedia(constraints).then(s => {
                     if (done) { try { s.getTracks().forEach(tr => tr.stop()); } catch (e) {} return; }
@@ -970,18 +968,16 @@
             return a;
         }
 
+        // Android Chrome માં undefined આવતું હોવાથી ફક્ત સ્પષ્ટ false (=== false) હોય તો જ રિજેક્ટ કરો
         function verifyAudioTrackForMode(track, mode) {
             if (!track || track.readyState !== 'live' || track.enabled === false) return false;
-            if (!track.getSettings) return (mode === 'off' || mode === 'raw');
+            if (!track.getSettings) return true;
             const st = track.getSettings() || {};
             if (mode === 'enc') {
-                return st.voiceIsolation === true;
+                return st.voiceIsolation !== false && st.noiseSuppression !== false;
             }
             if (mode === 'nc') {
-                return st.noiseSuppression === true;
-            }
-            if (mode === 'off') {
-                return st.echoCancellation !== false;
+                return st.noiseSuppression !== false;
             }
             return true;
         }
@@ -1031,10 +1027,12 @@
             let newStream = null, newTrack = null;
 
             try {
-                newStream = await getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 1600);
+                newStream = await getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 2200);
                 newTrack = newStream.getAudioTracks()[0];
                 if (!verifyAudioTrackForMode(newTrack, targetMode)) {
-                    throw new Error('Mode unsupported on hardware');
+                    const err = new Error('Mode unsupported on hardware');
+                    err.name = 'OverconstrainedError';
+                    throw err;
                 }
 
                 newTrack.enabled = !isMuted;
@@ -1057,7 +1055,9 @@
             } catch (e) {
                 if (newTrack) { try { newTrack.stop(); } catch (err) {} }
                 if (newStream) { try { newStream.getTracks().forEach(t => t.stop()); } catch (err) {} }
-                markNoiseUnsupported(targetMode);
+                if (e && (e.name === 'OverconstrainedError' || e.name === 'NotSupportedError')) {
+                    markNoiseUnsupported(targetMode);
+                }
                 if (!isSilentRecovery) updateNoiseUI('Not Supported');
             } finally {
                 _ncBusy = false;
@@ -1077,10 +1077,12 @@
                         audio: getAudioConstraints(currentMicId, mode),
                         video: videoConstraints
                     };
-                    stream = await getUserMediaWithTimeout(constraints, mode === 'enc' ? 1400 : 1300);
+                    stream = await getUserMediaWithTimeout(constraints, 2200);
                     const track = stream.getAudioTracks()[0];
                     if (!verifyAudioTrackForMode(track, mode)) {
-                        throw new Error('Filter did not activate');
+                        const err = new Error('Filter did not activate');
+                        err.name = 'OverconstrainedError';
+                        throw err;
                     }
                     noiseMode = mode;
                     _micFallbackActive = false;
@@ -1092,7 +1094,10 @@
                     if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'NotFoundError')) {
                         throw err;
                     }
-                    markNoiseUnsupported(mode);
+                    // ફક્ત હાર્ડવેર/કન્સ્ટ્રેઇન્ટ ના પાડે તો જ બ્લર કરો; ટાઈમઆઉટ/વ્યસ્ત પર બ્લર ન કરો
+                    if (err && (err.name === 'OverconstrainedError' || err.name === 'NotSupportedError')) {
+                        markNoiseUnsupported(mode);
+                    }
                 }
             }
             throw lastErr || new Error('No audio track acquired');
@@ -1175,8 +1180,8 @@
                     localStream = await acquireBestSupportedAudio(false);
                 } catch (err) {
                     try {
-                        localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1200);
-                        noiseMode = 'raw';
+                        localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1800);
+                        noiseMode = 'off';
                         _micFallbackActive = false;
                         updateNoiseUI();
                     } catch (fallbackErr) {
@@ -1279,12 +1284,6 @@
                         peerName = d.name;
                         updateUI();
                     }
-                } else if (d.type === 'PEER_NO_AUDIO') {
-                    if (!callEnded && !isMuted && !_autoNaturalApplied && noiseMode !== 'raw') {
-                        _autoNaturalApplied = true;
-                        markNoiseUnsupported(noiseMode);
-                        selectNoiseMode('raw', true);
-                    }
                 } else if (d.type === 'QUALITY_MODE') {
                     syncQualityFromRemote(d.mode, d.ts);
                 } else if (d.type === 'MODE') {
@@ -1364,7 +1363,6 @@
             _disconnectedSince = 0;
             _gotRemoteStream = false;
             _zeroInTicks = 0;
-            _peerNoAudioSent = false;
 
             try {
                 const c = peer.call(remotePeerId, localStream, {
@@ -1719,11 +1717,10 @@
             try {
                 let ns = null;
                 try {
-                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 1600);
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 2200);
                 } catch (err) {
-                    markNoiseUnsupported(noiseMode);
                     noiseMode = 'off'; updateNoiseUI();
-                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 1600);
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 2200);
                 }
                 const nrt = ns.getAudioTracks()[0];
                 if (nrt) { nrt.enabled = !isMuted; _micFallbackActive = false; }
