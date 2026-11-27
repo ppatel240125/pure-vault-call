@@ -318,7 +318,7 @@ var _iceReadyPromise=createRaceFreeIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroOutTicks=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -354,7 +354,7 @@ updateUI();
 function isPrivateLanAddress(ip){if(!ip)return false;var c=String(ip).trim().toLowerCase();return/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(c)||/\.local$/.test(c)||/^(fe80:|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/.test(c)}
 function startStatsTelemetry(){
     if(_statsTimer)clearInterval(_statsTimer);
-    _prevOutBytes=0;_prevInBytes=0;_zeroInTicks=0;var prevPacketsLost=0;
+    _prevOutBytes=0;_prevInBytes=0;_zeroOutTicks=0;_zeroInTicks=0;var prevPacketsLost=0;
     $('audio-diag-bar').style.display='flex';
     _statsTimer=setInterval(function(){
         if(callEnded||!activeCall||!activeCall.peerConnection)return;
@@ -375,15 +375,21 @@ function startStatsTelemetry(){
                     else if(lt==='host'&&rt==='host'&&isPrivateLanAddress(li)&&isPrivateLanAddress(ri)){txtRoute.innerText='🏠 Wi-Fi';txtRoute.style.color='#4ade80'}
                     else if(lt||rt){txtRoute.innerText='⚡ P2P';txtRoute.style.color='#38bdf8'}
                 }
-                var dIn=inBytes-_prevInBytes,dLost=packetsLost-prevPacketsLost;_prevOutBytes=outBytes;_prevInBytes=inBytes;prevPacketsLost=packetsLost;
+                var dOut=outBytes-_prevOutBytes,dIn=inBytes-_prevInBytes,dLost=packetsLost-prevPacketsLost;_prevOutBytes=outBytes;_prevInBytes=inBytes;prevPacketsLost=packetsLost;
                 var localTrack=localStream&&localStream.getAudioTracks()[0],dotOut=$('dot-out'),txtOut=$('txt-out');
-                if(_micFallbackActive){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Connecting...'}
+                if(_micFallbackActive){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Connecting...';if(!_micPromptInProgress&&!_deviceSwitchBusy&&!_ncBusy)recoverRealMicInBackground()}
                 else if(isMuted){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Muted'}
                 else if(!localTrack||localTrack.readyState!=='live'){
                     dotOut.className='diag-dot err';txtOut.innerText='Mic: Reconnecting...';
                     if(!_micPromptInProgress&&!_deviceSwitchBusy&&!_ncBusy)recoverRealMicInBackground();
                 }
-                else{dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active'}
+                else{
+                    dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active';
+                    if(dOut===0&&!_micPromptInProgress&&!_deviceSwitchBusy&&!_ncBusy){
+                        _zeroOutTicks++;
+                        if(_zeroOutTicks>=3){_zeroOutTicks=0;recoverRealMicInBackground()}
+                    }else{_zeroOutTicks=0}
+                }
 
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
                 if(dIn>0){dotIn.className='diag-dot ok';txtIn.innerText='In: Active';_zeroInTicks=0}
