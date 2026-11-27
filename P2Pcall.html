@@ -299,19 +299,22 @@ var FAST_ICE_SERVERS=[
     {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
 ];
 
-function createRaceFreeIcePromise(){
+function createMandatoryTurnIcePromise(){
     return new Promise(function(resolve){
         if(typeof fetch!=='function'){resolve(FAST_ICE_SERVERS);return}
-        var settled=false,timer=setTimeout(function(){if(!settled){settled=true;resolve(FAST_ICE_SERVERS)}},800);
+        var settled=false,timer=setTimeout(function(){if(!settled){settled=true;resolve(FAST_ICE_SERVERS)}},2500);
         try{
             fetch('https://turn.fastrtc.org/credentials',{method:'GET',cache:'no-store',headers:{Authorization:'Bearer '+HF_TOKEN,Accept:'application/json'}})
             .then(function(r){return r.ok?r.json():null})
-            .then(function(d){if(d&&d.iceServers&&d.iceServers.length>0)FAST_ICE_SERVERS=[FAST_ICE_SERVERS[0]].concat(d.iceServers).concat(FAST_ICE_SERVERS.slice(1));if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}})
+            .then(function(d){
+                var list=(d&&d.iceServers&&d.iceServers.length>0)?d.iceServers.concat(FAST_ICE_SERVERS):FAST_ICE_SERVERS;
+                if(!settled){settled=true;clearTimeout(timer);resolve(list)}
+            })
             .catch(function(){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}});
         }catch(e){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}}
     });
 }
-var _iceReadyPromise=createRaceFreeIcePromise();
+var _iceReadyPromise=createMandatoryTurnIcePromise();
 
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
@@ -379,8 +382,15 @@ function startStatsTelemetry(){
 
                 var dIn=inBytes-_prevInBytes;_prevInBytes=inBytes;
                 if(dIn>0||inBytes>0)_hasInboundAudioFlow=true;
+                var remoteStream=hasAttachedStream(remoteAudio)?remoteAudio.srcObject:(hasAttachedStream(remoteVideo)?remoteVideo.srcObject:null);
+                var remTracks=remoteStream&&remoteStream.getAudioTracks?remoteStream.getAudioTracks():[];
+                var hasLiveRemoteTrack=false;
+                for(var i=0;i<remTracks.length;i++){if(remTracks[i].readyState==='live'){hasLiveRemoteTrack=true;break}}
+
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
                 if(_hasInboundAudioFlow||dIn>0){
+                    dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
+                }else if(hasLiveRemoteTrack&&_gotRemoteStream&&isCallConnected()){
                     dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
                 }else if(isCallConnected()){
                     dotIn.className='diag-dot warn';txtIn.innerText='In: Waiting Audio...';
@@ -750,7 +760,6 @@ function refreshDeviceCache(){
 function openDevices(){$('devices-overlay').classList.add('active');var c=$('device-list-container');if(_devicesLoadedOnce){c.innerHTML=renderDeviceListHtml(_cachedAudioInputs);refreshDeviceCache()}else{c.innerHTML='<div style="padding:16px;color:#aaa">Loading...</div>';refreshDeviceCache().then(function(m){c.innerHTML=renderDeviceListHtml(m)})}}
 function closeDevices(e){if(e&&e.target!==e.currentTarget)return;$('devices-overlay').classList.remove('active')}
 
-// મેન્યુઅલ સિલેક્શન પર તરત જ માઈક/ડિવાઈસ બદલીને કામ શરૂ કરે
 function switchAudio(id){
     var ns=null,nt=null,targetId=(id==='default')?null:id;
     currentMicId=targetId;
