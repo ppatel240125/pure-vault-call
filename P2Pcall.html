@@ -48,11 +48,11 @@
         display: flex; flex-direction: column; align-items: center; z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
     }
     .header h1 { margin: 0; font-size: 22px; font-weight: 600; color: var(--text); }
-    .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; }
+    .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; text-align: center; padding: 0 16px; }
 
     #audio-diag-bar {
         display: none; align-items: center; justify-content: center; flex-wrap: wrap;
-        margin-top: 10px; max-width: 92vw; padding: 5px 12px; border-radius: 20px;
+        margin-top: 10px; max-width: 94vw; padding: 5px 12px; border-radius: 20px;
         background: rgba(15, 17, 26, 0.78); border: 1px solid rgba(255,255,255,0.1);
         font-size: 11px; color: #cbd5e1; backdrop-filter: blur(8px);
     }
@@ -138,9 +138,23 @@
     .device-item {
         display: flex; justify-content: space-between; align-items: center;
         padding: 14px 16px; font-size: 15px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.06);
+        transition: opacity 0.2s, filter 0.2s;
     }
     .device-item:last-child { border-bottom: none; }
     .device-item:active { background: rgba(255,255,255,0.06); }
+    
+    .device-item.unsupported-blur {
+        opacity: 0.38;
+        filter: blur(1.1px);
+        -webkit-filter: blur(1.1px);
+        pointer-events: none;
+        cursor: not-allowed;
+    }
+    .device-item.unsupported-blur .q-badge {
+        background: rgba(239, 68, 68, 0.2);
+        color: #fca5a5;
+    }
+
     .q-item-info { display: flex; flex-direction: column; }
     .q-item-title { font-weight: 600; font-size: 15px; color: #fff; display: flex; align-items: center; }
     .q-item-desc { font-size: 12px; color: var(--text-muted); margin-top: 3px; }
@@ -242,33 +256,33 @@
     <div id="noise-overlay" class="sheet-overlay" onclick="closeNoiseMenu(event)">
         <div class="sheet-content" onclick="event.stopPropagation()">
             <div class="sheet-header">Microphone & Audio Filter</div>
-            <div class="sheet-sub">Applies filter if supported by browser, otherwise stays safely Off</div>
+            <div class="sheet-sub">Auto-connected to highest supported filter • Unsupported modes are blurred</div>
             <div class="device-list" id="noise-list-container">
+                <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🛡️ Environment Cancellation <span class="q-badge" data-default-badge="Highest">Highest</span></div>
+                        <div class="q-item-desc">Isolates voice from heavy traffic, wind & crowd</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
+                <div class="device-item" data-nmode="nc" onclick="selectNoiseMode('nc')">
+                    <div class="q-item-info">
+                        <div class="q-item-title">🔇 Noise Cancellation <span class="q-badge" data-default-badge="Filter">Filter</span></div>
+                        <div class="q-item-desc">Reduces fan, hum & light room background noise</div>
+                    </div>
+                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+                </div>
                 <div class="device-item active" data-nmode="off" onclick="selectNoiseMode('off')">
                     <div class="q-item-info">
-                        <div class="q-item-title">🎙️ Standard Voice <span class="q-badge">Default</span></div>
+                        <div class="q-item-title">🎙️ Standard Voice <span class="q-badge" data-default-badge="Echo-Safe">Echo-Safe</span></div>
                         <div class="q-item-desc">Balanced echo cancellation for clear voice calls</div>
                     </div>
                     <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                 </div>
                 <div class="device-item" data-nmode="raw" onclick="selectNoiseMode('raw')">
                     <div class="q-item-info">
-                        <div class="q-item-title">🎚️ Natural Audio <span class="q-badge">Unprocessed</span></div>
+                        <div class="q-item-title">🎚️ Natural Audio <span class="q-badge" data-default-badge="Unprocessed">Unprocessed</span></div>
                         <div class="q-item-desc">Direct microphone input without audio gating</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-nmode="nc" onclick="selectNoiseMode('nc')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🔇 Noise Cancellation <span class="q-badge">Filter</span></div>
-                        <div class="q-item-desc">Reduces fan, hum & light room background noise</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🛡️ Environment Cancellation <span class="q-badge">Voice Focus</span></div>
-                        <div class="q-item-desc">Isolates voice from heavy traffic, wind & crowd</div>
                     </div>
                     <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
                 </div>
@@ -338,7 +352,6 @@
             || (chromeVer && parseInt(chromeVer, 10) < 110)
             || !('wakeLock' in navigator);
 
-        // Polyfill getUserMedia for very old WebViews / Browsers
         if (!navigator.mediaDevices) navigator.mediaDevices = {};
         if (!navigator.mediaDevices.getUserMedia) {
             const legacyGetUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
@@ -349,7 +362,6 @@
             }
         }
 
-        // Polyfill RTCPeerConnection for legacy WebKit browsers
         if (!window.RTCPeerConnection && window.webkitRTCPeerConnection) {
             window.RTCPeerConnection = window.webkitRTCPeerConnection;
         }
@@ -394,7 +406,6 @@
         ];
         let LIVE_ICE_SERVERS = [...BASE_ICE];
 
-        // Fetch extra TURN servers in background WITHOUT blocking call startup
         (async function refreshIceInBackground() {
             try {
                 const fetchOpts = {
@@ -420,22 +431,26 @@
         })();
 
         /* =========================================================
-           3. STATE & AUDIO FORCE-PLAY ENGINE
+           3. STATE, NOTIFICATIONS & AUDIO FORCE-PLAY ENGINE
            ========================================================= */
         let peer = null, activeCall = null, localStream = null, dataConn = null;
         let _pendingCalls = [], _pendingDataConns = [];
         let currentMicId = null, _micFallbackActive = false;
         let _cachedAudioInputs = [], _devicesLoadedOnce = false;
         let _appStarting = false, _peerReady = false, _callEverConnected = false;
-        let _gotRemoteStream = false, _ncBusy = false;
+        let _gotRemoteStream = false, _ncBusy = false, _receiverReadyBoosted = false;
         let _callSeq = 0, _callAttemptStartedAt = 0, _disconnectedSince = 0;
+        let _micRecoveryBusy = false, _micRecoveryTimer = null;
         let _callerLoopTimer = null, _audioPlayTimer = null, _statsTimer = null;
         let _prevOutBytes = 0, _prevInBytes = 0, _zeroOutTicks = 0, _zeroInTicks = 0;
         let _autoNaturalApplied = false, _peerNoAudioSent = false;
         let isMuted = false, isVideoOff = false, callEnded = false;
         let noiseMode = 'off', qualityMode = 'sd', _modeUpdatedAt = 0;
+        let _noiseModeManuallySelected = false;
+        let _unsupportedNoiseModes = { enc: false, nc: false, off: false, raw: false };
         let callTimerInterval = null, callSeconds = 0, lastTap = 0;
         let _bgWorker = null, _bgFallbackTimer = null, _unlockCtx = null;
+        let _callNotificationSW = null;
 
         const $ = id => document.getElementById(id);
         const remoteVideo = $('remote-video');
@@ -444,6 +459,54 @@
         const statusText = $('call-status');
         const lockOverlay = $('lock-overlay');
         const tapAudioHint = $('tap-audio-hint');
+
+        function getUniversalErrorText(error) {
+            const name = error && error.name ? String(error.name) : '';
+            const known = {
+                NotAllowedError: 'Microphone permission denied',
+                SecurityError: 'Microphone blocked by browser',
+                NotFoundError: 'No microphone found',
+                NotReadableError: 'Microphone is busy',
+                OverconstrainedError: 'Audio option unavailable',
+                AbortError: 'Media request interrupted',
+                TimeoutError: 'Operation timed out'
+            };
+            return known[name] || 'Connection retrying...';
+        }
+
+        async function prepareCallNotification() {
+            if (!('serviceWorker' in navigator) || !window.isSecureContext) return false;
+            try {
+                const registration = await navigator.serviceWorker.register('./call-notification-sw.js', { scope: './' });
+                await navigator.serviceWorker.ready;
+                _callNotificationSW = registration;
+                return true;
+            } catch (e) {
+                return false;
+            }
+        }
+
+        async function showCallNotification() {
+            if (!('Notification' in window) || Notification.permission !== 'granted') return;
+            try {
+                await prepareCallNotification();
+                const worker = _callNotificationSW && (_callNotificationSW.active || _callNotificationSW.waiting);
+                if (worker) {
+                    worker.postMessage({
+                        type: 'CALL_ACTIVE',
+                        title: (peerName && peerName !== 'Connecting...') ? peerName : 'Secure Call',
+                        callType: callType === 'video' ? 'Video Call' : 'Voice Call'
+                    });
+                }
+            } catch (e) {}
+        }
+
+        function hideCallNotification() {
+            try {
+                const worker = _callNotificationSW && (_callNotificationSW.active || _callNotificationSW.waiting);
+                if (worker) worker.postMessage({ type: 'CALL_ENDED' });
+            } catch (e) {}
+        }
 
         function isCallConnected() {
             const pc = activeCall && activeCall.peerConnection;
@@ -508,7 +571,7 @@
         updateUI();
 
         /* =========================================================
-           4. TELEMETRY & ZERO-PACKET AUTO-FIX
+           4. SMART TELEMETRY & ROOT-CAUSE DIAGNOSTICS
            ========================================================= */
         function isPrivateLanAddress(ip) {
             if (!ip) return false;
@@ -521,6 +584,7 @@
         function startStatsTelemetry() {
             if (_statsTimer) clearInterval(_statsTimer);
             _prevOutBytes = 0; _prevInBytes = 0; _zeroOutTicks = 0; _zeroInTicks = 0;
+            let _prevPacketsLost = 0;
             $('audio-diag-bar').style.display = 'flex';
 
             _statsTimer = setInterval(async () => {
@@ -530,13 +594,26 @@
 
                 try {
                     const stats = await pc.getStats();
-                    let outBytes = 0, inBytes = 0, selectedPair = null;
+                    let outBytes = 0, inBytes = 0, packetsLost = 0;
+                    let localAudioLevel = -1, remoteAudioLevel = -1;
+                    let selectedPair = null;
                     const candidates = {};
 
                     stats.forEach(r => {
-                        if (r.type === 'outbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) outBytes = r.bytesSent || 0;
-                        if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) inBytes = r.bytesReceived || 0;
-                        if (r.type === 'local-candidate' || r.type === 'remote-candidate' || r.type === 'localcandidate' || r.type === 'remotecandidate') candidates[r.id] = r;
+                        if (r.type === 'outbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) {
+                            outBytes = r.bytesSent || 0;
+                        }
+                        if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) {
+                            inBytes = r.bytesReceived || 0;
+                            packetsLost = r.packetsLost || 0;
+                            if (typeof r.audioLevel === 'number') remoteAudioLevel = r.audioLevel;
+                        }
+                        if (r.type === 'media-source' && r.kind === 'audio') {
+                            if (typeof r.audioLevel === 'number') localAudioLevel = r.audioLevel;
+                        }
+                        if (r.type === 'local-candidate' || r.type === 'remote-candidate' || r.type === 'localcandidate' || r.type === 'remotecandidate') {
+                            candidates[r.id] = r;
+                        }
                         if ((r.type === 'candidate-pair' || r.type === 'googCandidatePair') && (r.nominated || r.state === 'succeeded' || r.googActiveConnection === 'true')) {
                             if (!selectedPair || r.nominated) selectedPair = r;
                         }
@@ -562,32 +639,61 @@
 
                     const dOut = outBytes - _prevOutBytes;
                     const dIn = inBytes - _prevInBytes;
-                    _prevOutBytes = outBytes; _prevInBytes = inBytes;
+                    const dLost = packetsLost - _prevPacketsLost;
+                    _prevOutBytes = outBytes;
+                    _prevInBytes = inBytes;
+                    _prevPacketsLost = packetsLost;
 
                     const localTrack = localStream && localStream.getAudioTracks()[0];
                     const dotOut = $('dot-out'), txtOut = $('txt-out');
 
                     if (_micFallbackActive) {
-                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: Busy';
+                        dotOut.className = 'diag-dot warn';
+                        txtOut.innerText = 'Mic: Busy/Blocked';
                     } else if (isMuted) {
-                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: Muted';
+                        dotOut.className = 'diag-dot warn';
+                        txtOut.innerText = 'Mic: Muted';
                     } else if (!localTrack || localTrack.readyState !== 'live') {
-                        dotOut.className = 'diag-dot err'; txtOut.innerText = 'Mic: Off'; _zeroOutTicks++;
+                        dotOut.className = 'diag-dot err';
+                        txtOut.innerText = 'Mic: Disconnected';
+                        _zeroOutTicks++;
                     } else if (dOut > 0) {
-                        dotOut.className = 'diag-dot ok'; txtOut.innerText = 'Mic: Active'; _zeroOutTicks = 0;
+                        dotOut.className = 'diag-dot ok';
+                        txtOut.innerText = (localAudioLevel === 0) ? 'Mic: Silent (0dB)' : 'Mic: Active';
+                        _zeroOutTicks = 0;
                     } else {
-                        dotOut.className = 'diag-dot warn'; txtOut.innerText = 'Mic: 0 KB'; _zeroOutTicks++;
+                        dotOut.className = 'diag-dot err';
+                        _zeroOutTicks++;
+                        if (noiseMode !== 'raw') {
+                            txtOut.innerText = 'Mic: Filter Stall';
+                        } else if (localAudioLevel === 0) {
+                            txtOut.innerText = 'Mic: Hardware 0dB';
+                        } else {
+                            txtOut.innerText = 'Mic: Encoder Stall';
+                        }
                     }
 
                     const dotIn = $('dot-in'), txtIn = $('txt-in');
                     if (dIn > 0) {
-                        dotIn.className = 'diag-dot ok'; txtIn.innerText = 'In: Active'; _zeroInTicks = 0;
+                        dotIn.className = 'diag-dot ok';
+                        txtIn.innerText = (remoteAudioLevel === 0) ? 'In: Peer Silent' : 'In: Active';
+                        _zeroInTicks = 0;
                     } else {
-                        dotIn.className = 'diag-dot err'; txtIn.innerText = 'In: 0 KB'; _zeroInTicks++;
+                        dotIn.className = 'diag-dot err';
+                        _zeroInTicks++;
+                        if (dLost > 0) {
+                            txtIn.innerText = 'In: Packet Loss';
+                        } else if (selectedPair && selectedPair.state !== 'succeeded') {
+                            txtIn.innerText = 'In: Route Blocked';
+                        } else {
+                            txtIn.innerText = 'In: Peer Mic Off';
+                        }
                     }
 
                     if (!isMuted && !_micFallbackActive && !_autoNaturalApplied && _zeroOutTicks >= 2 && noiseMode !== 'raw') {
-                        _autoNaturalApplied = true; _zeroOutTicks = 0;
+                        _autoNaturalApplied = true;
+                        _zeroOutTicks = 0;
+                        markNoiseUnsupported(noiseMode);
                         await selectNoiseMode('raw', true);
                     }
 
@@ -671,6 +777,10 @@
             if (callEnded) return;
             forcePlay();
             if (_callEverConnected) { startMediaSession(); startBackgroundEngine(); }
+        });
+
+        window.addEventListener('pagehide', () => {
+            if (!callEnded && _callEverConnected) { startMediaSession(); forcePlay(); }
         });
 
         /* =========================================================
@@ -770,8 +880,30 @@
         }
 
         /* =========================================================
-           8. NON-BLOCKING MEDIA CAPTURE (NEVER STALLS ON OLD PHONES)
+           8. BEST-FIRST SMART MIC CASCADE & UNSUPPORTED BLUR UI
            ========================================================= */
+        function detectBrowserNoiseCapabilities() {
+            const sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
+                ? navigator.mediaDevices.getSupportedConstraints()
+                : {};
+            if (!sup.voiceIsolation) _unsupportedNoiseModes.enc = true;
+            if (sup.noiseSuppression === false) {
+                _unsupportedNoiseModes.enc = true;
+                _unsupportedNoiseModes.nc = true;
+            }
+            if (isLegacyDevice) {
+                _unsupportedNoiseModes.enc = true;
+            }
+        }
+        detectBrowserNoiseCapabilities();
+
+        function markNoiseUnsupported(mode) {
+            if (mode && mode !== 'raw') {
+                _unsupportedNoiseModes[mode] = true;
+            }
+            updateNoiseUI();
+        }
+
         function createSilentFallbackStream() {
             try {
                 const canvas = document.createElement('canvas');
@@ -801,7 +933,7 @@
             return new MediaStream();
         }
 
-        function getUserMediaWithTimeout(constraints, ms = 1800) {
+        function getUserMediaWithTimeout(constraints, ms = 1600) {
             return new Promise((resolve, reject) => {
                 let done = false;
                 const t = setTimeout(() => {
@@ -818,10 +950,6 @@
         }
 
         function getAudioConstraints(id, mode) {
-            if (isLegacyDevice) {
-                if (id && id !== 'default') return { deviceId: id };
-                return true;
-            }
             if (mode === 'raw') {
                 const a = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
                 if (id && id !== 'default') a.deviceId = { ideal: id };
@@ -829,6 +957,7 @@
             }
             if (!mode || mode === 'off') {
                 if (id && id !== 'default') return { deviceId: { ideal: id } };
+                if (isLegacyDevice) return true;
                 return { echoCancellation: true, noiseSuppression: false, autoGainControl: true };
             }
             if (mode === 'nc') {
@@ -841,6 +970,22 @@
             return a;
         }
 
+        function verifyAudioTrackForMode(track, mode) {
+            if (!track || track.readyState !== 'live' || track.enabled === false) return false;
+            if (!track.getSettings) return (mode === 'off' || mode === 'raw');
+            const st = track.getSettings() || {};
+            if (mode === 'enc') {
+                return st.voiceIsolation === true;
+            }
+            if (mode === 'nc') {
+                return st.noiseSuppression === true;
+            }
+            if (mode === 'off') {
+                return st.echoCancellation !== false;
+            }
+            return true;
+        }
+
         function updateNoiseUI(errMsg) {
             const b = $('nc-btn'), t = $('nc-text');
             if (errMsg) {
@@ -850,7 +995,17 @@
                 syncNoiseButtonState();
             }
             const items = document.querySelectorAll('#noise-list-container .device-item');
-            items.forEach(el => { el.classList.toggle('active', el.getAttribute('data-nmode') === noiseMode); });
+            items.forEach(el => {
+                const mode = el.getAttribute('data-nmode');
+                const isUnsup = !!_unsupportedNoiseModes[mode];
+                el.classList.toggle('active', mode === noiseMode && !isUnsup);
+                el.classList.toggle('unsupported-blur', isUnsup);
+                const badge = el.querySelector('.q-badge');
+                if (badge) {
+                    const defText = badge.getAttribute('data-default-badge') || '';
+                    badge.innerText = isUnsup ? 'Unsupported' : defText;
+                }
+            });
         }
 
         function syncNoiseButtonState() {
@@ -858,7 +1013,7 @@
             if (noiseMode === 'raw') { b.className = 'ctrl-btn raw-on'; t.innerText = 'Natural'; }
             else if (noiseMode === 'enc') { b.className = 'ctrl-btn enc-on'; t.innerText = 'Env On'; }
             else if (noiseMode === 'nc') { b.className = 'ctrl-btn nc-on'; t.innerText = 'Noise On'; }
-            else { b.className = 'ctrl-btn'; t.innerText = 'Mic Filter'; }
+            else { b.className = 'ctrl-btn'; t.innerText = 'Standard'; }
         }
         updateNoiseUI();
 
@@ -866,20 +1021,21 @@
         function closeNoiseMenu(e) { if (e && e.target !== e.currentTarget) return; $('noise-overlay').classList.remove('active'); }
 
         async function selectNoiseMode(targetMode, isSilentRecovery = false) {
-            if (!isSilentRecovery) closeNoiseMenu();
+            if (_unsupportedNoiseModes[targetMode]) return;
+            if (!isSilentRecovery) {
+                _noiseModeManuallySelected = true;
+                closeNoiseMenu();
+            }
             if (_ncBusy || (!isSilentRecovery && targetMode === noiseMode)) return;
             _ncBusy = true;
             let newStream = null, newTrack = null;
 
             try {
-                const sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
-                    ? navigator.mediaDevices.getSupportedConstraints() : {};
-                if (targetMode === 'nc' && sup.noiseSuppression === false) throw new Error('Unsupported');
-                if (targetMode === 'enc' && !sup.voiceIsolation && sup.noiseSuppression === false) throw new Error('Unsupported');
-
-                newStream = await getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 2000);
+                newStream = await getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 1600);
                 newTrack = newStream.getAudioTracks()[0];
-                if (!newTrack || newTrack.readyState !== 'live') throw new Error('Track not live');
+                if (!verifyAudioTrackForMode(newTrack, targetMode)) {
+                    throw new Error('Mode unsupported on hardware');
+                }
 
                 newTrack.enabled = !isMuted;
                 _micFallbackActive = false;
@@ -901,61 +1057,110 @@
             } catch (e) {
                 if (newTrack) { try { newTrack.stop(); } catch (err) {} }
                 if (newStream) { try { newStream.getTracks().forEach(t => t.stop()); } catch (err) {} }
+                markNoiseUnsupported(targetMode);
                 if (!isSilentRecovery) updateNoiseUI('Not Supported');
             } finally {
                 _ncBusy = false;
             }
         }
 
-        async function recoverRealMicInBackground() {
-            if (!_micFallbackActive || callEnded || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-            try {
-                const realStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                const realTrack = realStream.getAudioTracks()[0];
-                if (realTrack && realTrack.readyState === 'live') {
-                    realTrack.enabled = !isMuted;
+        async function acquireBestSupportedAudio(videoConstraints = false) {
+            const cascadeOrder = _noiseModeManuallySelected
+                ? [noiseMode]
+                : ['enc', 'nc', 'off', 'raw'].filter(m => !_unsupportedNoiseModes[m]);
+
+            let lastErr = null;
+            for (const mode of cascadeOrder) {
+                let stream = null;
+                try {
+                    const constraints = {
+                        audio: getAudioConstraints(currentMicId, mode),
+                        video: videoConstraints
+                    };
+                    stream = await getUserMediaWithTimeout(constraints, mode === 'enc' ? 1400 : 1300);
+                    const track = stream.getAudioTracks()[0];
+                    if (!verifyAudioTrackForMode(track, mode)) {
+                        throw new Error('Filter did not activate');
+                    }
+                    noiseMode = mode;
                     _micFallbackActive = false;
-                    if (activeCall && activeCall.peerConnection) {
-                        const sender = activeCall.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
-                        if (sender) await sender.replaceTrack(realTrack);
+                    updateNoiseUI();
+                    return stream;
+                } catch (err) {
+                    lastErr = err;
+                    if (stream) { try { stream.getTracks().forEach(t => t.stop()); } catch (e) {} }
+                    if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'NotFoundError')) {
+                        throw err;
                     }
-                    if (localStream) {
-                        localStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} localStream.removeTrack(t); });
-                        localStream.addTrack(realTrack);
-                    }
+                    markNoiseUnsupported(mode);
                 }
-            } catch (e) {}
+            }
+            throw lastErr || new Error('No audio track acquired');
+        }
+
+        async function recoverRealMicInBackground() {
+            if (!_micFallbackActive || callEnded || _micRecoveryBusy || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+            _micRecoveryBusy = true;
+            let realStream = null;
+            try {
+                realStream = await acquireBestSupportedAudio(false);
+                const realTrack = realStream.getAudioTracks()[0];
+                if (!realTrack || realTrack.readyState !== 'live') {
+                    realStream.getTracks().forEach(t => { try { t.stop(); } catch (e) {} });
+                    return;
+                }
+                realTrack.enabled = !isMuted;
+                _micFallbackActive = false;
+                if (activeCall && activeCall.peerConnection) {
+                    const sender = activeCall.peerConnection.getSenders().find(x => x.track && x.track.kind === 'audio');
+                    if (sender) await sender.replaceTrack(realTrack);
+                }
+                if (localStream) {
+                    localStream.getAudioTracks().forEach(t => { try { t.stop(); } catch (e) {} localStream.removeTrack(t); });
+                    localStream.addTrack(realTrack);
+                } else {
+                    localStream = realStream;
+                }
+                updateNoiseUI();
+            } catch (e) {
+                if (realStream) realStream.getTracks().forEach(t => { try { t.stop(); } catch (err) {} });
+                if (!_micRecoveryTimer && !callEnded) {
+                    _micRecoveryTimer = setTimeout(() => {
+                        _micRecoveryTimer = null;
+                        recoverRealMicInBackground();
+                    }, 3500);
+                }
+            } finally {
+                _micRecoveryBusy = false;
+            }
         }
 
         async function initMedia() {
             if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
                 localStream = createSilentFallbackStream();
+                setTimeout(recoverRealMicInBackground, 1500);
                 return true;
             }
 
             const q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-            const initialAudio = getAudioConstraints(currentMicId, noiseMode);
 
             if (callType === 'video') {
-                const tiers = isLegacyDevice
-                    ? [{ audio: true, video: true }]
-                    : [
-                        { audio: initialAudio, video: { facingMode: 'user', width: { ideal: q.width }, height: { ideal: q.height } } },
-                        { audio: true, video: true }
-                    ];
+                const videoOptions = isLegacyDevice
+                    ? [true]
+                    : [{ facingMode: 'user', width: { ideal: q.width }, height: { ideal: q.height } }, true];
 
-                for (const constraints of tiers) {
+                for (const vOpt of videoOptions) {
                     try {
-                        localStream = await getUserMediaWithTimeout(constraints, 2000);
-                        _micFallbackActive = false;
+                        localStream = await acquireBestSupportedAudio(vOpt);
                         break;
-                    } catch (e) { localStream = null; }
+                    } catch (e) {
+                        localStream = null;
+                    }
                 }
 
                 if (!localStream) {
                     try {
-                        localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1500);
-                        _micFallbackActive = false;
+                        localStream = await acquireBestSupportedAudio(false);
                         callType = 'audio';
                         applyCallView();
                     } catch (err) {
@@ -967,14 +1172,16 @@
                 }
             } else {
                 try {
-                    localStream = await getUserMediaWithTimeout({ audio: initialAudio, video: false }, 1600);
-                    _micFallbackActive = false;
-                } catch (e) {
+                    localStream = await acquireBestSupportedAudio(false);
+                } catch (err) {
                     try {
                         localStream = await getUserMediaWithTimeout({ audio: true, video: false }, 1200);
+                        noiseMode = 'raw';
                         _micFallbackActive = false;
-                    } catch (err) {
+                        updateNoiseUI();
+                    } catch (fallbackErr) {
                         localStream = createSilentFallbackStream();
+                        if (!_callEverConnected) statusText.innerText = getUniversalErrorText(fallbackErr);
                         setTimeout(recoverRealMicInBackground, 1500);
                     }
                 }
@@ -989,7 +1196,7 @@
         }
 
         /* =========================================================
-           9. ZERO-INTERRUPT SIGNALING (4.5s FAST RETRY + PASSIVE RECEIVER)
+           9. INSTANT HANDSHAKE + ZERO-INTERRUPT SIGNALING
            ========================================================= */
         function sendDataSafe(payload) {
             if (dataConn && dataConn.open) {
@@ -1049,11 +1256,25 @@
                 }
                 sendDataSafe({ type: 'NAME', name: myName });
                 sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
+
+                if (role === 'receiver') {
+                    sendDataSafe({ type: 'RECEIVER_READY' });
+                } else if (role === 'caller' && !isCallConnected() && !_receiverReadyBoosted) {
+                    _receiverReadyBoosted = true;
+                    setTimeout(() => {
+                        if (!callEnded && !isCallConnected()) initiateSingleCall();
+                    }, 120);
+                }
             });
 
             tc.on('data', d => {
                 if (!d || typeof d !== 'object') return;
-                if (d.type === 'NAME') {
+                if (d.type === 'RECEIVER_READY') {
+                    if (role === 'caller' && !isCallConnected() && !_receiverReadyBoosted) {
+                        _receiverReadyBoosted = true;
+                        initiateSingleCall();
+                    }
+                } else if (d.type === 'NAME') {
                     if (d.name && (peerName === 'Connecting...' || peerName === 'User')) {
                         peerName = d.name;
                         updateUI();
@@ -1061,6 +1282,7 @@
                 } else if (d.type === 'PEER_NO_AUDIO') {
                     if (!callEnded && !isMuted && !_autoNaturalApplied && noiseMode !== 'raw') {
                         _autoNaturalApplied = true;
+                        markNoiseUnsupported(noiseMode);
                         selectNoiseMode('raw', true);
                     }
                 } else if (d.type === 'QUALITY_MODE') {
@@ -1078,12 +1300,18 @@
             });
 
             tc.on('close', () => {
-                if (dataConn === tc) dataConn = null;
+                if (dataConn === tc) {
+                    dataConn = null;
+                    _receiverReadyBoosted = false;
+                }
                 _pendingDataConns = _pendingDataConns.filter(x => x !== tc);
             });
 
             tc.on('error', () => {
-                if (dataConn === tc) dataConn = null;
+                if (dataConn === tc) {
+                    dataConn = null;
+                    _receiverReadyBoosted = false;
+                }
                 _pendingDataConns = _pendingDataConns.filter(x => x !== tc);
             });
         }
@@ -1113,7 +1341,6 @@
                 _disconnectedSince = 0;
             }
 
-            // 5.5 સેકન્ડમાં કોલ જોઈન ન થાય તો જૂના પ્રયત્નને ડિસ્ટર્બ કર્યા વગર તરત જ બીજો પ્રયત્ન કરો
             if (activeCall && (ice === 'new' || ice === 'checking') && (Date.now() - _callAttemptStartedAt < 5500)) {
                 return;
             }
@@ -1163,7 +1390,6 @@
                 if (!hasLiveMedia) await initMedia();
                 if (callEnded) return;
 
-                // Instant PeerJS init using LIVE_ICE_SERVERS (0ms wait!)
                 const rtcConfig = isLegacyDevice
                     ? { iceServers: LIVE_ICE_SERVERS }
                     : { iceServers: LIVE_ICE_SERVERS, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
@@ -1223,7 +1449,7 @@
                         peer = null;
                         setTimeout(() => { if (!callEnded) startApp(); }, 450);
                     } else if (err.type === 'peer-unavailable') {
-                        // Do NOT close call; wait for receiver to come online
+                        if (!_callEverConnected) statusText.innerText = 'Waiting for peer...';
                     } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) {
                         statusText.innerText = 'Reconnecting...';
                         try { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) {}
@@ -1298,12 +1524,13 @@
             startBackgroundEngine();
             startStatsTelemetry();
 
-            if (!_callEverConnected) {
+            if (rs && !_callEverConnected) {
                 _callEverConnected = true;
+                showCallNotification();
                 callSeconds = 0;
                 statusText.innerText = '00:00';
             }
-            _restoreTimerDisplay();
+            if (_callEverConnected) _restoreTimerDisplay();
 
             if (call && call.peerConnection) applyVideoBitrate(call.peerConnection);
             sendDataSafe({ type: 'NAME', name: myName });
@@ -1406,6 +1633,7 @@
         }
 
         window.addEventListener('beforeunload', () => {
+            hideCallNotification();
             stopBackgroundEngine();
             stopMediaSession();
             [_callerLoopTimer, _audioPlayTimer, _statsTimer].forEach(i => i && clearInterval(i));
@@ -1491,10 +1719,11 @@
             try {
                 let ns = null;
                 try {
-                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 2000);
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 1600);
                 } catch (err) {
+                    markNoiseUnsupported(noiseMode);
                     noiseMode = 'off'; updateNoiseUI();
-                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 2000);
+                    ns = await getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 1600);
                 }
                 const nrt = ns.getAudioTracks()[0];
                 if (nrt) { nrt.enabled = !isMuted; _micFallbackActive = false; }
@@ -1553,10 +1782,13 @@
         function endCall(byRemote = false) {
             if (callEnded) { returnToOriginalChat(); return; }
             callEnded = true;
+            hideCallNotification();
             statusText.innerText = byRemote ? 'Call Ended by Peer' : 'Call Ended';
 
             if (!byRemote) sendDataSafe({ type: 'END_CALL' });
 
+            if (_micRecoveryTimer) { clearTimeout(_micRecoveryTimer); _micRecoveryTimer = null; }
+            _micRecoveryBusy = false;
             try { stopBackgroundEngine(); } catch (e) {}
             try { stopMediaSession(); } catch (e) {}
             [_callerLoopTimer, _audioPlayTimer, _statsTimer, callTimerInterval].forEach(i => i && clearInterval(i));
