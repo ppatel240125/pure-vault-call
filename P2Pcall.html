@@ -207,11 +207,7 @@ function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el
 function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
 function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
 
-function bindAudioTrackHealth(tr){
-    if(!tr)return;
-    tr.enabled=!isMuted;
-    tr.onended=function(){};
-}
+function bindAudioTrackHealth(tr){if(!tr)return;tr.enabled=!isMuted;tr.onended=function(){};}
 
 function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
     if(!newTrack)return Promise.resolve();
@@ -226,26 +222,15 @@ function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
         try{
             if(typeof pc.getSenders==='function'){
                 var senders=pc.getSenders(),audioSender=null;
-                for(var i=0;i<senders.length;i++){
-                    if(senders[i].track&&senders[i].track.kind==='audio'){audioSender=senders[i];break}
-                }
-                if(!audioSender){
-                    for(var j=0;j<senders.length;j++){
-                        if(!senders[j].track){audioSender=senders[j];break}
-                    }
-                }
+                for(var i=0;i<senders.length;i++){if(senders[i].track&&senders[i].track.kind==='audio'){audioSender=senders[i];break}}
+                if(!audioSender){for(var j=0;j<senders.length;j++){if(!senders[j].track){audioSender=senders[j];break}}}
                 if(audioSender&&typeof audioSender.replaceTrack==='function'){
                     swapPromise=audioSender.replaceTrack(newTrack).then(function(){
-                        if(audioSender.track!==newTrack&&typeof pc.addTrack==='function'&&newStream){
-                            try{pc.addTrack(newTrack,newStream)}catch(e){}
-                        }
+                        if(audioSender.track!==newTrack&&typeof pc.addTrack==='function'&&newStream){try{pc.addTrack(newTrack,newStream)}catch(e){}}
                     });
-                }else if(typeof pc.addTrack==='function'&&newStream){
-                    try{pc.addTrack(newTrack,newStream)}catch(e){}
-                }
+                }else if(typeof pc.addTrack==='function'&&newStream){try{pc.addTrack(newTrack,newStream)}catch(e){}}
             }else if(typeof pc.removeStream==='function'&&typeof pc.addStream==='function'&&localStream&&newStream){
-                pc.removeStream(localStream);
-                pc.addStream(newStream);
+                pc.removeStream(localStream);pc.addStream(newStream);
             }
         }catch(e){swapPromise=Promise.reject(e)}
     }
@@ -253,28 +238,12 @@ function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
     return swapPromise.then(function(){
         var oldTracks=localStream&&localStream.getAudioTracks?localStream.getAudioTracks():[];
         if(!localStream)localStream=newStream||new MediaStream([newTrack]);
-        for(var k=0;k<oldTracks.length;k++){
-            if(oldTracks[k]!==newTrack){
-                try{localStream.removeTrack(oldTracks[k])}catch(e){}
-            }
-        }
+        for(var k=0;k<oldTracks.length;k++){if(oldTracks[k]!==newTrack){try{localStream.removeTrack(oldTracks[k])}catch(e){}}}
         var hasNew=false,curAt=localStream.getAudioTracks();
         for(var m=0;m<curAt.length;m++)if(curAt[m]===newTrack){hasNew=true;break}
         if(!hasNew)localStream.addTrack(newTrack);
-
-        for(var n=0;n<oldTracks.length;n++){
-            if(oldTracks[n]!==newTrack){
-                try{oldTracks[n].onended=null;oldTracks[n].stop()}catch(e){}
-            }
-        }
-        if(newStream){
-            var extra=newStream.getTracks();
-            for(var p=0;p<extra.length;p++){
-                if(extra[p]!==newTrack&&extra[p].kind==='audio'){
-                    try{extra[p].stop()}catch(e){}
-                }
-            }
-        }
+        for(var n=0;n<oldTracks.length;n++){if(oldTracks[n]!==newTrack){try{oldTracks[n].onended=null;oldTracks[n].stop()}catch(e){}}}
+        if(newStream){var extra=newStream.getTracks();for(var p=0;p<extra.length;p++){if(extra[p]!==newTrack&&extra[p].kind==='audio'){try{extra[p].stop()}catch(e){}}}}
     });
 }
 
@@ -319,7 +288,7 @@ var _iceReadyPromise=createMandatoryTurnIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_mediaInitPromise=null,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_mediaInitPromise=null,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -388,9 +357,7 @@ function startStatsTelemetry(){
                 for(var i=0;i<remTracks.length;i++){if(remTracks[i].readyState==='live'){hasLiveRemoteTrack=true;break}}
 
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
-                if(_hasInboundAudioFlow||dIn>0){
-                    dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
-                }else if(hasLiveRemoteTrack&&_gotRemoteStream&&isCallConnected()){
+                if(_hasInboundAudioFlow||dIn>0||(hasLiveRemoteTrack&&_gotRemoteStream&&isCallConnected())){
                     dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
                 }else if(isCallConnected()){
                     dotIn.className='diag-dot warn';txtIn.innerText='In: Waiting Audio...';
@@ -495,14 +462,28 @@ detectBrowserNoiseCapabilities();
 function markNoiseUnsupported(m){if(m&&m!=='raw'&&m!=='off')_unsupportedNoiseModes[m]=true;updateNoiseUI()}
 function createSilentFallbackStream(){try{var c=document.createElement('canvas');c.width=2;c.height=2;var ctx=c.getContext('2d');if(ctx)ctx.fillRect(0,0,2,2);var s=c.captureStream?c.captureStream(1):new MediaStream(),vt=s.getVideoTracks();for(var i=0;i<vt.length;i++){try{vt[i].stop()}catch(e){}s.removeTrack(vt[i])}var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){var ac=new Ctx();if(ac.state==='suspended')ac.resume().catch(function(){});var dest=ac.createMediaStreamDestination(),osc=ac.createOscillator(),g=ac.createGain();g.gain.value=0;osc.connect(g);g.connect(dest);osc.start();var at=dest.stream.getAudioTracks();for(var j=0;j<at.length;j++)s.addTrack(at[j])}_micFallbackActive=true;return s}catch(e){}_micFallbackActive=true;return new MediaStream()}
 
+function recoverLateMicrophone(s){
+    if(!s||callEnded)return;
+    var tracks=s.getAudioTracks?s.getAudioTracks():[],tr=tracks[0];
+    if(!tr||tr.readyState!=='live'){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}return}
+    var current=localStream&&localStream.getAudioTracks?localStream.getAudioTracks():[];
+    var usable=false;for(var i=0;i<current.length;i++)if(current[i].readyState==='live'&&current[i]!==tr)usable=true;
+    if(usable&&!_micFallbackActive){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}return}
+    swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
+        _micFallbackActive=false;bindAudioTrackHealth(tr);tr.enabled=!isMuted;refreshDeviceCache();
+    }).catch(function(){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}});
+}
+
 function getUserMediaWithTimeout(constraints,ms){
-    var tMs=ms||(isLegacyDevice?20000:4000);
+    var tMs=ms||(isLegacyDevice?12000:4000);
     _micPromptInProgress=true;
     return new Promise(function(resolve,reject){
-        var done=false,t=setTimeout(function(){if(!done){done=true;_micPromptInProgress=false;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);
-        navigator.mediaDevices.getUserMedia(constraints).then(function(s){
+        var done=false,request;
+        try{request=navigator.mediaDevices.getUserMedia(constraints)}catch(e){_micPromptInProgress=false;reject(e);return}
+        var t=setTimeout(function(){if(!done){done=true;_micPromptInProgress=false;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);
+        Promise.resolve(request).then(function(s){
             _micPromptInProgress=false;
-            if(done){var tr=s.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(e){}return}
+            if(done){recoverLateMicrophone(s);return}
             done=true;clearTimeout(t);resolve(s);
         }).catch(function(err){
             _micPromptInProgress=false;
@@ -558,7 +539,7 @@ function acquireBestSupportedAudio(videoConstraints){
     function tryNext(){
         if(idx>=modes.length)return Promise.reject(new Error('No audio'));
         var mode=modes[idx++],sRef=null;
-        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?20000:3000).then(function(s){
+        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?15000:3000).then(function(s){
             sRef=s;var tr=s.getAudioTracks()[0];if(!verifyAudioTrackForMode(tr,mode)){var err=new Error('Inactive');err.name='OverconstrainedError';throw err}
             noiseMode=mode;updateNoiseUI();return s;
         }).catch(function(err){
@@ -579,6 +560,19 @@ function finalizeLocalStream(){
     return true;
 }
 
+function adoptAudioCapture(s){
+    var at=s&&s.getAudioTracks?s.getAudioTracks():[],tr=at[0];
+    if(!tr||tr.readyState!=='live')return Promise.reject(new Error('No live microphone track'));
+    if(_micFallbackActive&&localStream){
+        return swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
+            _micFallbackActive=false;
+            return finalizeLocalStream();
+        });
+    }
+    localStream=s;_micFallbackActive=false;
+    return finalizeLocalStream();
+}
+
 function initMedia(){
     if(localStream&&!_micFallbackActive){
         var curAt=localStream.getAudioTracks();
@@ -595,14 +589,14 @@ function initMedia(){
     var p;
     if(callType==='video'){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
-        p=acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
-            return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(){
+        p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
+            return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
                 callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
     }else{
-        p=acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
-            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?15000:2500).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(){
+        p=acquireBestSupportedAudio(false).then(function(s){return adoptAudioCapture(s)}).catch(function(){
+            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?12000:2500).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
                 if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
@@ -639,7 +633,7 @@ function setupDataConn(tc){
 }
 
 function initiateSingleCall(){
-    if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted)return;
+    if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted||!localStream)return;
     if(activeCall){var pc=activeCall.peerConnection,st=pc?pc.iceConnectionState:'none';if(st==='connected'||st==='completed'||st==='checking'||st==='new')return;try{activeCall.close()}catch(e){}activeCall=null}
     _callSeq++;_stepEnteredAt=Date.now();_disconnectedSince=0;_gotRemoteStream=false;
     try{var c=peer.call(remotePeerId,localStream,{metadata:{name:myName,qMode:qualityMode,modeTs:_modeUpdatedAt,seq:_callSeq}});if(c){activeCall=c;setupCall(c)}}catch(e){}
@@ -651,12 +645,16 @@ function startApp(){
     _appStarting=true;setStep('STEP1_PREWARM');
 
     var shouldRequestMediaNow=(role==='caller')||isCallAcceptedByMe;
-    if(!localStream&&!shouldRequestMediaNow)localStream=createSilentFallbackStream();
+    if(!localStream)localStream=createSilentFallbackStream();
     var mediaReady=shouldRequestMediaNow?initMedia():Promise.resolve(true);
+    mediaReady.then(function(){
+        if(callEnded)return;
+        if(role==='caller'&&_receiverHasAccepted)initiateSingleCall();
+    }).catch(function(){});
 
-    Promise.all([mediaReady,_iceReadyPromise]).then(function(res){
+    _iceReadyPromise.then(function(ice){
         if(callEnded){_appStarting=false;return}
-        var ice=res[1]||FAST_ICE_SERVERS,cfg=isLegacyDevice?{iceServers:ice}:{iceServers:ice,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
+        var cfg=isLegacyDevice?{iceServers:ice||FAST_ICE_SERVERS}:{iceServers:ice||FAST_ICE_SERVERS,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
         peer=new Peer(myPeerId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:cfg});
         peer.on('open',function(){
             _peerReady=true;setStep('STEP2_WAIT_ACCEPT');if(_stepLoopTimer)clearInterval(_stepLoopTimer);openDataChannelBothSides();
