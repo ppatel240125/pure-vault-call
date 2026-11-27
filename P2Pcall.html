@@ -191,11 +191,12 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
 <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
 <script>
 function padTwo(n){var s=String(n);return s.length<2?'0'+s:s}
-function strContains(str,sub){return String(str||'').indexOf(sub)!==-1}
+function strContains(str,sub){return String(str||'').toLowerCase().indexOf(String(sub||'').toLowerCase())!==-1}
 function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=decodeURIComponent(pair[0]||''),val=decodeURIComponent((pair[1]||'').replace(/\+/g,' '));if(key)res[key]=val}return res}
 
 var UA=navigator.userAgent||'',androidMatch=UA.match(/Android\s+(\d+)/i),chromeMatch=UA.match(/Chrome\/(\d+)/i),androidVer=androidMatch?parseInt(androidMatch[1],10):0,chromeVer=chromeMatch?parseInt(chromeMatch[1],10):0;
 var isLegacyDevice=(androidVer>0&&androidVer<=11)||(chromeVer>0&&chromeVer<110)||!('wakeLock' in navigator);
+var isMobileDevice=/Android|iPhone|iPad|iPod|Mobile/i.test(UA);
 
 if(!navigator.mediaDevices)navigator.mediaDevices={};
 if(!navigator.mediaDevices.getUserMedia){var legacyGetUM=navigator.getUserMedia||navigator.webkitGetUserMedia||navigator.mozGetUserMedia||navigator.msGetUserMedia;if(legacyGetUM)navigator.mediaDevices.getUserMedia=function(c){return new Promise(function(res,rej){legacyGetUM.call(navigator,c,res,rej)})}}
@@ -207,10 +208,56 @@ function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el
 function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
 function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
 
+function applyDefaultOutputDevice(sinkId){
+    if(!sinkId)return;
+    var targets=[remoteAudio,remoteVideo];
+    for(var i=0;i<targets.length;i++){
+        var el=targets[i];
+        if(el&&typeof el.setSinkId==='function'){
+            try{el.setSinkId(sinkId).catch(function(){})}catch(e){}
+        }
+    }
+}
+
+function autoSelectEarOrDefaultDevices(){
+    if(!navigator.mediaDevices||typeof navigator.mediaDevices.enumerateDevices!=='function')return Promise.resolve(null);
+    return navigator.mediaDevices.enumerateDevices().then(function(all){
+        var inputs=[],outputs=[];
+        for(var i=0;i<all.length;i++){
+            if(all[i].kind==='audioinput')inputs.push(all[i]);
+            else if(all[i].kind==='audiooutput')outputs.push(all[i]);
+        }
+        _cachedAudioInputs=inputs;_devicesLoadedOnce=true;
+
+        var chosenMicId=null;
+        if(isMobileDevice){
+            for(var j=0;j<inputs.length;j++){
+                var lbl=inputs[j].label||'';
+                if(strContains(lbl,'earpiece')||strContains(lbl,'headset')||strContains(lbl,'ear')||strContains(lbl,'wired')){
+                    chosenMicId=inputs[j].deviceId;break;
+                }
+            }
+        }
+        if(chosenMicId)currentMicId=chosenMicId;
+
+        var chosenSinkId=null;
+        for(var k=0;k<outputs.length;k++){
+            var olbl=outputs[k].label||'';
+            if(isMobileDevice&&(strContains(olbl,'earpiece')||strContains(olbl,'headset')||strContains(olbl,'ear')||strContains(olbl,'wired'))){
+                chosenSinkId=outputs[k].deviceId;break;
+            }
+            if(!isMobileDevice&&!chosenSinkId&&outputs[k].deviceId){
+                chosenSinkId=outputs[k].deviceId;
+            }
+        }
+        if(chosenSinkId)applyDefaultOutputDevice(chosenSinkId);
+        return chosenMicId;
+    }).catch(function(){return null});
+}
+
 function bindAudioTrackHealth(tr){
     if(!tr)return;
     tr.enabled=!isMuted;
-    // Oppo A7 પર ઈયરપીસ/માઈક રાઉટ બદલાય ત્યારે બીજી વાર પરમિશન ન માંગવા માટે onended પર getUserMedia બંધ રાખ્યું છે
     tr.onended=function(){};
 }
 
@@ -317,7 +364,7 @@ var _iceReadyPromise=createRaceFreeIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_mediaInitPromise=null,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -378,7 +425,6 @@ function startStatsTelemetry(){
                 else if(localTrack&&localTrack.readyState==='live'){dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active'}
                 else{dotOut.className='diag-dot warn';txtOut.innerText='Mic: Standby'}
 
-                // સામેથી ખરેખર ઓડિયો ડેટા આવે ત્યારે જ In: Active બતાવો (Oppo A7 પર પરમિશન/રાઉટ પૂરું થાય ત્યાં સુધી In: Waiting Audio...)
                 var dIn=inBytes-_prevInBytes;_prevInBytes=inBytes;
                 if(dIn>0||inBytes>0)_hasInboundAudioFlow=true;
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
@@ -442,12 +488,15 @@ function stopMediaSession(){if(!('mediaSession' in navigator))return;try{navigat
 
 document.addEventListener('visibilitychange',function(){if(callEnded)return;forcePlay();if(_callEverConnected){startMediaSession();startBackgroundEngine()}});
 
+// કોલ ઉપાડતાની સાથે જ પરમિશન અને માઈક ચાલુ કરવાનું ફંક્શન
 window.acceptIncomingCall=function(){
     if(role!=='receiver'||callEnded)return;
     isCallAcceptedByMe=true;
     setStatusMessage('Connecting...','');setStep('STEP2_WAIT_ACCEPT');
-    openDataChannelBothSides();sendDataSafe({type:'CALL_ACCEPTED'});
-    if(activeCall&&localStream)try{activeCall.answer(localStream)}catch(e){}
+    initMedia().then(function(){
+        openDataChannelBothSides();sendDataSafe({type:'CALL_ACCEPTED'});
+        if(activeCall&&localStream)try{activeCall.answer(localStream)}catch(e){}
+    });
 };
 window.addEventListener('message',function(ev){var d=ev&&ev.data;if(d&&(d==='ACCEPT_CALL'||d.type==='ACCEPT_CALL'||d.type==='CALL_ACCEPTED'))window.acceptIncomingCall()});
 
@@ -561,23 +610,45 @@ function acquireBestSupportedAudio(videoConstraints){
     return tryNext();
 }
 
-function finalizeLocalStream(){var at=localStream.getAudioTracks();for(var i=0;i<at.length;i++)bindAudioTrackHealth(at[i]);if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);refreshDeviceCache();return true}
+function finalizeLocalStream(){
+    var at=localStream.getAudioTracks();
+    for(var i=0;i<at.length;i++){bindAudioTrackHealth(at[i]);at[i].enabled=!isMuted}
+    if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);
+    autoSelectEarOrDefaultDevices();
+    return true;
+}
+
 function initMedia(){
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){localStream=createSilentFallbackStream();return Promise.resolve(true)}
+    if(localStream&&!_micFallbackActive){
+        var curAt=localStream.getAudioTracks();
+        for(var k=0;k<curAt.length;k++)curAt[k].enabled=!isMuted;
+        return Promise.resolve(true);
+    }
+    if(_mediaInitPromise)return _mediaInitPromise;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+        localStream=createSilentFallbackStream();
+        return Promise.resolve(true);
+    }
+
     var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;
+    var p;
     if(callType==='video'){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
-        return acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+        p=acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
             return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(){
-                callType='audio';applyCallView();localStream=createSilentFallbackStream();return finalizeLocalStream();
+                callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
+            });
+        });
+    }else{
+        p=acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?15000:2500).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(){
+                if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
     }
-    return acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
-        return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?15000:2500).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(){
-            localStream=createSilentFallbackStream();return finalizeLocalStream();
-        });
-    });
+
+    _mediaInitPromise=p.then(function(res){_mediaInitPromise=null;return res},function(err){_mediaInitPromise=null;throw err});
+    return _mediaInitPromise;
 }
 
 function sendDataSafe(p){if(dataConn&&dataConn.open){try{dataConn.send(p);return true}catch(e){}}return false}
@@ -618,7 +689,11 @@ function startApp(){
     if(!window.RTCPeerConnection||typeof Peer==='undefined'){setStatusMessage('Browser Unsupported for WebRTC Calls','err');return}
     _appStarting=true;setStep('STEP1_PREWARM');
 
-    var mediaReady=localStream?Promise.resolve(true):initMedia();
+    // Caller તરત જ પરમિશન લઈને માઈક ચાલુ કરશે; Receiver Accept કરશે ત્યારે પરમિશન લઈને માઈક ચાલુ કરશે
+    var shouldRequestMediaNow=(role==='caller')||isCallAcceptedByMe;
+    if(!localStream&&!shouldRequestMediaNow)localStream=createSilentFallbackStream();
+    var mediaReady=shouldRequestMediaNow?initMedia():Promise.resolve(true);
+
     Promise.all([mediaReady,_iceReadyPromise]).then(function(res){
         if(callEnded){_appStarting=false;return}
         var ice=res[1]||FAST_ICE_SERVERS,cfg=isLegacyDevice?{iceServers:ice}:{iceServers:ice,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
@@ -637,7 +712,10 @@ function startApp(){
             if(call.metadata&&call.metadata.qMode)syncQualityFromRemote(call.metadata.qMode,call.metadata.modeTs||0);
             if(role==='receiver'&&!isCallAcceptedByMe){setupCall(call);return}
             setStep('STEP3_MEDIA_JOIN');if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Connecting...','');
-            call.answer(localStream);setupCall(call);
+            initMedia().then(function(){
+                if(activeCall===call&&!callEnded)try{call.answer(localStream)}catch(e){}
+            });
+            setupCall(call);
         });
         peer.on('error',function(err){
             var t=err&&err.type?err.type:'';
