@@ -428,7 +428,7 @@ window.acceptIncomingCall=function(){
 };
 window.addEventListener('message',function(ev){var d=ev&&ev.data;if(d&&(d==='ACCEPT_CALL'||d.type==='ACCEPT_CALL'||d.type==='CALL_ACCEPTED'))window.acceptIncomingCall()});
 
-function enterCallFullscreen(){var el=document.documentElement;try{if(el.requestFullscreen){var p=el.requestFullscreen();if(p&&p.catch)p.catch(function(){})}else if(el.webkitRequestFullscreen){el.webkitRequestFullscreen()}}catch(e){}try{if(screen&&screen.orientation&&screen.orientation.lock){var op=screen.orientation.lock('portrait');if(op&&op.catch)op.catch(function(){})}}catch(e){}}
+function enterCallFullscreen(){var el=document.documentElement;try{if(el.requestFullscreen){var p=el.requestFullscreen();if(p&&p.catch)p.catch(function(){})}else if(el.webkitRequestFullscreen){el.webkitRequestFullscreen()}}catch(e){}}
 function exitCallFullscreen(){try{if(document.fullscreenElement&&document.exitFullscreen){var p=document.exitFullscreen();if(p&&p.catch)p.catch(function(){})}else if(document.webkitFullscreenElement&&document.webkitExitFullscreen){document.webkitExitFullscreen()}}catch(e){}}
 function toggleLock(l){if(l){lockOverlay.classList.add('active');enterCallFullscreen()}else{lockOverlay.classList.remove('active');exitCallFullscreen()}}
 lockOverlay.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!e.target.closest||!e.target.closest('.lock-icon'))return;var now=Date.now();if(now-lastTap<400){toggleLock(false);lastTap=0}else lastTap=now});
