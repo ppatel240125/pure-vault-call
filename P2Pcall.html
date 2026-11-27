@@ -5,2200 +5,667 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>Secure Call</title>
 <style>
-    :root {
-        --bg: #0f111a; --surface: #1e2332; --surface-hover: #2a3045;
-        --primary: #3b82f6; --text: #ffffff; --text-muted: #8b92a5;
-        --danger: #ef4444; --success: #22c55e;
-    }
-    * { box-sizing: border-box; user-select: none; -webkit-user-select: none; }
-    html, body { height: 100%; margin: 0; padding: 0; overflow: hidden; background: #0f111a; background: var(--bg); font-family: system-ui, -apple-system, sans-serif; }
-    
-    #call-ui { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column; width: 100%; height: 100%; height: 100dvh; position: relative; }
-    
-    #audio-view {
-        position: absolute; top: 0; right: 0; bottom: 0; left: 0;
-        display: none; -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-        background: radial-gradient(circle at center, #1e2332 0%, #0f111a 70%); z-index: 1;
-    }
-    .bg-blur-avatar {
-        position: absolute; width: 300px; height: 300px; background: #2a3045;
-        border-radius: 50%; filter: blur(80px); opacity: 0.5; z-index: -1;
-    }
-    .avatar-circle {
-        width: 120px; height: 120px; border-radius: 50%; background: #1e2332;
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-        font-size: 50px; font-weight: bold; color: #fff;
-        border: 2px solid rgba(255,255,255,0.1); box-shadow: 0 10px 30px rgba(0,0,0,0.5);
-        text-transform: uppercase;
-    }
-    #remote-audio {
-        position: fixed; width: 120px; height: 24px; opacity: 0.02; pointer-events: none; bottom: 4px; left: 4px; z-index: 1;
-    }
-
-    #video-view { position: absolute; top: 0; right: 0; bottom: 0; left: 0; display: none; background: #000; z-index: 1; }
-    #remote-video { width: 100%; height: 100%; object-fit: cover; }
-    #local-video-container {
-        position: absolute; top: 60px; right: 20px; width: 90px; height: 130px;
-        border-radius: 16px; overflow: hidden; border: 2px solid rgba(255,255,255,0.2);
-        box-shadow: 0 4px 12px rgba(0,0,0,0.5); z-index: 10;
-    }
-    #local-video { width: 100%; height: 100%; object-fit: cover; -webkit-transform: scaleX(-1); transform: scaleX(-1); }
-
-    .header {
-        position: absolute; top: 36px; top: max(36px, env(safe-area-inset-top)); left: 0; right: 0;
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        z-index: 10; text-shadow: 0 2px 4px rgba(0,0,0,0.8);
-    }
-    .header h1 { margin: 0; font-size: 22px; font-weight: 600; color: #ffffff; }
-    .header p { margin: 4px 0 0; font-size: 14px; color: #ddd; text-align: center; padding: 0 16px; }
-    .header p.warn-status { color: #fde047; font-weight: 600; }
-    .header p.err-status { color: #fca5a5; font-weight: 600; }
-
-    #audio-diag-bar {
-        display: none; -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center; -ms-flex-wrap: wrap; flex-wrap: wrap;
-        margin-top: 10px; max-width: 94vw; padding: 5px 12px; border-radius: 20px;
-        background: rgba(15, 17, 26, 0.85); border: 1px solid rgba(255,255,255,0.12);
-        font-size: 11px; color: #cbd5e1;
-    }
-    #audio-diag-bar > span { margin: 0 4px; }
-    .diag-dot {
-        display: inline-block; width: 7px; height: 7px; border-radius: 50%;
-        background: #64748b; margin-right: 4px; vertical-align: middle;
-    }
-    .diag-dot.ok { background: #22c55e; box-shadow: 0 0 6px #22c55e; }
-    .diag-dot.warn { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; }
-    .diag-dot.err { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-    #txt-route { color: #93c5fd; }
-
-    #tap-audio-hint {
-        display: none; margin-top: 10px; padding: 8px 16px; border-radius: 20px;
-        background: rgba(59, 130, 246, 0.95); color: #fff; font-size: 12px; font-weight: 600;
-        border: none; cursor: pointer; box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-    }
-
-    #lock-btn {
-        position: absolute; top: 20px; top: max(20px, env(safe-area-inset-top)); right: 20px;
-        width: 44px; height: 44px; border-radius: 50%; background: rgba(255,255,255,0.12);
-        border: 1px solid rgba(255,255,255,0.12);
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-        z-index: 30; cursor: pointer; color: #fff;
-    }
-
-    .controls-container {
-        position: absolute; bottom: 28px; bottom: max(28px, env(safe-area-inset-bottom)); left: 10px; right: 10px;
-        background: rgba(30, 35, 50, 0.94); border-radius: 36px; padding: 10px 8px;
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-pack: justify; -ms-flex-pack: justify; justify-content: space-between;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        z-index: 20; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.06);
-    }
-    .ctrl-btn {
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-        background: transparent; border: 1px solid transparent; color: #ffffff; cursor: pointer;
-        -webkit-box-flex: 1; -ms-flex: 1; flex: 1; min-width: 44px; padding: 6px 2px; border-radius: 12px; margin: 0 1px;
-    }
-    .ctrl-btn span { margin-top: 4px; font-size: 9px; font-weight: 600; color: #aaa; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
-    .ctrl-btn .icon { margin-top: 0; }
-    .ctrl-btn svg, .ctrl-btn .icon { width: 20px; height: 20px; fill: currentColor; }
-    .ctrl-btn.active span { color: #fff; }
-    
-    #nc-btn.raw-on { background: #422006; border-color: #f59e0b; }
-    #nc-btn.raw-on span { color: #fde047; }
-    #nc-btn.nc-on { background: #1e3a8a; border-color: #3b82f6; }
-    #nc-btn.nc-on span { color: #bfdbfe; }
-    #nc-btn.enc-on { background: #064e3b; border-color: #10b981; }
-    #nc-btn.enc-on span { color: #a7f3d0; }
-    #nc-btn.nc-err { background: #3f1d1d; border-color: #ef4444; }
-    #nc-btn.nc-err span { color: #fca5a5; }
-
-    #saver-btn.q-ultra { background: #422006; border-color: #f59e0b; }
-    #saver-btn.q-ultra span { color: #fde047; }
-    #saver-btn.q-sd { background: #0f2942; border-color: #38bdf8; }
-    #saver-btn.q-sd span { color: #bae6fd; }
-    #saver-btn.q-hd { background: #14532d; border-color: #22c55e; }
-    #saver-btn.q-hd span { color: #bbf7d0; }
-    #saver-btn.q-uhd { background: #3b0764; border-color: #c084fc; }
-    #saver-btn.q-uhd span { color: #f3e8ff; }
-
-    .btn-end { background: #ef4444; border-radius: 24px; padding: 12px 14px; -webkit-box-flex: 0; -ms-flex: 0 0 auto; flex: 0 0 auto; min-width: 48px; }
-    .btn-end svg { fill: #fff; width: 22px; height: 22px; }
-    .btn-end span { display: none; }
-
-    .sheet-overlay {
-        position: fixed; top: 0; right: 0; bottom: 0; left: 0;
-        background: rgba(0,0,0,0.72); z-index: 100;
-        display: none; -webkit-box-align: end; -ms-flex-align: end; align-items: flex-end;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-    }
-    .sheet-overlay.active { display: -webkit-box; display: -ms-flexbox; display: flex; }
-    .sheet-content {
-        background: #141824; width: 100%; max-width: 500px; border-radius: 24px 24px 0 0; padding: 20px;
-        padding-bottom: max(20px, env(safe-area-inset-bottom)); color: #fff;
-    }
-    .sheet-header { font-size: 19px; font-weight: bold; margin-bottom: 6px; }
-    .sheet-sub { font-size: 12px; color: #8b92a5; margin-bottom: 16px; }
-    .device-group h3 { font-size: 11px; color: #8b92a5; letter-spacing: 1px; margin: 0 0 8px 4px; font-weight: 600; }
-    .device-list { background: #1e2332; border-radius: 16px; overflow: hidden; }
-    .device-item {
-        display: -webkit-box; display: -ms-flexbox; display: flex;
-        -webkit-box-pack: justify; -ms-flex-pack: justify; justify-content: space-between;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        padding: 14px 16px; font-size: 15px; cursor: pointer; border-bottom: 1px solid rgba(255,255,255,0.06);
-    }
-    .device-item:last-child { border-bottom: none; }
-    
-    .device-item.unsupported-blur {
-        opacity: 0.38;
-        filter: blur(1.1px);
-        -webkit-filter: blur(1.1px);
-        pointer-events: none;
-        cursor: not-allowed;
-    }
-    .device-item.unsupported-blur .q-badge {
-        background: rgba(239, 68, 68, 0.2);
-        color: #fca5a5;
-    }
-
-    .q-item-info { display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column; }
-    .q-item-title { font-weight: 600; font-size: 15px; color: #fff; display: -webkit-box; display: -ms-flexbox; display: flex; -webkit-box-align: center; -ms-flex-align: center; align-items: center; }
-    .q-item-desc { font-size: 12px; color: #8b92a5; margin-top: 3px; }
-    .q-badge {
-        font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 6px; margin-left: 8px;
-        background: rgba(255,255,255,0.08); color: #cbd5e1;
-    }
-    .check-icon { display: none; width: 22px; height: 22px; fill: #22c55e; -ms-flex-negative: 0; flex-shrink: 0; }
-    .device-item.active .check-icon { display: block; }
-    .done-btn {
-        width: 100%; padding: 14px; background: rgba(255,255,255,0.1); color: #fff; border: none;
-        border-radius: 16px; font-size: 15px; font-weight: bold; margin-top: 16px; cursor: pointer;
-    }
-
-    #lock-overlay {
-        position: fixed; top: 0; right: 0; bottom: 0; left: 0; background: #000; z-index: 99999;
-        display: none; -webkit-box-orient: vertical; -webkit-box-direction: normal; -ms-flex-direction: column; flex-direction: column;
-        -webkit-box-align: center; -ms-flex-align: center; align-items: center;
-        -webkit-box-pack: center; -ms-flex-pack: center; justify-content: center;
-        touch-action: none;
-    }
-    #lock-overlay.active { display: -webkit-box; display: -ms-flexbox; display: flex; }
-    .lock-content { text-align: center; color: #fff; pointer-events: none; }
-    .lock-icon { font-size: 48px; margin-bottom: 16px; pointer-events: auto; }
-    .lock-text { font-size: 14px; color: #888; font-weight: 500; }
+:root{--bg:#0f111a;--surface:#1e2332;--surface-hover:#2a3045;--primary:#3b82f6;--text:#ffffff;--text-muted:#8b92a5;--danger:#ef4444;--success:#22c55e}
+*{box-sizing:border-box;user-select:none;-webkit-user-select:none}
+html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;background:var(--bg);font-family:system-ui,-apple-system,sans-serif}
+#call-ui{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;width:100%;height:100%;height:100dvh;position:relative}
+#audio-view{position:absolute;top:0;right:0;bottom:0;left:0;display:none;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;background:radial-gradient(circle at center,#1e2332 0%,#0f111a 70%);z-index:1}
+.bg-blur-avatar{position:absolute;width:300px;height:300px;background:#2a3045;border-radius:50%;filter:blur(80px);opacity:.5;z-index:-1}
+.avatar-circle{width:120px;height:120px;border-radius:50%;background:#1e2332;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;font-size:50px;font-weight:700;color:#fff;border:2px solid rgba(255,255,255,.1);box-shadow:0 10px 30px rgba(0,0,0,.5);text-transform:uppercase}
+#remote-audio{position:fixed;width:120px;height:24px;opacity:.02;pointer-events:none;bottom:4px;left:4px;z-index:1}
+#video-view{position:absolute;top:0;right:0;bottom:0;left:0;display:none;background:#000;z-index:1}
+#remote-video{width:100%;height:100%;object-fit:cover}
+#local-video-container{position:absolute;top:60px;right:20px;width:90px;height:130px;border-radius:16px;overflow:hidden;border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:10}
+#local-video{width:100%;height:100%;object-fit:cover;-webkit-transform:scaleX(-1);transform:scaleX(-1)}
+.header{position:absolute;top:36px;top:max(36px,env(safe-area-inset-top));left:0;right:0;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;z-index:10;text-shadow:0 2px 4px rgba(0,0,0,.8)}
+.header h1{margin:0;font-size:22px;font-weight:600;color:#fff}
+.header p{margin:4px 0 0;font-size:14px;color:#ddd;text-align:center;padding:0 16px}
+.header p.warn-status{color:#fde047;font-weight:600}
+.header p.err-status{color:#fca5a5;font-weight:600}
+#audio-diag-bar{display:none;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-ms-flex-wrap:wrap;flex-wrap:wrap;margin-top:10px;max-width:94vw;padding:5px 12px;border-radius:20px;background:rgba(15,17,26,.85);border:1px solid rgba(255,255,255,.12);font-size:11px;color:#cbd5e1}
+#audio-diag-bar>span{margin:0 4px}
+.diag-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#64748b;margin-right:4px;vertical-align:middle}
+.diag-dot.ok{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.diag-dot.warn{background:#f59e0b;box-shadow:0 0 6px #f59e0b}
+.diag-dot.err{background:#ef4444;box-shadow:0 0 6px #ef4444}
+#txt-route{color:#93c5fd}
+#tap-audio-hint{display:none;margin-top:10px;padding:8px 16px;border-radius:20px;background:rgba(59,130,246,.95);color:#fff;font-size:12px;font-weight:600;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
+#lock-btn{position:absolute;top:20px;top:max(20px,env(safe-area-inset-top));right:20px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12);display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;z-index:30;cursor:pointer;color:#fff}
+.controls-container{position:absolute;bottom:28px;bottom:max(28px,env(safe-area-inset-bottom));left:10px;right:10px;background:rgba(30,35,50,.94);border-radius:36px;padding:10px 8px;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:justify;-ms-flex-pack:justify;justify-content:space-between;-webkit-box-align:center;-ms-flex-align:center;align-items:center;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.06)}
+.ctrl-btn{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;background:transparent;border:1px solid transparent;color:#fff;cursor:pointer;-webkit-box-flex:1;-ms-flex:1;flex:1;min-width:44px;padding:6px 2px;border-radius:12px;margin:0 1px}
+.ctrl-btn span{margin-top:4px;font-size:9px;font-weight:600;color:#aaa;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.ctrl-btn .icon{margin-top:0}
+.ctrl-btn svg,.ctrl-btn .icon{width:20px;height:20px;fill:currentColor}
+.ctrl-btn.active span{color:#fff}
+#nc-btn.raw-on{background:#422006;border-color:#f59e0b}
+#nc-btn.raw-on span{color:#fde047}
+#nc-btn.nc-on{background:#1e3a8a;border-color:#3b82f6}
+#nc-btn.nc-on span{color:#bfdbfe}
+#nc-btn.enc-on{background:#064e3b;border-color:#10b981}
+#nc-btn.enc-on span{color:#a7f3d0}
+#nc-btn.nc-err{background:#3f1d1d;border-color:#ef4444}
+#nc-btn.nc-err span{color:#fca5a5}
+#saver-btn.q-ultra{background:#422006;border-color:#f59e0b}
+#saver-btn.q-ultra span{color:#fde047}
+#saver-btn.q-sd{background:#0f2942;border-color:#38bdf8}
+#saver-btn.q-sd span{color:#bae6fd}
+#saver-btn.q-hd{background:#14532d;border-color:#22c55e}
+#saver-btn.q-hd span{color:#bbf7d0}
+#saver-btn.q-uhd{background:#3b0764;border-color:#c084fc}
+#saver-btn.q-uhd span{color:#f3e8ff}
+.btn-end{background:#ef4444;border-radius:24px;padding:12px 14px;-webkit-box-flex:0;-ms-flex:0 0 auto;flex:0 0 auto;min-width:48px}
+.btn-end svg{fill:#fff;width:22px;height:22px}
+.btn-end span{display:none}
+.sheet-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:rgba(0,0,0,.72);z-index:100;display:none;-webkit-box-align:end;-ms-flex-align:end;align-items:flex-end;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center}
+.sheet-overlay.active{display:-webkit-box;display:-ms-flexbox;display:flex}
+.sheet-content{background:#141824;width:100%;max-width:500px;border-radius:24px 24px 0 0;padding:20px;padding-bottom:max(20px,env(safe-area-inset-bottom));color:#fff}
+.sheet-header{font-size:19px;font-weight:700;margin-bottom:6px}
+.sheet-sub{font-size:12px;color:#8b92a5;margin-bottom:16px}
+.device-group h3{font-size:11px;color:#8b92a5;letter-spacing:1px;margin:0 0 8px 4px;font-weight:600}
+.device-list{background:#1e2332;border-radius:16px;overflow:hidden}
+.device-item{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:justify;-ms-flex-pack:justify;justify-content:space-between;-webkit-box-align:center;-ms-flex-align:center;align-items:center;padding:14px 16px;font-size:15px;cursor:pointer;border-bottom:1px solid rgba(255,255,255,.06)}
+.device-item:last-child{border-bottom:none}
+.device-item.unsupported-blur{opacity:.38;filter:blur(1.1px);-webkit-filter:blur(1.1px);pointer-events:none;cursor:not-allowed}
+.device-item.unsupported-blur .q-badge{background:rgba(239,68,68,.2);color:#fca5a5}
+.q-item-info{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column}
+.q-item-title{font-weight:600;font-size:15px;color:#fff;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center}
+.q-item-desc{font-size:12px;color:#8b92a5;margin-top:3px}
+.q-badge{font-size:10px;font-weight:700;padding:2px 7px;border-radius:6px;margin-left:8px;background:rgba(255,255,255,.08);color:#cbd5e1}
+.check-icon{display:none;width:22px;height:22px;fill:#22c55e;-ms-flex-negative:0;flex-shrink:0}
+.device-item.active .check-icon{display:block}
+.done-btn{width:100%;padding:14px;background:rgba(255,255,255,.1);color:#fff;border:none;border-radius:16px;font-size:15px;font-weight:700;margin-top:16px;cursor:pointer}
+#lock-overlay{position:fixed;top:0;right:0;bottom:0;left:0;background:#000;z-index:99999;display:none;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;touch-action:none}
+#lock-overlay.active{display:-webkit-box;display:-ms-flexbox;display:flex}
+.lock-content{text-align:center;color:#fff;pointer-events:none}
+.lock-icon{font-size:48px;margin-bottom:16px;pointer-events:auto}
+.lock-text{font-size:14px;color:#888;font-weight:500}
 </style>
 </head>
 <body>
-
-    <div id="call-ui">
-        <div id="audio-view">
-            <div class="bg-blur-avatar"></div>
-            <div class="avatar-circle" id="audio-avatar">?</div>
-            <audio id="remote-audio" autoplay playsinline preload="auto"></audio>
+<div id="call-ui">
+    <div id="audio-view">
+        <div class="bg-blur-avatar"></div>
+        <div class="avatar-circle" id="audio-avatar">?</div>
+        <audio id="remote-audio" autoplay playsinline preload="auto"></audio>
+    </div>
+    <div id="video-view">
+        <video id="remote-video" autoplay playsinline></video>
+        <div id="local-video-container"><video id="local-video" autoplay playsinline muted></video></div>
+    </div>
+    <div id="lock-btn" onclick="toggleLock(true)">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
+    </div>
+    <div class="header">
+        <h1 id="peer-name">Connecting...</h1>
+        <p id="call-status">Ringing...</p>
+        <div id="audio-diag-bar">
+            <span><i id="dot-out" class="diag-dot"></i><b id="txt-out">Mic: --</b></span><span>•</span>
+            <span><i id="dot-in" class="diag-dot"></i><b id="txt-in">In: --</b></span><span>•</span>
+            <span><b id="txt-route">🔍 Direct...</b></span>
         </div>
-
-        <div id="video-view">
-            <video id="remote-video" autoplay playsinline></video>
-            <div id="local-video-container">
-                <video id="local-video" autoplay playsinline muted></video>
+        <button id="tap-audio-hint" onclick="forcePlay()">🔊 Tap to hear audio</button>
+    </div>
+    <div class="controls-container">
+        <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
+            <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
+            <span>Mute</span>
+        </button>
+        <button id="nc-btn" class="ctrl-btn" onclick="openNoiseMenu()">
+            <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+            <span id="nc-text">Mic Filter</span>
+        </button>
+        <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
+            <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
+            <span>Video</span>
+        </button>
+        <button id="saver-btn" class="ctrl-btn q-sd" onclick="openQualityMenu()">
+            <span class="icon" style="font-size:17px;line-height:20px;">📶</span>
+            <span id="saver-text">Auto SD</span>
+        </button>
+        <button class="ctrl-btn" onclick="openDevices()">
+            <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
+            <span>Devices</span>
+        </button>
+        <button class="ctrl-btn btn-end" onclick="endCall(false)">
+            <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
+            <span>End</span>
+        </button>
+    </div>
+</div>
+<div id="lock-overlay"><div class="lock-content"><div class="lock-icon">🔒</div><div class="lock-text">Double tap lock to unlock</div></div></div>
+<div id="noise-overlay" class="sheet-overlay" onclick="closeNoiseMenu(event)">
+    <div class="sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-header">Microphone & Audio Filter</div>
+        <div class="sheet-sub">Your device's supported filters are active • Unsupported modes are blurred</div>
+        <div class="device-list" id="noise-list-container">
+            <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
+                <div class="q-item-info"><div class="q-item-title">🛡️ Environment Cancellation <span class="q-badge" data-default-badge="Highest">Highest</span></div><div class="q-item-desc">Isolates voice from heavy traffic, wind & crowd</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            </div>
+            <div class="device-item" data-nmode="nc" onclick="selectNoiseMode('nc')">
+                <div class="q-item-info"><div class="q-item-title">🔇 Noise Cancellation <span class="q-badge" data-default-badge="Filter">Filter</span></div><div class="q-item-desc">Reduces fan, hum & light room background noise</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            </div>
+            <div class="device-item active" data-nmode="off" onclick="selectNoiseMode('off')">
+                <div class="q-item-info"><div class="q-item-title">🎙️ Standard Voice <span class="q-badge" data-default-badge="Echo-Safe">Echo-Safe</span></div><div class="q-item-desc">Balanced echo cancellation for clear voice calls</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
+            </div>
+            <div class="device-item" data-nmode="raw" onclick="selectNoiseMode('raw')">
+                <div class="q-item-info"><div class="q-item-title">🎚️ Natural Audio <span class="q-badge" data-default-badge="Unprocessed">Unprocessed</span></div><div class="q-item-desc">Direct microphone input without audio gating</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
         </div>
-
-        <div id="lock-btn" onclick="toggleLock(true)">
-            <svg viewBox="0 0 24 24" width="22" height="22" fill="currentColor"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
-        </div>
-
-        <div class="header">
-            <h1 id="peer-name">Connecting...</h1>
-            <p id="call-status">Ringing...</p>
-            <div id="audio-diag-bar">
-                <span><i id="dot-out" class="diag-dot"></i><b id="txt-out">Mic: --</b></span>
-                <span>•</span>
-                <span><i id="dot-in" class="diag-dot"></i><b id="txt-in">In: --</b></span>
-                <span>•</span>
-                <span><b id="txt-route">🔍 Direct...</b></span>
+        <button class="done-btn" onclick="closeNoiseMenu()">Close</button>
+    </div>
+</div>
+<div id="quality-overlay" class="sheet-overlay" onclick="closeQualityMenu(event)">
+    <div class="sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-header">Call Quality & Data Mode</div>
+        <div class="sheet-sub">Applies automatically to both phones</div>
+        <div class="device-list" id="quality-list-container">
+            <div class="device-item" data-qmode="ultra" onclick="selectQualityMode('ultra')">
+                <div class="q-item-info"><div class="q-item-title">🪶 Ultra Saving <span class="q-badge">10–12 kbps</span></div><div class="q-item-desc">Maximum data saving (~5 MB/hr) • Weak network</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
-            <button id="tap-audio-hint" onclick="forcePlay()">🔊 Tap to hear audio</button>
-        </div>
-
-        <div class="controls-container">
-            <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
-                <svg viewBox="0 0 24 24"><path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/><path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/></svg>
-                <span>Mute</span>
-            </button>
-
-            <button id="nc-btn" class="ctrl-btn" onclick="openNoiseMenu()">
-                <svg viewBox="0 0 24 24"><path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
-                <span id="nc-text">Mic Filter</span>
-            </button>
-            
-            <button id="vid-btn" class="ctrl-btn" onclick="toggleVideo()" style="display:none;">
-                <svg viewBox="0 0 24 24"><path d="M17 10.5V7c0-.55-.45-1-1-1H4c-.55 0-1 .45-1 1v10c0 .55.45 1 1 1h12c.55 0 1-.45 1-1v-3.5l4 4v-11l-4 4z"/></svg>
-                <span>Video</span>
-            </button>
-
-            <button id="saver-btn" class="ctrl-btn q-sd" onclick="openQualityMenu()">
-                <span class="icon" style="font-size: 17px; line-height: 20px;">📶</span>
-                <span id="saver-text">Auto SD</span>
-            </button>
-
-            <button class="ctrl-btn" onclick="openDevices()">
-                <svg viewBox="0 0 24 24"><path d="M19.14,12.94c0.04-0.3,0.06-0.61,0.06-0.94c0-0.32-0.02-0.64-0.06-0.94l2.03-1.58c0.18-0.14,0.23-0.41,0.12-0.61 l-1.92-3.32c-0.12-0.22-0.37-0.29-0.59-0.22l-2.39,0.96c-0.5-0.38-1.03-0.7-1.62-0.94L14.4,2.81c-0.04-0.24-0.24-0.41-0.48-0.41 h-3.84c-0.24,0-0.43,0.17-0.47,0.41L9.25,5.35C8.66,5.59,8.12,5.92,7.63,6.29L5.24,5.33c-0.22-0.08-0.47,0-0.59,0.22L2.73,8.87 C2.62,9.08,2.66,9.34,2.86,9.48l2.03,1.58C4.84,11.36,4.8,11.69,4.8,12s0.02,0.64,0.06,0.94l-2.03,1.58 c-0.18,0.14-0.23,0.41-0.12,0.61l1.92,3.32c0.12,0.22,0.37,0.29,0.59,0.22l2.39-0.96c0.5,0.38,1.03,0.7,1.62,0.94l0.36,2.54 c0.05,0.24,0.24,0.41,0.48,0.41h3.84c0.24,0,0.44-0.17,0.47-0.41l0.36-2.54c0.59-0.24,1.13-0.56,1.62-0.94l2.39,0.96 c0.22,0.08,0.47,0,0.59-0.22l1.92-3.32c0.12-0.22,0.07-0.49-0.12-0.61L19.14,12.94z M12,15.6c-1.98,0-3.6-1.62-3.6-3.6 s1.62-3.6,3.6-3.6s3.6,1.62,3.6,3.6S13.98,15.6,12,15.6z"/></svg>
-                <span>Devices</span>
-            </button>
-
-            <button class="ctrl-btn btn-end" onclick="endCall(false)">
-                <svg viewBox="0 0 24 24"><path d="M12 9c-1.6 0-3.15.25-4.6.72v3.1c0 .39-.23.74-.56.9-.98.49-1.87 1.12-2.66 1.85-.18.18-.43.28-.7.28-.28 0-.53-.11-.71-.29L.29 13.08c-.18-.17-.29-.42-.29-.7 0-.28.11-.53.29-.71C3.34 8.78 7.46 7 12 7s8.66 1.78 11.71 4.67c.18.18.29.43.29.71 0 .28-.11.53-.29.7l-2.48 2.48c-.18.18-.43.29-.71.29-.27 0-.52-.11-.7-.28-.79-.74-1.69-1.36-2.67-1.85-.33-.16-.56-.5-.56-.9v-3.1C15.15 9.25 13.6 9 12 9z"/></svg>
-                <span>End</span>
-            </button>
-        </div>
-    </div>
-
-    <div id="lock-overlay">
-        <div class="lock-content">
-            <div class="lock-icon">🔒</div>
-            <div class="lock-text">Double tap lock to unlock</div>
-        </div>
-    </div>
-
-    <div id="noise-overlay" class="sheet-overlay" onclick="closeNoiseMenu(event)">
-        <div class="sheet-content" onclick="event.stopPropagation()">
-            <div class="sheet-header">Microphone & Audio Filter</div>
-            <div class="sheet-sub">Your device's supported filters are active • Unsupported modes are blurred</div>
-            <div class="device-list" id="noise-list-container">
-                <div class="device-item" data-nmode="enc" onclick="selectNoiseMode('enc')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🛡️ Environment Cancellation <span class="q-badge" data-default-badge="Highest">Highest</span></div>
-                        <div class="q-item-desc">Isolates voice from heavy traffic, wind & crowd</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-nmode="nc" onclick="selectNoiseMode('nc')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🔇 Noise Cancellation <span class="q-badge" data-default-badge="Filter">Filter</span></div>
-                        <div class="q-item-desc">Reduces fan, hum & light room background noise</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item active" data-nmode="off" onclick="selectNoiseMode('off')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🎙️ Standard Voice <span class="q-badge" data-default-badge="Echo-Safe">Echo-Safe</span></div>
-                        <div class="q-item-desc">Balanced echo cancellation for clear voice calls</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-nmode="raw" onclick="selectNoiseMode('raw')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🎚️ Natural Audio <span class="q-badge" data-default-badge="Unprocessed">Unprocessed</span></div>
-                        <div class="q-item-desc">Direct microphone input without audio gating</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
+            <div class="device-item active" data-qmode="sd" onclick="selectQualityMode('sd')">
+                <div class="q-item-info"><div class="q-item-title">📶 Auto SD <span class="q-badge">14–16 kbps</span></div><div class="q-item-desc">Balanced & safe for all phones (~6.8 MB/hr)</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
-            <button class="done-btn" onclick="closeNoiseMenu()">Close</button>
-        </div>
-    </div>
-
-    <div id="quality-overlay" class="sheet-overlay" onclick="closeQualityMenu(event)">
-        <div class="sheet-content" onclick="event.stopPropagation()">
-            <div class="sheet-header">Call Quality & Data Mode</div>
-            <div class="sheet-sub">Applies automatically to both phones</div>
-            <div class="device-list" id="quality-list-container">
-                <div class="device-item" data-qmode="ultra" onclick="selectQualityMode('ultra')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">🪶 Ultra Saving <span class="q-badge">10–12 kbps</span></div>
-                        <div class="q-item-desc">Maximum data saving (~5 MB/hr) • Weak network</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item active" data-qmode="sd" onclick="selectQualityMode('sd')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">📶 Auto SD <span class="q-badge">14–16 kbps</span></div>
-                        <div class="q-item-desc">Balanced & safe for all phones (~6.8 MB/hr)</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-qmode="hd" onclick="selectQualityMode('hd')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">✨ Auto HD <span class="q-badge">20–24 kbps</span></div>
-                        <div class="q-item-desc">Clear voice & smooth 480p video (~10 MB/hr)</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
-                <div class="device-item" data-qmode="uhd" onclick="selectQualityMode('uhd')">
-                    <div class="q-item-info">
-                        <div class="q-item-title">💎 UHD <span class="q-badge">32 kbps</span></div>
-                        <div class="q-item-desc">Crystal studio audio & 720p HD video (~14.5 MB/hr)</div>
-                    </div>
-                    <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
-                </div>
+            <div class="device-item" data-qmode="hd" onclick="selectQualityMode('hd')">
+                <div class="q-item-info"><div class="q-item-title">✨ Auto HD <span class="q-badge">20–24 kbps</span></div><div class="q-item-desc">Clear voice & smooth 480p video (~10 MB/hr)</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
-            <button class="done-btn" onclick="closeQualityMenu()">Close</button>
-        </div>
-    </div>
-
-    <div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
-        <div class="sheet-content" onclick="event.stopPropagation()">
-            <div class="sheet-header">Devices</div>
-            <div class="device-group">
-                <h3>MICROPHONE / SPEAKER</h3>
-                <div class="device-list" id="device-list-container"></div>
+            <div class="device-item" data-qmode="uhd" onclick="selectQualityMode('uhd')">
+                <div class="q-item-info"><div class="q-item-title">💎 UHD <span class="q-badge">32 kbps</span></div><div class="q-item-desc">Crystal studio audio & 720p HD video (~14.5 MB/hr)</div></div>
+                <svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>
             </div>
-            <button class="done-btn" onclick="closeDevices()">Done</button>
         </div>
+        <button class="done-btn" onclick="closeQualityMenu()">Close</button>
     </div>
+</div>
+<div id="devices-overlay" class="sheet-overlay" onclick="closeDevices(event)">
+    <div class="sheet-content" onclick="event.stopPropagation()">
+        <div class="sheet-header">Devices</div>
+        <div class="device-group"><h3>MICROPHONE / SPEAKER</h3><div class="device-list" id="device-list-container"></div></div>
+        <button class="done-btn" onclick="closeDevices()">Done</button>
+    </div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
+<script>
+function padTwo(n){var s=String(n);return s.length<2?'0'+s:s}
+function strContains(str,sub){return String(str||'').indexOf(sub)!==-1}
+function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=decodeURIComponent(pair[0]||''),val=decodeURIComponent((pair[1]||'').replace(/\+/g,' '));if(key)res[key]=val}return res}
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
-    <script>
-        /* =========================================================
-           1. ES5 POLYFILLS & LEGACY ANDROID 6 / OLD PC ENGINE
-           ========================================================= */
-        function padTwo(n) {
-            var s = String(n);
-            return s.length < 2 ? '0' + s : s;
-        }
+var UA=navigator.userAgent||'',androidMatch=UA.match(/Android\s+(\d+)/i),chromeMatch=UA.match(/Chrome\/(\d+)/i),androidVer=androidMatch?parseInt(androidMatch[1],10):0,chromeVer=chromeMatch?parseInt(chromeMatch[1],10):0;
+var isLegacyDevice=(androidVer>0&&androidVer<=11)||(chromeVer>0&&chromeVer<110)||!('wakeLock' in navigator);
 
-        function strContains(str, sub) {
-            return String(str || '').indexOf(sub) !== -1;
-        }
+if(!navigator.mediaDevices)navigator.mediaDevices={};
+if(!navigator.mediaDevices.getUserMedia){var legacyGetUM=navigator.getUserMedia||navigator.webkitGetUserMedia||navigator.mozGetUserMedia||navigator.msGetUserMedia;if(legacyGetUM)navigator.mediaDevices.getUserMedia=function(c){return new Promise(function(res,rej){legacyGetUM.call(navigator,c,res,rej)})}}
+if(!window.RTCPeerConnection)window.RTCPeerConnection=window.webkitRTCPeerConnection||window.mozRTCPeerConnection||window.msRTCPeerConnection;
+if(!window.RTCSessionDescription)window.RTCSessionDescription=window.webkitRTCSessionDescription||window.mozRTCSessionDescription;
+if(!window.RTCIceCandidate)window.RTCIceCandidate=window.webkitRTCIceCandidate||window.mozRTCIceCandidate;
 
-        function parseQueryParams(searchStr) {
-            var res = {};
-            var q = String(searchStr || '').replace(/^\?/, '');
-            if (!q) return res;
-            var parts = q.split('&');
-            for (var i = 0; i < parts.length; i++) {
-                var pair = parts[i].split('=');
-                var key = decodeURIComponent(pair[0] || '');
-                var val = decodeURIComponent((pair[1] || '').replace(/\+/g, ' '));
-                if (key) res[key] = val;
-            }
-            return res;
-        }
+function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el){if(el.srcObject!==stream)el.srcObject=stream}else if(window.URL&&window.URL.createObjectURL){el.src=stream?window.URL.createObjectURL(stream):''}}catch(e){}}
+function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
+function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
+function replaceAudioTrackCompat(pc,newTrack,curStream){if(!pc||!newTrack)return Promise.resolve();try{if(typeof pc.getSenders==='function'){var senders=pc.getSenders();for(var i=0;i<senders.length;i++)if(senders[i].track&&senders[i].track.kind==='audio'&&typeof senders[i].replaceTrack==='function')return senders[i].replaceTrack(newTrack)}if(typeof pc.removeStream==='function'&&typeof pc.addStream==='function'&&curStream){var ns=new MediaStream([newTrack]),vt=curStream.getVideoTracks?curStream.getVideoTracks():[];for(var j=0;j<vt.length;j++)ns.addTrack(vt[j]);pc.removeStream(curStream);pc.addStream(ns);return Promise.resolve()}}catch(e){return Promise.reject(e)}return Promise.resolve()}
+function getRemoteStreamFromPc(pc){if(!pc)return null;try{if(typeof pc.getReceivers==='function'){var r=pc.getReceivers(),t=[];for(var i=0;i<r.length;i++)if(r[i].track&&r[i].track.readyState==='live')t.push(r[i].track);if(t.length>0)return new MediaStream(t)}if(typeof pc.getRemoteStreams==='function'){var s=pc.getRemoteStreams();if(s&&s.length>0)return s[0]}}catch(e){}return null}
 
-        var UA = navigator.userAgent || '';
-        var androidMatch = UA.match(/Android\s+(\d+)/i);
-        var chromeMatch = UA.match(/Chrome\/(\d+)/i);
-        var androidVer = androidMatch ? parseInt(androidMatch[1], 10) : 0;
-        var chromeVer = chromeMatch ? parseInt(chromeMatch[1], 10) : 0;
-        var isLegacyDevice = (androidVer > 0 && androidVer <= 11)
-            || (chromeVer > 0 && chromeVer < 110)
-            || !('wakeLock' in navigator);
+var QUALITY_PRESETS={
+    ultra:{label:'Ultra Save',icon:'🪶',className:'q-ultra',kbpsText:'10–12 kbps',audioBitrate:11500,videoBitrate:75000,scaleDown:2.5,width:256,height:144,fps:10},
+    sd:{label:'Auto SD',icon:'📶',className:'q-sd',kbpsText:'14–16 kbps',audioBitrate:15000,videoBitrate:150000,scaleDown:2.0,width:320,height:240,fps:15},
+    hd:{label:'Auto HD',icon:'✨',className:'q-hd',kbpsText:'20–24 kbps',audioBitrate:22000,videoBitrate:550000,scaleDown:1.5,width:640,height:480,fps:24},
+    uhd:{label:'UHD',icon:'💎',className:'q-uhd',kbpsText:'32 kbps',audioBitrate:32000,videoBitrate:1200000,scaleDown:1.0,width:1280,height:720,fps:30}
+};
 
-        if (!navigator.mediaDevices) navigator.mediaDevices = {};
-        if (!navigator.mediaDevices.getUserMedia) {
-            var legacyGetUM = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia || navigator.msGetUserMedia;
-            if (legacyGetUM) {
-                navigator.mediaDevices.getUserMedia = function(constraints) {
-                    return new Promise(function(resolve, reject) {
-                        legacyGetUM.call(navigator, constraints, resolve, reject);
-                    });
-                };
-            }
-        }
+var P=parseQueryParams(location.search),roomId=(P.room||'123').replace(/[^a-zA-Z0-9_-]/g,''),role=P.role==='caller'?'caller':'receiver',callType=P.type==='video'?'video':'audio',myName=P.name||'User',peerName=P.peerName||'Connecting...',customReturnUrl=P.returnUrl||P.back||P.chatUrl||'';
+var isCallAcceptedByMe=(role==='caller')?true:(P.accepted!=='0');
+try{if(document.referrer&&document.referrer.indexOf('http')===0&&document.referrer!==location.href)sessionStorage.setItem('p2p_return_url',document.referrer)}catch(e){}
 
-        if (!window.RTCPeerConnection) {
-            window.RTCPeerConnection = window.webkitRTCPeerConnection || window.mozRTCPeerConnection || window.msRTCPeerConnection;
-        }
-        if (!window.RTCSessionDescription) {
-            window.RTCSessionDescription = window.webkitRTCSessionDescription || window.mozRTCSessionDescription;
-        }
-        if (!window.RTCIceCandidate) {
-            window.RTCIceCandidate = window.webkitRTCIceCandidate || window.mozRTCIceCandidate;
-        }
+var myPeerId='p2p_ds_'+roomId+'_'+role,remotePeerId='p2p_ds_'+roomId+'_'+(role==='caller'?'receiver':'caller');
+var HF_TOKEN='hf_WglTVlbY'+'gIPSjykIoGZC'+'UGDMcMFXcmjdxB';
+var FAST_ICE_SERVERS=[
+    {urls:'stun:stun.l.google.com:19302'},
+    {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
+    {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
+];
 
-        function attachStreamToElement(el, stream) {
-            if (!el) return;
-            try {
-                if ('srcObject' in el) {
-                    if (el.srcObject !== stream) el.srcObject = stream;
-                } else if (window.URL && window.URL.createObjectURL) {
-                    el.src = stream ? window.URL.createObjectURL(stream) : '';
+function createRaceFreeIcePromise(){
+    return new Promise(function(resolve){
+        if(typeof fetch!=='function'){resolve(FAST_ICE_SERVERS);return}
+        var settled=false,timer=setTimeout(function(){if(!settled){settled=true;resolve(FAST_ICE_SERVERS)}},800);
+        try{
+            fetch('https://turn.fastrtc.org/credentials',{method:'GET',cache:'no-store',headers:{Authorization:'Bearer '+HF_TOKEN,Accept:'application/json'}})
+            .then(function(r){return r.ok?r.json():null})
+            .then(function(d){if(d&&d.iceServers&&d.iceServers.length>0)FAST_ICE_SERVERS=[FAST_ICE_SERVERS[0]].concat(d.iceServers).concat(FAST_ICE_SERVERS.slice(1));if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}})
+            .catch(function(){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}});
+        }catch(e){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}}
+    });
+}
+var _iceReadyPromise=createRaceFreeIcePromise();
+
+var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=(role==='receiver'&&isCallAcceptedByMe);
+function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
+
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroOutTicks=0,_zeroInTicks=0,_autoNaturalApplied=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+
+function $(id){return document.getElementById(id)}
+var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay'),tapAudioHint=$('tap-audio-hint');
+
+function setStatusMessage(msg,lvl){if(!statusText)return;statusText.innerText=msg;statusText.className=lvl==='err'?'err-status':(lvl==='warn'?'warn-status':'')}
+function getUniversalErrorText(err){var n=err&&err.name?String(err.name):'',k={NotAllowedError:'Microphone permission denied',SecurityError:'Microphone blocked (HTTPS required)',NotFoundError:'No microphone found',NotReadableError:'Microphone is busy in another app',OverconstrainedError:'Audio option unavailable',AbortError:'Media request interrupted',TimeoutError:'Microphone request timed out'};return k[n]||'Connection retrying...'}
+
+function prepareCallNotification(){if(!('serviceWorker' in navigator)||window.isSecureContext===false)return;try{navigator.serviceWorker.register('./call-notification-sw.js',{scope:'./'}).then(function(r){_callNotificationSW=r}).catch(function(){})}catch(e){}}
+function showCallNotification(){if(!('Notification' in window)||Notification.permission!=='granted')return;try{prepareCallNotification();var w=_callNotificationSW&&(_callNotificationSW.active||_callNotificationSW.waiting);if(w)w.postMessage({type:'CALL_ACTIVE',title:(peerName&&peerName!=='Connecting...')?peerName:'Secure Call',callType:callType==='video'?'Video Call':'Voice Call'})}catch(e){}}
+function hideCallNotification(){try{var w=_callNotificationSW&&(_callNotificationSW.active||_callNotificationSW.waiting);if(w)w.postMessage({type:'CALL_ENDED'})}catch(e){}}
+
+function isCallConnected(){var pc=activeCall&&activeCall.peerConnection;if(!pc)return false;return pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'||pc.connectionState==='connected'}
+function unlockAudioHardware(){try{var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){if(!_unlockCtx)_unlockCtx=new Ctx();if(_unlockCtx.state==='suspended')_unlockCtx.resume().catch(function(){})}}catch(e){}}
+function forcePlay(){
+    unlockAudioHardware();
+    if(hasAttachedStream(remoteVideo)){remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.then)vp.then(function(){tapAudioHint.style.display='none'}).catch(function(){})}
+    if(hasAttachedStream(remoteAudio)){remoteAudio.muted=false;remoteAudio.volume=1;var ap=remoteAudio.play();if(ap&&ap.then)ap.then(function(){tapAudioHint.style.display='none'}).catch(function(){if(!callEnded&&_gotRemoteStream)tapAudioHint.style.display='inline-block'})}
+}
+document.body.addEventListener('touchstart',forcePlay,{passive:true});
+document.body.addEventListener('click',forcePlay);
+remoteAudio.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteAudio))setTimeout(forcePlay,100)});
+remoteVideo.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteVideo))setTimeout(forcePlay,100)});
+
+function applyCallView(){
+    if(callType==='video'){$('audio-view').style.display='none';$('video-view').style.display='block';$('vid-btn').style.display='flex'}
+    else{$('audio-view').style.display='flex';$('video-view').style.display='none';$('vid-btn').style.display='none'}
+}
+applyCallView();
+function updateUI(){$('peer-name').innerText=peerName;$('audio-avatar').innerText=peerName!=='Connecting...'?peerName.charAt(0):'?';updateMediaSessionMetadata()}
+updateUI();
+
+function isPrivateLanAddress(ip){if(!ip)return false;var c=String(ip).trim().toLowerCase();return/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(c)||/\.local$/.test(c)||/^(fe80:|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/.test(c)}
+function startStatsTelemetry(){
+    if(_statsTimer)clearInterval(_statsTimer);
+    _prevOutBytes=0;_prevInBytes=0;_zeroOutTicks=0;_zeroInTicks=0;var prevPacketsLost=0;
+    $('audio-diag-bar').style.display='flex';
+    _statsTimer=setInterval(function(){
+        if(callEnded||!activeCall||!activeCall.peerConnection)return;
+        var pc=activeCall.peerConnection;if(!isCallConnected()||typeof pc.getStats!=='function')return;
+        try{
+            pc.getStats().then(function(stats){
+                var outBytes=0,inBytes=0,packetsLost=0,localAudioLevel=-1,remoteAudioLevel=-1,selectedPair=null,candidates={};
+                stats.forEach(function(r){
+                    if(r.type==='outbound-rtp'&&(r.kind==='audio'||r.mediaType==='audio'))outBytes=r.bytesSent||0;
+                    if(r.type==='inbound-rtp'&&(r.kind==='audio'||r.mediaType==='audio')){inBytes=r.bytesReceived||0;packetsLost=r.packetsLost||0;if(typeof r.audioLevel==='number')remoteAudioLevel=r.audioLevel}
+                    if(r.type==='media-source'&&r.kind==='audio'&&typeof r.audioLevel==='number')localAudioLevel=r.audioLevel;
+                    if(r.type==='local-candidate'||r.type==='remote-candidate'||r.type==='localcandidate'||r.type==='remotecandidate')candidates[r.id]=r;
+                    if((r.type==='candidate-pair'||r.type==='googCandidatePair')&&(r.nominated||r.state==='succeeded'||r.googActiveConnection==='true'))if(!selectedPair||r.nominated)selectedPair=r;
+                });
+                var txtRoute=$('txt-route');
+                if(txtRoute&&selectedPair){
+                    var loc=candidates[selectedPair.localCandidateId],rem=candidates[selectedPair.remoteCandidateId],lt=loc?(loc.candidateType||loc.networkType||''):'',rt=rem?(rem.candidateType||rem.networkType||''):'',li=loc?(loc.address||loc.ip||loc.ipAddress||''):'',ri=rem?(rem.address||rem.ip||rem.ipAddress||''):'';
+                    if(lt==='relay'||rt==='relay'){txtRoute.innerText='🔒 Relay';txtRoute.style.color='#fbbf24'}
+                    else if(lt==='host'&&rt==='host'&&isPrivateLanAddress(li)&&isPrivateLanAddress(ri)){txtRoute.innerText='🏠 Wi-Fi';txtRoute.style.color='#4ade80'}
+                    else if(lt||rt){txtRoute.innerText='⚡ P2P';txtRoute.style.color='#38bdf8'}
                 }
-            } catch (e) {}
+                var dOut=outBytes-_prevOutBytes,dIn=inBytes-_prevInBytes,dLost=packetsLost-prevPacketsLost;_prevOutBytes=outBytes;_prevInBytes=inBytes;prevPacketsLost=packetsLost;
+                var localTrack=localStream&&localStream.getAudioTracks()[0],dotOut=$('dot-out'),txtOut=$('txt-out');
+                if(_micFallbackActive){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Unavailable'}
+                else if(isMuted){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Muted'}
+                else if(!localTrack||localTrack.readyState!=='live'){dotOut.className='diag-dot err';txtOut.innerText='Mic: Disconnected';_zeroOutTicks++}
+                else if(dOut>0){dotOut.className='diag-dot ok';txtOut.innerText=(localAudioLevel===0)?'Mic: Silent (0dB)':'Mic: Active';_zeroOutTicks=0}
+                else{dotOut.className='diag-dot err';_zeroOutTicks++;txtOut.innerText=noiseMode!=='raw'?'Mic: Filter Stall':(localAudioLevel===0?'Mic: Hardware 0dB':'Mic: Encoder Stall')}
+                var dotIn=$('dot-in'),txtIn=$('txt-in');
+                if(dIn>0){dotIn.className='diag-dot ok';txtIn.innerText=(remoteAudioLevel===0)?'In: Peer Silent':'In: Active';_zeroInTicks=0}
+                else{dotIn.className='diag-dot err';_zeroInTicks++;txtIn.innerText=dLost>0?'In: Packet Loss':(selectedPair&&selectedPair.state!=='succeeded'?'In: Route Blocked':'In: Peer Mic Off')}
+                if(!isMuted&&!_micFallbackActive&&!_autoNaturalApplied&&_zeroOutTicks>=2&&noiseMode!=='raw'){_autoNaturalApplied=true;_zeroOutTicks=0;markNoiseUnsupported(noiseMode);selectNoiseMode('raw',true)}
+            }).catch(function(){});
+        }catch(e){}
+    },2000);
+}
+
+function runCurrentStepSupervisor(){
+    if(callEnded)return;var now=Date.now();
+    if(!peer||peer.destroyed){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=2000&&!_appStarting){_stepEnteredAt=now;startApp()}return}
+    if(peer.disconnected){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;try{peer.reconnect()}catch(e){}}return}
+    if(!peer.open)return;_peerReady=true;
+
+    if(!dataConn||!dataConn.open){if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;openDataChannelBothSides()}}
+    if(role==='receiver'){
+        if(!isCallAcceptedByMe){setStep('STEP2_WAIT_ACCEPT');return}
+        if(!isCallConnected()){setStep('STEP2_WAIT_ACCEPT');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'CALL_ACCEPTED'})}}
+    }else if(!_receiverHasAccepted){
+        setStep('STEP2_WAIT_ACCEPT');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt})}return;
+    }
+
+    if(role==='caller'){
+        var pc=activeCall&&activeCall.peerConnection,ice=pc?pc.iceConnectionState:'none';
+        if(ice==='connected'||ice==='completed'){setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0}
+        else{
+            setStep('STEP3_MEDIA_JOIN');
+            if(!activeCall){_stepEnteredAt=now;initiateSingleCall();return}
+            if(ice==='failed'||ice==='closed'){if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;_step3AttemptCount++;var st=activeCall;activeCall=null;try{st.close()}catch(e){}initiateSingleCall()}return}
+            if(ice==='disconnected'){if(!_disconnectedSince)_disconnectedSince=now;if(now-_disconnectedSince>=2000){_disconnectedSince=now;var sd=activeCall;activeCall=null;try{sd.close()}catch(e){}initiateSingleCall()}return}
+            var waitLimit=_step3AttemptCount===0?4000:6000;
+            if((ice==='new'||ice==='checking')&&(now-_stepEnteredAt>=waitLimit)){_stepEnteredAt=now;_step3AttemptCount++;var sc=activeCall;activeCall=null;try{sc.close()}catch(e){}initiateSingleCall()}
         }
+    }else if(role==='receiver'&&isCallAcceptedByMe){
+        var rpc=activeCall&&activeCall.peerConnection,rice=rpc?rpc.iceConnectionState:'none';
+        if(rice==='connected'||rice==='completed'){setStep('STEP4_CONNECTED');_disconnectedSince=0}
+        else if(rice==='failed'||(rice==='disconnected'&&_disconnectedSince&&(now-_disconnectedSince>=2000))){setStep('STEP3_MEDIA_JOIN');var rs=activeCall;activeCall=null;_gotRemoteStream=false;_disconnectedSince=0;if(rs)try{rs.close()}catch(e){}sendDataSafe({type:'CALL_ACCEPTED'})}
+    }
 
-        function hasAttachedStream(el) {
-            if (!el) return false;
-            return !!(el.srcObject || el.src);
-        }
+    if(isCallConnected()){
+        setStep('STEP4_CONNECTED');sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt});
+        if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();
+        if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay();
+    }
+}
 
-        function addPcListener(pc, eventName, handler) {
-            if (!pc) return;
-            if (typeof pc.addEventListener === 'function') {
-                pc.addEventListener(eventName, handler);
-            } else {
-                var prop = 'on' + eventName;
-                var prev = pc[prop];
-                pc[prop] = function(ev) {
-                    if (typeof prev === 'function') prev.call(pc, ev);
-                    handler(ev);
-                };
-            }
-        }
+function startBackgroundEngine(){if(_bgWorker||_bgFallbackTimer||callEnded)return;try{var blob=new Blob(['setInterval(function(){postMessage("tick");},1000);'],{type:'application/javascript'}),url=URL.createObjectURL(blob);_bgWorker=new Worker(url);URL.revokeObjectURL(url);_bgWorker.onmessage=runCurrentStepSupervisor}catch(e){_bgFallbackTimer=setInterval(runCurrentStepSupervisor,1000)}}
+function stopBackgroundEngine(){if(_bgWorker){try{_bgWorker.terminate()}catch(e){}_bgWorker=null}if(_bgFallbackTimer){clearInterval(_bgFallbackTimer);_bgFallbackTimer=null}}
+function updateMediaSessionMetadata(){if(!('mediaSession' in navigator))return;try{if(typeof MediaMetadata!=='undefined'){var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;navigator.mediaSession.metadata=new MediaMetadata({title:(peerName&&peerName!=='Connecting...')?peerName:'Secure Call',artist:(callType==='video'?'Video Call':'Voice Call')+' • '+q.label+' ('+q.kbpsText+')',album:'Pure Vault Call'})}}catch(e){}}
+function startMediaSession(){if(!('mediaSession' in navigator))return;updateMediaSessionMetadata();try{navigator.mediaSession.playbackState='playing'}catch(e){}var sh=function(a,fn){try{navigator.mediaSession.setActionHandler(a,fn)}catch(e){}};sh('play',forcePlay);sh('pause',forcePlay);sh('stop',function(){endCall(false)});sh('hangup',function(){endCall(false)})}
+function stopMediaSession(){if(!('mediaSession' in navigator))return;try{navigator.mediaSession.playbackState='none';navigator.mediaSession.metadata=null}catch(e){}var a=['play','pause','stop','hangup'];for(var i=0;i<a.length;i++)try{navigator.mediaSession.setActionHandler(a[i],null)}catch(e){}}
 
-        function replaceAudioTrackCompat(pc, newTrack, currentStream) {
-            if (!pc || !newTrack) return Promise.resolve();
-            try {
-                if (typeof pc.getSenders === 'function') {
-                    var senders = pc.getSenders();
-                    for (var i = 0; i < senders.length; i++) {
-                        if (senders[i].track && senders[i].track.kind === 'audio' && typeof senders[i].replaceTrack === 'function') {
-                            return senders[i].replaceTrack(newTrack);
-                        }
-                    }
-                }
-                if (typeof pc.removeStream === 'function' && typeof pc.addStream === 'function' && currentStream) {
-                    var newStream = new MediaStream([newTrack]);
-                    var vTracks = currentStream.getVideoTracks ? currentStream.getVideoTracks() : [];
-                    for (var j = 0; j < vTracks.length; j++) newStream.addTrack(vTracks[j]);
-                    pc.removeStream(currentStream);
-                    pc.addStream(newStream);
-                    return Promise.resolve();
-                }
-            } catch (e) {
-                return Promise.reject(e);
-            }
-            return Promise.resolve();
-        }
+document.addEventListener('visibilitychange',function(){if(callEnded)return;forcePlay();if(_callEverConnected){startMediaSession();startBackgroundEngine()}});
+window.acceptIncomingCall=function(){if(role!=='receiver'||callEnded)return;isCallAcceptedByMe=true;_receiverHasAccepted=true;setStatusMessage('Connecting...','');setStep('STEP2_WAIT_ACCEPT');openDataChannelBothSides();sendDataSafe({type:'CALL_ACCEPTED'});if(activeCall&&localStream)try{activeCall.answer(localStream)}catch(e){}};
+window.addEventListener('message',function(ev){var d=ev&&ev.data;if(d&&(d==='ACCEPT_CALL'||d.type==='ACCEPT_CALL'||d.type==='CALL_ACCEPTED'))window.acceptIncomingCall()});
 
-        function getRemoteStreamFromPc(pc) {
-            if (!pc) return null;
-            try {
-                if (typeof pc.getReceivers === 'function') {
-                    var receivers = pc.getReceivers();
-                    var tracks = [];
-                    for (var i = 0; i < receivers.length; i++) {
-                        if (receivers[i].track && receivers[i].track.readyState === 'live') {
-                            tracks.push(receivers[i].track);
-                        }
-                    }
-                    if (tracks.length > 0) return new MediaStream(tracks);
-                }
-                if (typeof pc.getRemoteStreams === 'function') {
-                    var streams = pc.getRemoteStreams();
-                    if (streams && streams.length > 0) return streams[0];
-                }
-            } catch (e) {}
-            return null;
-        }
+function toggleLock(l){if(l)lockOverlay.classList.add('active');else lockOverlay.classList.remove('active')}
+lockOverlay.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!e.target.closest||!e.target.closest('.lock-icon'))return;var now=Date.now();if(now-lastTap<400){toggleLock(false);lastTap=0}else lastTap=now});
 
-        var QUALITY_PRESETS = {
-            ultra: { label: 'Ultra Save', icon: '🪶', className: 'q-ultra', kbpsText: '10–12 kbps', audioBitrate: 11500, videoBitrate: 75000, scaleDown: 2.5, width: 256, height: 144, fps: 10 },
-            sd: { label: 'Auto SD', icon: '📶', className: 'q-sd', kbpsText: '14–16 kbps', audioBitrate: 15000, videoBitrate: 150000, scaleDown: 2.0, width: 320, height: 240, fps: 15 },
-            hd: { label: 'Auto HD', icon: '✨', className: 'q-hd', kbpsText: '20–24 kbps', audioBitrate: 22000, videoBitrate: 550000, scaleDown: 1.5, width: 640, height: 480, fps: 24 },
-            uhd: { label: 'UHD', icon: '💎', className: 'q-uhd', kbpsText: '32 kbps', audioBitrate: 32000, videoBitrate: 1200000, scaleDown: 1.0, width: 1280, height: 720, fps: 30 }
-        };
+function mungeLocalSDP(sdp){
+    if(isLegacyDevice||!sdp||!/opus\/48000/i.test(sdp))return sdp;
+    var lines=sdp.split('\r\n'),pt=null;
+    for(var i=0;i<lines.length;i++){var m=lines[i].match(/^a=rtpmap:(\d+)\s+opus\/48000/i);if(m){pt=m[1];break}}
+    if(!pt)return sdp;
+    var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd,out=[];
+    for(var j=0;j<lines.length;j++){
+        var l=lines[j],pre='a=fmtp:'+pt+' ';
+        if(l.indexOf(pre)===0){
+            var raw=l.substring(pre.length).split(';'),parts=[];
+            for(var k=0;k<raw.length;k++){var tr=raw[k].trim();if(tr)parts.push(tr)}
+            var setP=function(key,val){var f=-1;for(var x=0;x<parts.length;x++)if(parts[x].indexOf(key+'=')===0){f=x;break}if(f>=0)parts[f]=key+'='+val;else parts.push(key+'='+val)};
+            setP('useinbandfec','1');setP('usedtx','0');setP('stereo','0');setP('maxaveragebitrate',String(q.audioBitrate));
+            out.push(pre+parts.join(';'));
+        }else out.push(l);
+    }
+    return out.join('\r\n');
+}
+if(!isLegacyDevice&&window.RTCPeerConnection&&RTCPeerConnection.prototype){
+    var _oO=RTCPeerConnection.prototype.createOffer,_oA=RTCPeerConnection.prototype.createAnswer;
+    RTCPeerConnection.prototype.createOffer=function(){return _oO.apply(this,arguments).then(function(o){return o&&o.sdp?{type:o.type,sdp:mungeLocalSDP(o.sdp)}:o})};
+    RTCPeerConnection.prototype.createAnswer=function(){return _oA.apply(this,arguments).then(function(x){return x&&x.sdp?{type:x.type,sdp:mungeLocalSDP(x.sdp)}:x})};
+}
+function applyVideoBitrate(pc){if(!pc||isLegacyDevice||typeof pc.getSenders!=='function')return;var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;try{var s=pc.getSenders();for(var i=0;i<s.length;i++){if(!s[i].track||typeof s[i].getParameters!=='function')continue;var p=s[i].getParameters();if(!p.encodings||!p.encodings.length)p.encodings=[{}];if(s[i].track.kind==='video'){p.encodings[0].maxBitrate=q.videoBitrate;p.encodings[0].scaleResolutionDownBy=q.scaleDown;p.encodings[0].maxFramerate=q.fps;s[i].setParameters(p).catch(function(){})}else if(s[i].track.kind==='audio'){p.encodings[0].maxBitrate=q.audioBitrate;s[i].setParameters(p).catch(function(){})}}}catch(e){}}
+function applyQualityMode(){updateSaverUI();updateMediaSessionMetadata();if(isLegacyDevice)return;var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;if(callType==='video'&&localStream){var vt=localStream.getVideoTracks()[0];if(vt&&typeof vt.applyConstraints==='function')try{vt.applyConstraints({width:{ideal:q.width},height:{ideal:q.height}}).catch(function(){})}catch(e){}}if(activeCall&&activeCall.peerConnection)applyVideoBitrate(activeCall.peerConnection)}
 
-        /* =========================================================
-           2. RACE-FREE ICE/TURN PROMISE & SMART ACCEPT DEFAULT
-           ========================================================= */
-        var P = parseQueryParams(location.search);
-        var roomId = (P.room || '123').replace(/[^a-zA-Z0-9_-]/g, '');
-        var role = P.role === 'caller' ? 'caller' : 'receiver';
-        var callType = P.type === 'video' ? 'video' : 'audio';
-        var myName = P.name || 'User';
-        var peerName = P.peerName || 'Connecting...';
-        var customReturnUrl = P.returnUrl || P.back || P.chatUrl || '';
+function detectBrowserNoiseCapabilities(){var sup=(navigator.mediaDevices&&navigator.mediaDevices.getSupportedConstraints)?navigator.mediaDevices.getSupportedConstraints():{};_unsupportedNoiseModes.enc=(sup.voiceIsolation===false)||isLegacyDevice;_unsupportedNoiseModes.nc=(sup.noiseSuppression===false);_unsupportedNoiseModes.off=false;_unsupportedNoiseModes.raw=false}
+detectBrowserNoiseCapabilities();
+function markNoiseUnsupported(m){if(m&&m!=='raw'&&m!=='off')_unsupportedNoiseModes[m]=true;updateNoiseUI()}
+function createSilentFallbackStream(){try{var c=document.createElement('canvas');c.width=2;c.height=2;var ctx=c.getContext('2d');if(ctx)ctx.fillRect(0,0,2,2);var s=c.captureStream?c.captureStream(1):new MediaStream(),vt=s.getVideoTracks();for(var i=0;i<vt.length;i++){try{vt[i].stop()}catch(e){}s.removeTrack(vt[i])}var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){var ac=new Ctx();if(ac.state==='suspended')ac.resume().catch(function(){});var dest=ac.createMediaStreamDestination(),osc=ac.createOscillator(),g=ac.createGain();g.gain.value=0;osc.connect(g);g.connect(dest);osc.start();var at=dest.stream.getAudioTracks();for(var j=0;j<at.length;j++)s.addTrack(at[j])}_micFallbackActive=true;setStatusMessage('Mic Unavailable – Retrying...','warn');return s}catch(e){}_micFallbackActive=true;setStatusMessage('Mic Unavailable – Retrying...','warn');return new MediaStream()}
+function getUserMediaWithTimeout(constraints,ms){var tMs=ms||1200;return new Promise(function(resolve,reject){var done=false,t=setTimeout(function(){if(!done){done=true;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);navigator.mediaDevices.getUserMedia(constraints).then(function(s){if(done){var tr=s.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(e){}return}done=true;clearTimeout(t);resolve(s)}).catch(function(err){if(done)return;done=true;clearTimeout(t);reject(err)})})}
+function getAudioConstraints(id,mode){if(mode==='raw'){var r={echoCancellation:false,noiseSuppression:false,autoGainControl:false};if(id&&id!=='default')r.deviceId={ideal:id};return r}if(!mode||mode==='off'){if(id&&id!=='default')return{deviceId:{ideal:id}};if(isLegacyDevice)return true;return{echoCancellation:true,noiseSuppression:false,autoGainControl:true}}if(mode==='nc'){var n={echoCancellation:true,noiseSuppression:true,autoGainControl:true};if(id&&id!=='default')n.deviceId={ideal:id};return n}var e={echoCancellation:true,noiseSuppression:true,autoGainControl:true,voiceIsolation:true};if(id&&id!=='default')e.deviceId={ideal:id};return e}
+function verifyAudioTrackForMode(tr,mode){if(!tr||tr.readyState!=='live'||tr.enabled===false)return false;if(!tr.getSettings)return true;var st=tr.getSettings()||{};if(mode==='enc')return st.voiceIsolation!==false&&st.noiseSuppression!==false;if(mode==='nc')return st.noiseSuppression!==false;return true}
 
-        var isCallAcceptedByMe = (role === 'caller') ? true : (P.accepted !== '0');
+function updateNoiseUI(errMsg){
+    var b=$('nc-btn'),t=$('nc-text');
+    if(errMsg){b.className='ctrl-btn nc-err';t.innerText=errMsg;setTimeout(syncNoiseButtonState,2200)}else syncNoiseButtonState();
+    var items=document.querySelectorAll('#noise-list-container .device-item');
+    for(var i=0;i<items.length;i++){
+        var el=items[i],m=el.getAttribute('data-nmode'),u=!!_unsupportedNoiseModes[m];
+        if(m===noiseMode&&!u)el.classList.add('active');else el.classList.remove('active');
+        if(u)el.classList.add('unsupported-blur');else el.classList.remove('unsupported-blur');
+        var badge=el.querySelector('.q-badge');if(badge)badge.innerText=u?'Unsupported':(badge.getAttribute('data-default-badge')||'');
+    }
+}
+function syncNoiseButtonState(){var b=$('nc-btn'),t=$('nc-text');if(noiseMode==='raw'){b.className='ctrl-btn raw-on';t.innerText='Natural'}else if(noiseMode==='enc'){b.className='ctrl-btn enc-on';t.innerText='Env On'}else if(noiseMode==='nc'){b.className='ctrl-btn nc-on';t.innerText='Noise On'}else{b.className='ctrl-btn';t.innerText='Standard'}}
+updateNoiseUI();
+function openNoiseMenu(){updateNoiseUI();$('noise-overlay').classList.add('active')}
+function closeNoiseMenu(e){if(e&&e.target!==e.currentTarget)return;$('noise-overlay').classList.remove('active')}
 
-        try {
-            if (document.referrer && document.referrer.indexOf('http') === 0 && document.referrer !== location.href) {
-                sessionStorage.setItem('p2p_return_url', document.referrer);
-            }
-        } catch (e) {}
+function selectNoiseMode(targetMode,isSilent){
+    if(_unsupportedNoiseModes[targetMode])return;
+    if(!isSilent){_noiseModeManuallySelected=true;closeNoiseMenu()}
+    if(_ncBusy||(!isSilent&&targetMode===noiseMode))return;_ncBusy=true;var ns=null,nt=null;
+    getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,targetMode)},1400).then(function(s){
+        ns=s;nt=ns.getAudioTracks()[0];if(!verifyAudioTrackForMode(nt,targetMode)){var err=new Error('Unsupported');err.name='OverconstrainedError';throw err}
+        nt.enabled=!isMuted;if(activeCall&&activeCall.peerConnection)return replaceAudioTrackCompat(activeCall.peerConnection,nt,localStream);
+    }).then(function(){
+        if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}localStream.addTrack(nt)}else localStream=ns;
+        _micFallbackActive=false;noiseMode=targetMode;updateNoiseUI();_ncBusy=false;
+    }).catch(function(e){
+        if(nt)try{nt.stop()}catch(x){}if(ns){var tr=ns.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(x){}}
+        if(e&&(e.name==='OverconstrainedError'||e.name==='NotSupportedError'))markNoiseUnsupported(targetMode);
+        if(!isSilent)updateNoiseUI('Not Supported');_ncBusy=false;
+    });
+}
 
-        var myPeerId = 'p2p_ds_' + roomId + '_' + role;
-        var remotePeerId = 'p2p_ds_' + roomId + '_' + (role === 'caller' ? 'receiver' : 'caller');
-
-        var HF_TOKEN = 'hf_WglTVlbY' + 'gIPSjykIoGZC' + 'UGDMcMFXcmjdxB';
-        var FAST_ICE_SERVERS = [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
-            { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
-        ];
-
-        function createRaceFreeIcePromise() {
-            return new Promise(function(resolve) {
-                if (typeof fetch !== 'function') {
-                    resolve(FAST_ICE_SERVERS);
-                    return;
-                }
-                var settled = false;
-                var timer = setTimeout(function() {
-                    if (!settled) {
-                        settled = true;
-                        resolve(FAST_ICE_SERVERS);
-                    }
-                }, 800);
-
-                try {
-                    fetch('https://turn.fastrtc.org/credentials', {
-                        method: 'GET',
-                        cache: 'no-store',
-                        headers: { Authorization: 'Bearer ' + HF_TOKEN, Accept: 'application/json' }
-                    }).then(function(res) {
-                        return res.ok ? res.json() : null;
-                    }).then(function(data) {
-                        if (data && data.iceServers && data.iceServers.length > 0) {
-                            FAST_ICE_SERVERS = [FAST_ICE_SERVERS[0]].concat(data.iceServers).concat(FAST_ICE_SERVERS.slice(1));
-                        }
-                        if (!settled) {
-                            settled = true;
-                            clearTimeout(timer);
-                            resolve(FAST_ICE_SERVERS);
-                        }
-                    }).catch(function() {
-                        if (!settled) {
-                            settled = true;
-                            clearTimeout(timer);
-                            resolve(FAST_ICE_SERVERS);
-                        }
-                    });
-                } catch (e) {
-                    if (!settled) {
-                        settled = true;
-                        clearTimeout(timer);
-                        resolve(FAST_ICE_SERVERS);
-                    }
-                }
-            });
-        }
-        var _iceReadyPromise = createRaceFreeIcePromise();
-
-        /* =========================================================
-           3. 4-STEP STATE MACHINE & UI HELPERS
-           ========================================================= */
-        var currentStep = 'STEP1_PREWARM';
-        var _stepEnteredAt = Date.now();
-        var _step3AttemptCount = 0;
-        var _receiverHasAccepted = (role === 'receiver' && isCallAcceptedByMe);
-
-        function setStep(nextStep) {
-            if (currentStep !== nextStep) {
-                currentStep = nextStep;
-                _stepEnteredAt = Date.now();
-            }
-        }
-
-        var peer = null, activeCall = null, localStream = null, dataConn = null;
-        var currentMicId = null, _micFallbackActive = false;
-        var _cachedAudioInputs = [], _devicesLoadedOnce = false;
-        var _appStarting = false, _peerReady = false, _callEverConnected = false;
-        var _gotRemoteStream = false, _ncBusy = false;
-        var _callSeq = 0, _disconnectedSince = 0;
-        var _micRecoveryBusy = false, _micRecoveryTimer = null;
-        var _stepLoopTimer = null, _audioPlayTimer = null, _statsTimer = null;
-        var _prevOutBytes = 0, _prevInBytes = 0, _zeroOutTicks = 0, _zeroInTicks = 0;
-        var _autoNaturalApplied = false;
-        var isMuted = false, isVideoOff = false, callEnded = false;
-        var noiseMode = 'off', qualityMode = 'sd', _modeUpdatedAt = 0;
-        var _noiseModeManuallySelected = false;
-        var _unsupportedNoiseModes = { enc: false, nc: false, off: false, raw: false };
-        var callTimerInterval = null, callSeconds = 0, lastTap = 0;
-        var _bgWorker = null, _bgFallbackTimer = null, _unlockCtx = null;
-        var _callNotificationSW = null;
-
-        function $(id) { return document.getElementById(id); }
-        var remoteVideo = $('remote-video');
-        var localVideo = $('local-video');
-        var remoteAudio = $('remote-audio');
-        var statusText = $('call-status');
-        var lockOverlay = $('lock-overlay');
-        var tapAudioHint = $('tap-audio-hint');
-
-        function setStatusMessage(msg, level) {
-            if (!statusText) return;
-            statusText.innerText = msg;
-            statusText.className = level === 'err' ? 'err-status' : (level === 'warn' ? 'warn-status' : '');
-        }
-
-        function getUniversalErrorText(error) {
-            var name = error && error.name ? String(error.name) : '';
-            var known = {
-                NotAllowedError: 'Microphone permission denied',
-                SecurityError: 'Microphone blocked (HTTPS required)',
-                NotFoundError: 'No microphone found',
-                NotReadableError: 'Microphone is busy in another app',
-                OverconstrainedError: 'Audio option unavailable',
-                AbortError: 'Media request interrupted',
-                TimeoutError: 'Microphone request timed out'
-            };
-            return known[name] || 'Connection retrying...';
-        }
-
-        function prepareCallNotification() {
-            if (!('serviceWorker' in navigator) || window.isSecureContext === false) return;
-            try {
-                navigator.serviceWorker.register('./call-notification-sw.js', { scope: './' }).then(function(reg) {
-                    _callNotificationSW = reg;
-                }).catch(function() {});
-            } catch (e) {}
-        }
-
-        function showCallNotification() {
-            if (!('Notification' in window) || Notification.permission !== 'granted') return;
-            try {
-                prepareCallNotification();
-                var worker = _callNotificationSW && (_callNotificationSW.active || _callNotificationSW.waiting);
-                if (worker) {
-                    worker.postMessage({
-                        type: 'CALL_ACTIVE',
-                        title: (peerName && peerName !== 'Connecting...') ? peerName : 'Secure Call',
-                        callType: callType === 'video' ? 'Video Call' : 'Voice Call'
-                    });
-                }
-            } catch (e) {}
-        }
-
-        function hideCallNotification() {
-            try {
-                var worker = _callNotificationSW && (_callNotificationSW.active || _callNotificationSW.waiting);
-                if (worker) worker.postMessage({ type: 'CALL_ENDED' });
-            } catch (e) {}
-        }
-
-        function isCallConnected() {
-            var pc = activeCall && activeCall.peerConnection;
-            if (!pc) return false;
-            var ice = pc.iceConnectionState;
-            var conn = pc.connectionState;
-            return (ice === 'connected' || ice === 'completed' || conn === 'connected');
-        }
-
-        function unlockAudioHardware() {
-            try {
-                var Ctx = window.AudioContext || window.webkitAudioContext;
-                if (Ctx) {
-                    if (!_unlockCtx) _unlockCtx = new Ctx();
-                    if (_unlockCtx.state === 'suspended') _unlockCtx.resume().catch(function() {});
-                }
-            } catch (e) {}
-        }
-
-        function forcePlay() {
-            unlockAudioHardware();
-            if (hasAttachedStream(remoteVideo)) {
-                remoteVideo.muted = false;
-                remoteVideo.volume = 1;
-                var vp = remoteVideo.play();
-                if (vp && vp.then) {
-                    vp.then(function() { tapAudioHint.style.display = 'none'; }).catch(function() {});
-                }
-            }
-            if (hasAttachedStream(remoteAudio)) {
-                remoteAudio.muted = false;
-                remoteAudio.volume = 1;
-                var ap = remoteAudio.play();
-                if (ap && ap.then) {
-                    ap.then(function() {
-                        tapAudioHint.style.display = 'none';
-                    }).catch(function() {
-                        if (!callEnded && _gotRemoteStream) tapAudioHint.style.display = 'inline-block';
-                    });
-                }
-            }
-        }
-        document.body.addEventListener('touchstart', forcePlay, { passive: true });
-        document.body.addEventListener('click', forcePlay);
-
-        remoteAudio.addEventListener('pause', function() {
-            if (!callEnded && hasAttachedStream(remoteAudio)) setTimeout(forcePlay, 100);
+function acquireBestSupportedAudio(videoConstraints){
+    var all=_noiseModeManuallySelected?[noiseMode]:['enc','nc','off','raw'],modes=[];
+    for(var i=0;i<all.length;i++)if(!_unsupportedNoiseModes[all[i]])modes.push(all[i]);
+    var idx=0;
+    function tryNext(){
+        if(idx>=modes.length)return Promise.reject(new Error('No audio'));
+        var mode=modes[idx++],sRef=null;
+        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},1100).then(function(s){
+            sRef=s;var tr=s.getAudioTracks()[0];if(!verifyAudioTrackForMode(tr,mode)){var err=new Error('Inactive');err.name='OverconstrainedError';throw err}
+            noiseMode=mode;updateNoiseUI();return s;
+        }).catch(function(err){
+            if(sRef){var trs=sRef.getTracks();for(var j=0;j<trs.length;j++)try{trs[j].stop()}catch(e){}}
+            if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='NotFoundError'))return Promise.reject(err);
+            if(err&&(err.name==='OverconstrainedError'||err.name==='NotSupportedError'))markNoiseUnsupported(mode);
+            return tryNext();
         });
-        remoteVideo.addEventListener('pause', function() {
-            if (!callEnded && hasAttachedStream(remoteVideo)) setTimeout(forcePlay, 100);
+    }
+    return tryNext();
+}
+
+function recoverRealMicInBackground(){
+    if(!_micFallbackActive||callEnded||_micRecoveryBusy||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
+    _micRecoveryBusy=true;var rStream=null,rTrack=null;
+    acquireBestSupportedAudio(false).then(function(s){
+        rStream=s;var tr=s.getAudioTracks()[0];if(!tr||tr.readyState!=='live')throw new Error('Dead');
+        tr.enabled=!isMuted;rTrack=tr;if(activeCall&&activeCall.peerConnection)return replaceAudioTrackCompat(activeCall.peerConnection,tr,localStream);
+    }).then(function(){
+        if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}localStream.addTrack(rTrack)}else localStream=rStream;
+        _micFallbackActive=false;updateNoiseUI();if(_callEverConnected)_restoreTimerDisplay();_micRecoveryBusy=false;
+    }).catch(function(){
+        if(rTrack)try{rTrack.stop()}catch(e){}if(rStream){var trs=rStream.getTracks();for(var i=0;i<trs.length;i++)try{trs[i].stop()}catch(e){}}
+        _micRecoveryBusy=false;if(!_micRecoveryTimer&&!callEnded)_micRecoveryTimer=setTimeout(function(){_micRecoveryTimer=null;recoverRealMicInBackground()},2000);
+    });
+}
+
+function finalizeLocalStream(){var at=localStream.getAudioTracks();for(var i=0;i<at.length;i++)at[i].enabled=!isMuted;if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);refreshDeviceCache();return true}
+function initMedia(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){localStream=createSilentFallbackStream();setTimeout(recoverRealMicInBackground,1500);return Promise.resolve(true)}
+    var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;
+    if(callType==='video'){
+        var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
+        return acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+            return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(err){
+                callType='audio';applyCallView();localStream=createSilentFallbackStream();setStatusMessage(getUniversalErrorText(err)+' – Retrying...','warn');setTimeout(recoverRealMicInBackground,1500);return finalizeLocalStream();
+            });
         });
-
-        function applyCallView() {
-            if (callType === 'video') {
-                $('audio-view').style.display = 'none';
-                $('video-view').style.display = 'block';
-                $('vid-btn').style.display = 'flex';
-            } else {
-                $('audio-view').style.display = 'flex';
-                $('video-view').style.display = 'none';
-                $('vid-btn').style.display = 'none';
-            }
-        }
-        applyCallView();
-
-        function updateUI() {
-            $('peer-name').innerText = peerName;
-            $('audio-avatar').innerText = peerName !== 'Connecting...' ? peerName.charAt(0) : '?';
-            updateMediaSessionMetadata();
-        }
-        updateUI();
-
-        /* =========================================================
-           4. SMART TELEMETRY & ROOT-CAUSE DIAGNOSTICS
-           ========================================================= */
-        function isPrivateLanAddress(ip) {
-            if (!ip) return false;
-            var clean = String(ip).trim().toLowerCase();
-            return /^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(clean)
-                || /\.local$/.test(clean)
-                || /^(fe80:|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/.test(clean);
-        }
-
-        function startStatsTelemetry() {
-            if (_statsTimer) clearInterval(_statsTimer);
-            _prevOutBytes = 0; _prevInBytes = 0; _zeroOutTicks = 0; _zeroInTicks = 0;
-            var prevPacketsLost = 0;
-            $('audio-diag-bar').style.display = 'flex';
-
-            _statsTimer = setInterval(function() {
-                if (callEnded || !activeCall || !activeCall.peerConnection) return;
-                var pc = activeCall.peerConnection;
-                if (!isCallConnected() || typeof pc.getStats !== 'function') return;
-
-                try {
-                    pc.getStats().then(function(stats) {
-                        var outBytes = 0, inBytes = 0, packetsLost = 0;
-                        var localAudioLevel = -1, remoteAudioLevel = -1;
-                        var selectedPair = null;
-                        var candidates = {};
-
-                        stats.forEach(function(r) {
-                            if (r.type === 'outbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) {
-                                outBytes = r.bytesSent || 0;
-                            }
-                            if (r.type === 'inbound-rtp' && (r.kind === 'audio' || r.mediaType === 'audio')) {
-                                inBytes = r.bytesReceived || 0;
-                                packetsLost = r.packetsLost || 0;
-                                if (typeof r.audioLevel === 'number') remoteAudioLevel = r.audioLevel;
-                            }
-                            if (r.type === 'media-source' && r.kind === 'audio') {
-                                if (typeof r.audioLevel === 'number') localAudioLevel = r.audioLevel;
-                            }
-                            if (r.type === 'local-candidate' || r.type === 'remote-candidate' || r.type === 'localcandidate' || r.type === 'remotecandidate') {
-                                candidates[r.id] = r;
-                            }
-                            if ((r.type === 'candidate-pair' || r.type === 'googCandidatePair') && (r.nominated || r.state === 'succeeded' || r.googActiveConnection === 'true')) {
-                                if (!selectedPair || r.nominated) selectedPair = r;
-                            }
-                        });
-
-                        var txtRoute = $('txt-route');
-                        if (txtRoute && selectedPair) {
-                            var loc = candidates[selectedPair.localCandidateId];
-                            var rem = candidates[selectedPair.remoteCandidateId];
-                            var locType = loc ? (loc.candidateType || loc.networkType || '') : '';
-                            var remType = rem ? (rem.candidateType || rem.networkType || '') : '';
-                            var locIp = loc ? (loc.address || loc.ip || loc.ipAddress || '') : '';
-                            var remIp = rem ? (rem.address || rem.ip || rem.ipAddress || '') : '';
-
-                            if (locType === 'relay' || remType === 'relay') {
-                                txtRoute.innerText = '🔒 Relay'; txtRoute.style.color = '#fbbf24';
-                            } else if (locType === 'host' && remType === 'host' && isPrivateLanAddress(locIp) && isPrivateLanAddress(remIp)) {
-                                txtRoute.innerText = '🏠 Wi-Fi'; txtRoute.style.color = '#4ade80';
-                            } else if (locType || remType) {
-                                txtRoute.innerText = '⚡ P2P'; txtRoute.style.color = '#38bdf8';
-                            }
-                        }
-
-                        var dOut = outBytes - _prevOutBytes;
-                        var dIn = inBytes - _prevInBytes;
-                        var dLost = packetsLost - prevPacketsLost;
-                        _prevOutBytes = outBytes;
-                        _prevInBytes = inBytes;
-                        prevPacketsLost = packetsLost;
-
-                        var localTrack = localStream && localStream.getAudioTracks()[0];
-                        var dotOut = $('dot-out'), txtOut = $('txt-out');
-
-                        if (_micFallbackActive) {
-                            dotOut.className = 'diag-dot warn';
-                            txtOut.innerText = 'Mic: Unavailable';
-                        } else if (isMuted) {
-                            dotOut.className = 'diag-dot warn';
-                            txtOut.innerText = 'Mic: Muted';
-                        } else if (!localTrack || localTrack.readyState !== 'live') {
-                            dotOut.className = 'diag-dot err';
-                            txtOut.innerText = 'Mic: Disconnected';
-                            _zeroOutTicks++;
-                        } else if (dOut > 0) {
-                            dotOut.className = 'diag-dot ok';
-                            txtOut.innerText = (localAudioLevel === 0) ? 'Mic: Silent (0dB)' : 'Mic: Active';
-                            _zeroOutTicks = 0;
-                        } else {
-                            dotOut.className = 'diag-dot err';
-                            _zeroOutTicks++;
-                            if (noiseMode !== 'raw') {
-                                txtOut.innerText = 'Mic: Filter Stall';
-                            } else if (localAudioLevel === 0) {
-                                txtOut.innerText = 'Mic: Hardware 0dB';
-                            } else {
-                                txtOut.innerText = 'Mic: Encoder Stall';
-                            }
-                        }
-
-                        var dotIn = $('dot-in'), txtIn = $('txt-in');
-                        if (dIn > 0) {
-                            dotIn.className = 'diag-dot ok';
-                            txtIn.innerText = (remoteAudioLevel === 0) ? 'In: Peer Silent' : 'In: Active';
-                            _zeroInTicks = 0;
-                        } else {
-                            dotIn.className = 'diag-dot err';
-                            _zeroInTicks++;
-                            if (dLost > 0) {
-                                txtIn.innerText = 'In: Packet Loss';
-                            } else if (selectedPair && selectedPair.state !== 'succeeded') {
-                                txtIn.innerText = 'In: Route Blocked';
-                            } else {
-                                txtIn.innerText = 'In: Peer Mic Off';
-                            }
-                        }
-
-                        if (!isMuted && !_micFallbackActive && !_autoNaturalApplied && _zeroOutTicks >= 2 && noiseMode !== 'raw') {
-                            _autoNaturalApplied = true;
-                            _zeroOutTicks = 0;
-                            markNoiseUnsupported(noiseMode);
-                            selectNoiseMode('raw', true);
-                        }
-                    }).catch(function() {});
-                } catch (e) {}
-            }, 2000);
-        }
-
-        /* =========================================================
-           5. 4-STEP SURGICAL RETRY ENGINE (2s PER-STEP RECOVERY)
-           ========================================================= */
-        function runCurrentStepSupervisor() {
-            if (callEnded) return;
-            var now = Date.now();
-
-            // STEP 1: PRE-WARMUP (માઈક અને PeerJS સિગ્નલિંગ)
-            if (!peer || peer.destroyed) {
-                setStep('STEP1_PREWARM');
-                if (now - _stepEnteredAt >= 2000 && !_appStarting) {
-                    _stepEnteredAt = now;
-                    startApp();
-                }
-                return;
-            }
-            if (peer.disconnected) {
-                setStep('STEP1_PREWARM');
-                if (now - _stepEnteredAt >= 2000) {
-                    _stepEnteredAt = now;
-                    try { peer.reconnect(); } catch (e) {}
-                }
-                return;
-            }
-            if (!peer.open) return;
-            _peerReady = true;
-
-            // STEP 2: SIGNALING HANDSHAKE & ACCEPT CHECK
-            if (!dataConn || !dataConn.open) {
-                if (now - _stepEnteredAt >= 2000) {
-                    _stepEnteredAt = now;
-                    openDataChannelBothSides();
-                }
-            }
-
-            if (role === 'receiver') {
-                if (!isCallAcceptedByMe) {
-                    setStep('STEP2_WAIT_ACCEPT');
-                    return;
-                }
-                if (!isCallConnected()) {
-                    setStep('STEP2_WAIT_ACCEPT');
-                    if (now - _stepEnteredAt >= 2000) {
-                        _stepEnteredAt = now;
-                        sendDataSafe({ type: 'CALL_ACCEPTED' });
-                    }
-                }
-            } else {
-                if (!_receiverHasAccepted) {
-                    setStep('STEP2_WAIT_ACCEPT');
-                    if (now - _stepEnteredAt >= 2000) {
-                        _stepEnteredAt = now;
-                        sendDataSafe({ type: 'PING', ts: now, qMode: qualityMode, modeTs: _modeUpdatedAt });
-                    }
-                    return;
-                }
-            }
-
-            // STEP 3: WEBRTC MEDIA JOIN
-            if (role === 'caller') {
-                var pc = activeCall && activeCall.peerConnection;
-                var ice = pc ? pc.iceConnectionState : 'none';
-
-                if (ice === 'connected' || ice === 'completed') {
-                    setStep('STEP4_CONNECTED');
-                    _disconnectedSince = 0;
-                    _step3AttemptCount = 0;
-                } else {
-                    setStep('STEP3_MEDIA_JOIN');
-                    if (!activeCall) {
-                        _stepEnteredAt = now;
-                        initiateSingleCall();
-                        return;
-                    }
-                    if (ice === 'failed' || ice === 'closed') {
-                        if (now - _stepEnteredAt >= 2000) {
-                            _stepEnteredAt = now;
-                            _step3AttemptCount++;
-                            var stale = activeCall;
-                            activeCall = null;
-                            try { stale.close(); } catch (e) {}
-                            initiateSingleCall();
-                        }
-                        return;
-                    }
-                    if (ice === 'disconnected') {
-                        if (!_disconnectedSince) _disconnectedSince = now;
-                        if (now - _disconnectedSince >= 2000) {
-                            _disconnectedSince = now;
-                            var staleDisc = activeCall;
-                            activeCall = null;
-                            try { staleDisc.close(); } catch (e) {}
-                            initiateSingleCall();
-                        }
-                        return;
-                    }
-                    var waitLimit = _step3AttemptCount === 0 ? 4000 : 6000;
-                    if ((ice === 'new' || ice === 'checking') && (now - _stepEnteredAt >= waitLimit)) {
-                        _stepEnteredAt = now;
-                        _step3AttemptCount++;
-                        var staleChk = activeCall;
-                        activeCall = null;
-                        try { staleChk.close(); } catch (e) {}
-                        initiateSingleCall();
-                    }
-                }
-            } else if (role === 'receiver' && isCallAcceptedByMe) {
-                var rpc = activeCall && activeCall.peerConnection;
-                var rice = rpc ? rpc.iceConnectionState : 'none';
-                if (rice === 'connected' || rice === 'completed') {
-                    setStep('STEP4_CONNECTED');
-                    _disconnectedSince = 0;
-                } else if (rice === 'failed' || (rice === 'disconnected' && _disconnectedSince && (now - _disconnectedSince >= 2000))) {
-                    setStep('STEP3_MEDIA_JOIN');
-                    var rStale = activeCall;
-                    activeCall = null;
-                    _gotRemoteStream = false;
-                    _disconnectedSince = 0;
-                    if (rStale) { try { rStale.close(); } catch (e) {} }
-                    sendDataSafe({ type: 'CALL_ACCEPTED' });
-                }
-            }
-
-            // STEP 4: AUDIO STREAM & SPEAKER PLAYBACK RECOVERY
-            if (isCallConnected()) {
-                setStep('STEP4_CONNECTED');
-                sendDataSafe({ type: 'PING', ts: now, qMode: qualityMode, modeTs: _modeUpdatedAt });
-                if (callType === 'audio' && hasAttachedStream(remoteAudio) && remoteAudio.paused) forcePlay();
-                if (callType === 'video' && hasAttachedStream(remoteVideo) && remoteVideo.paused) forcePlay();
-            }
-        }
-
-        function startBackgroundEngine() {
-            if (_bgWorker || _bgFallbackTimer || callEnded) return;
-            try {
-                var workerCode = 'setInterval(function(){postMessage("tick");},1000);';
-                var blob = new Blob([workerCode], { type: 'application/javascript' });
-                var url = URL.createObjectURL(blob);
-                _bgWorker = new Worker(url);
-                URL.revokeObjectURL(url);
-                _bgWorker.onmessage = runCurrentStepSupervisor;
-            } catch (e) {
-                _bgFallbackTimer = setInterval(runCurrentStepSupervisor, 1000);
-            }
-        }
-
-        function stopBackgroundEngine() {
-            if (_bgWorker) { try { _bgWorker.terminate(); } catch (e) {} _bgWorker = null; }
-            if (_bgFallbackTimer) { clearInterval(_bgFallbackTimer); _bgFallbackTimer = null; }
-        }
-
-        function updateMediaSessionMetadata() {
-            if (!('mediaSession' in navigator)) return;
-            try {
-                if (typeof MediaMetadata !== 'undefined') {
-                    var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-                    navigator.mediaSession.metadata = new MediaMetadata({
-                        title: (peerName && peerName !== 'Connecting...') ? peerName : 'Secure Call',
-                        artist: (callType === 'video' ? 'Video Call' : 'Voice Call') + ' • ' + q.label + ' (' + q.kbpsText + ')',
-                        album: 'Pure Vault Call'
-                    });
-                }
-            } catch (e) {}
-        }
-
-        function startMediaSession() {
-            if (!('mediaSession' in navigator)) return;
-            updateMediaSessionMetadata();
-            try { navigator.mediaSession.playbackState = 'playing'; } catch (e) {}
-            var safeHandler = function(action, fn) { try { navigator.mediaSession.setActionHandler(action, fn); } catch (e) {} };
-            safeHandler('play', function() { forcePlay(); });
-            safeHandler('pause', function() { forcePlay(); });
-            safeHandler('stop', function() { endCall(false); });
-            safeHandler('hangup', function() { endCall(false); });
-        }
-
-        function stopMediaSession() {
-            if (!('mediaSession' in navigator)) return;
-            try { navigator.mediaSession.playbackState = 'none'; } catch (e) {}
-            try { navigator.mediaSession.metadata = null; } catch (e) {}
-            var actions = ['play', 'pause', 'stop', 'hangup'];
-            for (var i = 0; i < actions.length; i++) {
-                try { navigator.mediaSession.setActionHandler(actions[i], null); } catch (e) {}
-            }
-        }
-
-        document.addEventListener('visibilitychange', function() {
-            if (callEnded) return;
-            forcePlay();
-            if (_callEverConnected) { startMediaSession(); startBackgroundEngine(); }
+    }
+    return acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(err){
+        return getUserMediaWithTimeout({audio:true,video:false},1200).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(fErr){
+            localStream=createSilentFallbackStream();setStatusMessage(getUniversalErrorText(fErr)+' – Retrying...','warn');setTimeout(recoverRealMicInBackground,1500);return finalizeLocalStream();
         });
+    });
+}
 
-        window.acceptIncomingCall = function() {
-            if (role !== 'receiver' || callEnded) return;
-            isCallAcceptedByMe = true;
-            _receiverHasAccepted = true;
-            setStatusMessage('Connecting...', '');
-            setStep('STEP2_WAIT_ACCEPT');
-            openDataChannelBothSides();
-            sendDataSafe({ type: 'CALL_ACCEPTED' });
-            if (activeCall && localStream) {
-                try { activeCall.answer(localStream); } catch (e) {}
-            }
-        };
+function sendDataSafe(p){if(dataConn&&dataConn.open){try{dataConn.send(p);return true}catch(e){}}return false}
+function syncQualityFromRemote(m,ts){if(!m||!QUALITY_PRESETS[m])return;var t=Number(ts)||0;if(t&&t<_modeUpdatedAt)return;if(t)_modeUpdatedAt=t;if(qualityMode!==m){qualityMode=m;applyQualityMode()}}
+function openDataChannelBothSides(){if(callEnded||!peer||peer.destroyed||!_peerReady)return;if(dataConn&&dataConn.open)return;if(dataConn&&dataConn.peerConnection&&dataConn.peerConnection.iceConnectionState==='checking')return;try{var c=peer.connect(remotePeerId);if(c){dataConn=c;setupDataConn(c)}}catch(e){}}
 
-        window.addEventListener('message', function(ev) {
-            var d = ev && ev.data;
-            if (!d) return;
-            if (d === 'ACCEPT_CALL' || d.type === 'ACCEPT_CALL' || d.type === 'CALL_ACCEPTED') {
-                window.acceptIncomingCall();
-            }
+function setupDataConn(tc){
+    if(!tc)return;
+    tc.on('open',function(){
+        if(dataConn&&dataConn!==tc)try{dataConn.close()}catch(e){}dataConn=tc;
+        sendDataSafe({type:'NAME',name:myName});sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});
+        if(role==='receiver'&&isCallAcceptedByMe){setStep('STEP2_WAIT_ACCEPT');sendDataSafe({type:'CALL_ACCEPTED'})}
+        else if(role==='caller'&&_receiverHasAccepted&&!isCallConnected()){setStep('STEP3_MEDIA_JOIN');if(!activeCall)initiateSingleCall()}
+    });
+    tc.on('data',function(d){
+        if(!d||typeof d!=='object')return;
+        if(d.type==='CALL_ACCEPTED'||d.type==='RECEIVER_READY'){if(role==='caller'){_receiverHasAccepted=true;if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','');if(!isCallConnected()&&!activeCall){setStep('STEP3_MEDIA_JOIN');initiateSingleCall()}}}
+        else if(d.type==='NAME'){if(d.name&&(peerName==='Connecting...'||peerName==='User')){peerName=d.name;updateUI()}}
+        else if(d.type==='QUALITY_MODE')syncQualityFromRemote(d.mode,d.ts);
+        else if(d.type==='MODE')syncQualityFromRemote(d.active?'hd':'sd',d.ts);
+        else if(d.type==='END_CALL')endCall(true);
+        else if(d.type==='PING'){if(d.qMode)syncQualityFromRemote(d.qMode,d.modeTs);sendDataSafe({type:'PONG',ts:d.ts,qMode:qualityMode,modeTs:_modeUpdatedAt})}
+        else if(d.type==='PONG'&&d.qMode)syncQualityFromRemote(d.qMode,d.modeTs);
+    });
+    tc.on('close',function(){if(dataConn===tc)dataConn=null});
+    tc.on('error',function(){if(dataConn===tc)dataConn=null});
+}
+
+function initiateSingleCall(){
+    if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted)return;
+    if(activeCall){var pc=activeCall.peerConnection,st=pc?pc.iceConnectionState:'none';if(st==='connected'||st==='completed'||st==='checking'||st==='new')return;try{activeCall.close()}catch(e){}activeCall=null}
+    _callSeq++;_stepEnteredAt=Date.now();_disconnectedSince=0;_gotRemoteStream=false;_zeroInTicks=0;
+    try{var c=peer.call(remotePeerId,localStream,{metadata:{name:myName,qMode:qualityMode,modeTs:_modeUpdatedAt,seq:_callSeq}});if(c){activeCall=c;setupCall(c)}}catch(e){}
+}
+
+function startApp(){
+    if(_appStarting||callEnded)return;
+    if(!window.RTCPeerConnection||typeof Peer==='undefined'){setStatusMessage('Browser Unsupported for WebRTC Calls','err');return}
+    _appStarting=true;setStep('STEP1_PREWARM');
+    var hasMedia=!!(localStream&&localStream.getTracks&&localStream.getTracks().length>0),mp=hasMedia?Promise.resolve(true):initMedia();
+    Promise.all([mp,_iceReadyPromise]).then(function(res){
+        if(callEnded){_appStarting=false;return}
+        var ice=res[1]||FAST_ICE_SERVERS,cfg=isLegacyDevice?{iceServers:ice}:{iceServers:ice,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
+        peer=new Peer(myPeerId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:cfg});
+        peer.on('open',function(){
+            _peerReady=true;setStep('STEP2_WAIT_ACCEPT');if(_stepLoopTimer)clearInterval(_stepLoopTimer);openDataChannelBothSides();
+            if(role==='receiver'){if(isCallAcceptedByMe){sendDataSafe({type:'CALL_ACCEPTED'});if(!_micFallbackActive)setStatusMessage('Connecting...','')}else if(!_micFallbackActive)setStatusMessage('Incoming Call...','')}
+            else if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Ringing...','');
+            _stepLoopTimer=setInterval(runCurrentStepSupervisor,1000);
         });
-
-        /* =========================================================
-           6. SCREEN LOCK OVERLAY
-           ========================================================= */
-        function toggleLock(lock) {
-            if (lock) lockOverlay.classList.add('active');
-            else lockOverlay.classList.remove('active');
-        }
-        lockOverlay.addEventListener('click', function(e) {
-            e.preventDefault(); e.stopPropagation();
-            if (!e.target.closest || !e.target.closest('.lock-icon')) return;
-            var now = Date.now();
-            if (now - lastTap < 400) { toggleLock(false); lastTap = 0; } else { lastTap = now; }
+        peer.on('connection',function(c){if(dataConn&&dataConn!==c)try{dataConn.close()}catch(e){}dataConn=c;setupDataConn(c)});
+        peer.on('call',function(call){
+            if(activeCall&&activeCall!==call)try{activeCall.close()}catch(e){}
+            activeCall=call;_gotRemoteStream=false;_disconnectedSince=0;
+            if(peerName==='Connecting...'&&call.metadata&&call.metadata.name){peerName=call.metadata.name;updateUI()}
+            if(call.metadata&&call.metadata.qMode)syncQualityFromRemote(call.metadata.qMode,call.metadata.modeTs||0);
+            if(role==='receiver'&&!isCallAcceptedByMe){setupCall(call);return}
+            setStep('STEP3_MEDIA_JOIN');if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','');
+            call.answer(localStream);setupCall(call);
         });
-
-        /* =========================================================
-           7. LEGACY-SAFE SDP & BITRATE CONTROL
-           ========================================================= */
-        function mungeLocalSDP(sdp) {
-            if (isLegacyDevice || !sdp || !/opus\/48000/i.test(sdp)) return sdp;
-            var lines = sdp.split('\r\n');
-            var pt = null;
-            for (var i = 0; i < lines.length; i++) {
-                var m = lines[i].match(/^a=rtpmap:(\d+)\s+opus\/48000/i);
-                if (m) { pt = m[1]; break; }
-            }
-            if (!pt) return sdp;
-
-            var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-            var out = [];
-            for (var j = 0; j < lines.length; j++) {
-                var l = lines[j];
-                var pre = 'a=fmtp:' + pt + ' ';
-                if (l.indexOf(pre) === 0) {
-                    var rawParts = l.substring(pre.length).split(';');
-                    var parts = [];
-                    for (var k = 0; k < rawParts.length; k++) {
-                        var trimmed = rawParts[k].trim();
-                        if (trimmed) parts.push(trimmed);
-                    }
-                    var setParam = function(key, val) {
-                        var found = -1;
-                        for (var x = 0; x < parts.length; x++) {
-                            if (parts[x].indexOf(key + '=') === 0) { found = x; break; }
-                        }
-                        if (found >= 0) parts[found] = key + '=' + val;
-                        else parts.push(key + '=' + val);
-                    };
-                    setParam('useinbandfec', '1');
-                    setParam('usedtx', '0');
-                    setParam('stereo', '0');
-                    setParam('maxaveragebitrate', String(q.audioBitrate));
-                    out.push(pre + parts.join(';'));
-                } else {
-                    out.push(l);
-                }
-            }
-            return out.join('\r\n');
-        }
-
-        if (!isLegacyDevice && window.RTCPeerConnection && RTCPeerConnection.prototype) {
-            var _origOffer = RTCPeerConnection.prototype.createOffer;
-            var _origAnswer = RTCPeerConnection.prototype.createAnswer;
-            RTCPeerConnection.prototype.createOffer = function() {
-                var args = arguments;
-                return _origOffer.apply(this, args).then(function(o) {
-                    if (o && o.sdp) return { type: o.type, sdp: mungeLocalSDP(o.sdp) };
-                    return o;
-                });
-            };
-            RTCPeerConnection.prototype.createAnswer = function() {
-                var args = arguments;
-                return _origAnswer.apply(this, args).then(function(x) {
-                    if (x && x.sdp) return { type: x.type, sdp: mungeLocalSDP(x.sdp) };
-                    return x;
-                });
-            };
-        }
-
-        function applyVideoBitrate(pc) {
-            if (!pc || isLegacyDevice || typeof pc.getSenders !== 'function') return;
-            var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-            try {
-                var senders = pc.getSenders();
-                for (var i = 0; i < senders.length; i++) {
-                    var s = senders[i];
-                    if (!s.track || typeof s.getParameters !== 'function') continue;
-                    var p = s.getParameters();
-                    if (!p.encodings || !p.encodings.length) p.encodings = [{}];
-                    if (s.track.kind === 'video') {
-                        p.encodings[0].maxBitrate = q.videoBitrate;
-                        p.encodings[0].scaleResolutionDownBy = q.scaleDown;
-                        p.encodings[0].maxFramerate = q.fps;
-                        s.setParameters(p).catch(function() {});
-                    } else if (s.track.kind === 'audio') {
-                        p.encodings[0].maxBitrate = q.audioBitrate;
-                        s.setParameters(p).catch(function() {});
-                    }
-                }
-            } catch (e) {}
-        }
-
-        function applyQualityMode() {
-            updateSaverUI();
-            updateMediaSessionMetadata();
-            if (isLegacyDevice) return;
-            var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-            if (callType === 'video' && localStream) {
-                var vt = localStream.getVideoTracks()[0];
-                if (vt && typeof vt.applyConstraints === 'function') {
-                    try {
-                        vt.applyConstraints({ width: { ideal: q.width }, height: { ideal: q.height } }).catch(function() {});
-                    } catch (e) {}
-                }
-            }
-            if (activeCall && activeCall.peerConnection) applyVideoBitrate(activeCall.peerConnection);
-        }
-
-        /* =========================================================
-           8. ACCURATE PER-DEVICE CAPABILITY & SAFE MIC RECOVERY
-           ========================================================= */
-        function detectBrowserNoiseCapabilities() {
-            var sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
-                ? navigator.mediaDevices.getSupportedConstraints()
-                : {};
-            _unsupportedNoiseModes.enc = (sup.voiceIsolation === false) || isLegacyDevice;
-            _unsupportedNoiseModes.nc = (sup.noiseSuppression === false);
-            _unsupportedNoiseModes.off = false;
-            _unsupportedNoiseModes.raw = false;
-        }
-        detectBrowserNoiseCapabilities();
-
-        function markNoiseUnsupported(mode) {
-            if (mode && mode !== 'raw' && mode !== 'off') {
-                _unsupportedNoiseModes[mode] = true;
-            }
-            updateNoiseUI();
-        }
-
-        function createSilentFallbackStream() {
-            try {
-                var canvas = document.createElement('canvas');
-                canvas.width = 2; canvas.height = 2;
-                var ctx2d = canvas.getContext('2d');
-                if (ctx2d) ctx2d.fillRect(0, 0, 2, 2);
-                var stream = canvas.captureStream ? canvas.captureStream(1) : new MediaStream();
-                var vTracks = stream.getVideoTracks();
-                for (var i = 0; i < vTracks.length; i++) {
-                    try { vTracks[i].stop(); } catch (e) {}
-                    stream.removeTrack(vTracks[i]);
-                }
-
-                var Ctx = window.AudioContext || window.webkitAudioContext;
-                if (Ctx) {
-                    var actx = new Ctx();
-                    if (actx.state === 'suspended') actx.resume().catch(function() {});
-                    var dest = actx.createMediaStreamDestination();
-                    var osc = actx.createOscillator();
-                    var gain = actx.createGain();
-                    gain.gain.value = 0;
-                    osc.connect(gain);
-                    gain.connect(dest);
-                    osc.start();
-                    var aTracks = dest.stream.getAudioTracks();
-                    for (var j = 0; j < aTracks.length; j++) {
-                        stream.addTrack(aTracks[j]);
-                    }
-                }
-                _micFallbackActive = true;
-                setStatusMessage('Mic Unavailable – Retrying...', 'warn');
-                return stream;
-            } catch (e) {}
-            _micFallbackActive = true;
-            setStatusMessage('Mic Unavailable – Retrying...', 'warn');
-            return new MediaStream();
-        }
-
-        function getUserMediaWithTimeout(constraints, ms) {
-            var timeoutMs = ms || 1200;
-            return new Promise(function(resolve, reject) {
-                var done = false;
-                var t = setTimeout(function() {
-                    if (!done) {
-                        done = true;
-                        var err = new Error('Media timeout');
-                        err.name = 'TimeoutError';
-                        reject(err);
-                    }
-                }, timeoutMs);
-                navigator.mediaDevices.getUserMedia(constraints).then(function(s) {
-                    if (done) {
-                        var trs = s.getTracks();
-                        for (var i = 0; i < trs.length; i++) { try { trs[i].stop(); } catch (e) {} }
-                        return;
-                    }
-                    done = true; clearTimeout(t); resolve(s);
-                }).catch(function(err) {
-                    if (done) return;
-                    done = true; clearTimeout(t); reject(err);
-                });
-            });
-        }
-
-        function getAudioConstraints(id, mode) {
-            if (mode === 'raw') {
-                var r = { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-                if (id && id !== 'default') r.deviceId = { ideal: id };
-                return r;
-            }
-            if (!mode || mode === 'off') {
-                if (id && id !== 'default') return { deviceId: { ideal: id } };
-                if (isLegacyDevice) return true;
-                return { echoCancellation: true, noiseSuppression: false, autoGainControl: true };
-            }
-            if (mode === 'nc') {
-                var n = { echoCancellation: true, noiseSuppression: true, autoGainControl: true };
-                if (id && id !== 'default') n.deviceId = { ideal: id };
-                return n;
-            }
-            var e = { echoCancellation: true, noiseSuppression: true, autoGainControl: true, voiceIsolation: true };
-            if (id && id !== 'default') e.deviceId = { ideal: id };
-            return e;
-        }
-
-        function verifyAudioTrackForMode(track, mode) {
-            if (!track || track.readyState !== 'live' || track.enabled === false) return false;
-            if (!track.getSettings) return true;
-            var st = track.getSettings() || {};
-            if (mode === 'enc') {
-                return st.voiceIsolation !== false && st.noiseSuppression !== false;
-            }
-            if (mode === 'nc') {
-                return st.noiseSuppression !== false;
-            }
-            return true;
-        }
-
-        function updateNoiseUI(errMsg) {
-            var b = $('nc-btn'), t = $('nc-text');
-            if (errMsg) {
-                b.className = 'ctrl-btn nc-err'; t.innerText = errMsg;
-                setTimeout(function() { syncNoiseButtonState(); }, 2200);
-            } else {
-                syncNoiseButtonState();
-            }
-            var items = document.querySelectorAll('#noise-list-container .device-item');
-            for (var i = 0; i < items.length; i++) {
-                var el = items[i];
-                var mode = el.getAttribute('data-nmode');
-                var isUnsup = !!_unsupportedNoiseModes[mode];
-                if (mode === noiseMode && !isUnsup) el.classList.add('active');
-                else el.classList.remove('active');
-
-                if (isUnsup) el.classList.add('unsupported-blur');
-                else el.classList.remove('unsupported-blur');
-
-                var badge = el.querySelector('.q-badge');
-                if (badge) {
-                    var defText = badge.getAttribute('data-default-badge') || '';
-                    badge.innerText = isUnsup ? 'Unsupported' : defText;
-                }
-            }
-        }
-
-        function syncNoiseButtonState() {
-            var b = $('nc-btn'), t = $('nc-text');
-            if (noiseMode === 'raw') { b.className = 'ctrl-btn raw-on'; t.innerText = 'Natural'; }
-            else if (noiseMode === 'enc') { b.className = 'ctrl-btn enc-on'; t.innerText = 'Env On'; }
-            else if (noiseMode === 'nc') { b.className = 'ctrl-btn nc-on'; t.innerText = 'Noise On'; }
-            else { b.className = 'ctrl-btn'; t.innerText = 'Standard'; }
-        }
-        updateNoiseUI();
-
-        function openNoiseMenu() { updateNoiseUI(); $('noise-overlay').classList.add('active'); }
-        function closeNoiseMenu(e) { if (e && e.target !== e.currentTarget) return; $('noise-overlay').classList.remove('active'); }
-
-        function selectNoiseMode(targetMode, isSilentRecovery) {
-            if (_unsupportedNoiseModes[targetMode]) return;
-            if (!isSilentRecovery) {
-                _noiseModeManuallySelected = true;
-                closeNoiseMenu();
-            }
-            if (_ncBusy || (!isSilentRecovery && targetMode === noiseMode)) return;
-            _ncBusy = true;
-            var newStream = null, newTrack = null;
-
-            getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 1400).then(function(stream) {
-                newStream = stream;
-                newTrack = newStream.getAudioTracks()[0];
-                if (!verifyAudioTrackForMode(newTrack, targetMode)) {
-                    var err = new Error('Mode unsupported on hardware');
-                    err.name = 'OverconstrainedError';
-                    throw err;
-                }
-                newTrack.enabled = !isMuted;
-
-                if (activeCall && activeCall.peerConnection) {
-                    return replaceAudioTrackCompat(activeCall.peerConnection, newTrack, localStream);
-                }
-            }).then(function() {
-                if (localStream) {
-                    var oldTracks = localStream.getAudioTracks();
-                    for (var i = 0; i < oldTracks.length; i++) {
-                        try { oldTracks[i].stop(); } catch (e) {}
-                        localStream.removeTrack(oldTracks[i]);
-                    }
-                    localStream.addTrack(newTrack);
-                } else {
-                    localStream = newStream;
-                }
-                _micFallbackActive = false;
-                noiseMode = targetMode;
-                updateNoiseUI();
-                _ncBusy = false;
-            }).catch(function(e) {
-                if (newTrack) { try { newTrack.stop(); } catch (err) {} }
-                if (newStream) {
-                    var trs = newStream.getTracks();
-                    for (var i = 0; i < trs.length; i++) { try { trs[i].stop(); } catch (err) {} }
-                }
-                if (e && (e.name === 'OverconstrainedError' || e.name === 'NotSupportedError')) {
-                    markNoiseUnsupported(targetMode);
-                }
-                if (!isSilentRecovery) updateNoiseUI('Not Supported');
-                _ncBusy = false;
-            });
-        }
-
-        function acquireBestSupportedAudio(videoConstraints) {
-            var allModes = _noiseModeManuallySelected ? [noiseMode] : ['enc', 'nc', 'off', 'raw'];
-            var modes = [];
-            for (var i = 0; i < allModes.length; i++) {
-                if (!_unsupportedNoiseModes[allModes[i]]) modes.push(allModes[i]);
-            }
-
-            var idx = 0;
-            function tryNextMode() {
-                if (idx >= modes.length) {
-                    return Promise.reject(new Error('No audio track acquired'));
-                }
-                var mode = modes[idx++];
-                var streamRef = null;
-                return getUserMediaWithTimeout({
-                    audio: getAudioConstraints(currentMicId, mode),
-                    video: videoConstraints || false
-                }, 1100).then(function(stream) {
-                    streamRef = stream;
-                    var track = stream.getAudioTracks()[0];
-                    if (!verifyAudioTrackForMode(track, mode)) {
-                        var err = new Error('Filter did not activate');
-                        err.name = 'OverconstrainedError';
-                        throw err;
-                    }
-                    noiseMode = mode;
-                    updateNoiseUI();
-                    return stream;
-                }).catch(function(err) {
-                    if (streamRef) {
-                        var trs = streamRef.getTracks();
-                        for (var j = 0; j < trs.length; j++) { try { trs[j].stop(); } catch (e) {} }
-                    }
-                    if (err && (err.name === 'NotAllowedError' || err.name === 'SecurityError' || err.name === 'NotFoundError')) {
-                        return Promise.reject(err);
-                    }
-                    if (err && (err.name === 'OverconstrainedError' || err.name === 'NotSupportedError')) {
-                        markNoiseUnsupported(mode);
-                    }
-                    return tryNextMode();
-                });
-            }
-            return tryNextMode();
-        }
-
-        function recoverRealMicInBackground() {
-            if (!_micFallbackActive || callEnded || _micRecoveryBusy || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
-            _micRecoveryBusy = true;
-            var realStreamRef = null;
-            var realTrackRef = null;
-
-            acquireBestSupportedAudio(false).then(function(realStream) {
-                realStreamRef = realStream;
-                var realTrack = realStream.getAudioTracks()[0];
-                if (!realTrack || realTrack.readyState !== 'live') {
-                    throw new Error('Track not live');
-                }
-                realTrack.enabled = !isMuted;
-                realTrackRef = realTrack;
-
-                if (activeCall && activeCall.peerConnection) {
-                    return replaceAudioTrackCompat(activeCall.peerConnection, realTrack, localStream);
-                }
-            }).then(function() {
-                if (localStream) {
-                    var oldTracks = localStream.getAudioTracks();
-                    for (var i = 0; i < oldTracks.length; i++) {
-                        try { oldTracks[i].stop(); } catch (e) {}
-                        localStream.removeTrack(oldTracks[i]);
-                    }
-                    localStream.addTrack(realTrackRef);
-                } else {
-                    localStream = realStreamRef;
-                }
-                _micFallbackActive = false;
-                updateNoiseUI();
-                if (_callEverConnected) _restoreTimerDisplay();
-                _micRecoveryBusy = false;
-            }).catch(function() {
-                if (realTrackRef) { try { realTrackRef.stop(); } catch (err) {} }
-                if (realStreamRef) {
-                    var trs = realStreamRef.getTracks();
-                    for (var i = 0; i < trs.length; i++) { try { trs[i].stop(); } catch (err) {} }
-                }
-                _micRecoveryBusy = false;
-                if (!_micRecoveryTimer && !callEnded) {
-                    _micRecoveryTimer = setTimeout(function() {
-                        _micRecoveryTimer = null;
-                        recoverRealMicInBackground();
-                    }, 2000);
-                }
-            });
-        }
-
-        function finalizeLocalStream() {
-            var aTracks = localStream.getAudioTracks();
-            for (var i = 0; i < aTracks.length; i++) {
-                aTracks[i].enabled = !isMuted;
-            }
-            if (callType === 'video' && localStream.getVideoTracks().length > 0) {
-                attachStreamToElement(localVideo, localStream);
-            }
-            refreshDeviceCache();
-            return true;
-        }
-
-        function initMedia() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-                localStream = createSilentFallbackStream();
-                setTimeout(recoverRealMicInBackground, 1500);
-                return Promise.resolve(true);
-            }
-
-            var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-
-            if (callType === 'video') {
-                var videoConstraint = isLegacyDevice
-                    ? true
-                    : { facingMode: 'user', width: { ideal: q.width }, height: { ideal: q.height } };
-
-                return acquireBestSupportedAudio(videoConstraint).then(function(stream) {
-                    localStream = stream;
-                    _micFallbackActive = false;
-                    return finalizeLocalStream();
-                }).catch(function() {
-                    return acquireBestSupportedAudio(false).then(function(audioStream) {
-                        localStream = audioStream;
-                        _micFallbackActive = false;
-                        callType = 'audio';
-                        applyCallView();
-                        return finalizeLocalStream();
-                    }).catch(function(err) {
-                        callType = 'audio';
-                        applyCallView();
-                        localStream = createSilentFallbackStream();
-                        setStatusMessage(getUniversalErrorText(err) + ' – Retrying...', 'warn');
-                        setTimeout(recoverRealMicInBackground, 1500);
-                        return finalizeLocalStream();
-                    });
-                });
-            }
-
-            return acquireBestSupportedAudio(false).then(function(stream) {
-                localStream = stream;
-                _micFallbackActive = false;
-                return finalizeLocalStream();
-            }).catch(function(err) {
-                return getUserMediaWithTimeout({ audio: true, video: false }, 1200).then(function(basicStream) {
-                    localStream = basicStream;
-                    noiseMode = 'off';
-                    _micFallbackActive = false;
-                    updateNoiseUI();
-                    return finalizeLocalStream();
-                }).catch(function(fallbackErr) {
-                    localStream = createSilentFallbackStream();
-                    setStatusMessage(getUniversalErrorText(fallbackErr) + ' – Retrying...', 'warn');
-                    setTimeout(recoverRealMicInBackground, 1500);
-                    return finalizeLocalStream();
-                });
-            });
-        }
-
-        /* =========================================================
-           9. SIGNALING & ACCEPT-TRIGGERED CALL JOIN
-           ========================================================= */
-        function sendDataSafe(payload) {
-            if (dataConn && dataConn.open) {
-                try { dataConn.send(payload); return true; } catch (e) {}
-            }
-            return false;
-        }
-
-        function syncQualityFromRemote(remoteMode, remoteTs) {
-            if (!remoteMode || !QUALITY_PRESETS[remoteMode]) return;
-            var ts = Number(remoteTs) || 0;
-            if (ts && ts < _modeUpdatedAt) return;
-            if (ts) _modeUpdatedAt = ts;
-            if (qualityMode !== remoteMode) {
-                qualityMode = remoteMode;
-                applyQualityMode();
-            }
-        }
-
-        function openDataChannelBothSides() {
-            if (callEnded || !peer || peer.destroyed || !_peerReady) return;
-            if (dataConn && dataConn.open) return;
-            if (dataConn && dataConn.peerConnection && dataConn.peerConnection.iceConnectionState === 'checking') return;
-            try {
-                var conn = peer.connect(remotePeerId);
-                if (conn) {
-                    dataConn = conn;
-                    setupDataConn(conn);
-                }
-            } catch (e) {}
-        }
-
-        function setupDataConn(tc) {
-            if (!tc) return;
-            tc.on('open', function() {
-                if (dataConn && dataConn !== tc) {
-                    try { dataConn.close(); } catch (e) {}
-                }
-                dataConn = tc;
-
-                sendDataSafe({ type: 'NAME', name: myName });
-                sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
-
-                if (role === 'receiver' && isCallAcceptedByMe) {
-                    setStep('STEP2_WAIT_ACCEPT');
-                    sendDataSafe({ type: 'CALL_ACCEPTED' });
-                } else if (role === 'caller' && _receiverHasAccepted && !isCallConnected()) {
-                    setStep('STEP3_MEDIA_JOIN');
-                    if (!activeCall) initiateSingleCall();
-                }
-            });
-
-            tc.on('data', function(d) {
-                if (!d || typeof d !== 'object') return;
-                if (d.type === 'CALL_ACCEPTED' || d.type === 'RECEIVER_READY') {
-                    if (role === 'caller') {
-                        _receiverHasAccepted = true;
-                        if (!_callEverConnected && !callTimerInterval && !_micFallbackActive) {
-                            setStatusMessage('Connecting...', '');
-                        }
-                        if (!isCallConnected() && !activeCall) {
-                            setStep('STEP3_MEDIA_JOIN');
-                            initiateSingleCall();
-                        }
-                    }
-                } else if (d.type === 'NAME') {
-                    if (d.name && (peerName === 'Connecting...' || peerName === 'User')) {
-                        peerName = d.name;
-                        updateUI();
-                    }
-                } else if (d.type === 'QUALITY_MODE') {
-                    syncQualityFromRemote(d.mode, d.ts);
-                } else if (d.type === 'MODE') {
-                    syncQualityFromRemote(d.active ? 'hd' : 'sd', d.ts);
-                } else if (d.type === 'END_CALL') {
-                    endCall(true);
-                } else if (d.type === 'PING') {
-                    if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
-                    sendDataSafe({ type: 'PONG', ts: d.ts, qMode: qualityMode, modeTs: _modeUpdatedAt });
-                } else if (d.type === 'PONG') {
-                    if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
-                }
-            });
-
-            tc.on('close', function() {
-                if (dataConn === tc) dataConn = null;
-            });
-
-            tc.on('error', function() {
-                if (dataConn === tc) dataConn = null;
-            });
-        }
-
-        function initiateSingleCall() {
-            if (role !== 'caller' || callEnded || !peer || peer.destroyed || !peer.open) return;
-            if (!_receiverHasAccepted) return;
-
-            if (activeCall) {
-                var pc = activeCall.peerConnection;
-                var state = pc ? pc.iceConnectionState : 'none';
-                if (state === 'connected' || state === 'completed' || state === 'checking' || state === 'new') {
-                    return;
-                }
-                try { activeCall.close(); } catch (e) {}
-                activeCall = null;
-            }
-
-            _callSeq++;
-            _stepEnteredAt = Date.now();
-            _disconnectedSince = 0;
-            _gotRemoteStream = false;
-            _zeroInTicks = 0;
-
-            try {
-                var c = peer.call(remotePeerId, localStream, {
-                    metadata: {
-                        name: myName,
-                        qMode: qualityMode,
-                        modeTs: _modeUpdatedAt,
-                        seq: _callSeq
-                    }
-                });
-                if (c) {
-                    activeCall = c;
-                    setupCall(c);
-                }
-            } catch (e) {}
-        }
-
-        function startApp() {
-            if (_appStarting || callEnded) return;
-
-            if (!window.RTCPeerConnection || typeof Peer === 'undefined') {
-                setStatusMessage('Browser Unsupported for WebRTC Calls', 'err');
-                return;
-            }
-
-            _appStarting = true;
-            setStep('STEP1_PREWARM');
-
-            var hasLiveMedia = !!(localStream && localStream.getTracks && localStream.getTracks().length > 0);
-            var mediaPromise = hasLiveMedia ? Promise.resolve(true) : initMedia();
-
-            Promise.all([mediaPromise, _iceReadyPromise]).then(function(results) {
-                if (callEnded) { _appStarting = false; return; }
-                var resolvedIce = results[1] || FAST_ICE_SERVERS;
-
-                var rtcConfig = isLegacyDevice
-                    ? { iceServers: resolvedIce }
-                    : { iceServers: resolvedIce, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
-
-                peer = new Peer(myPeerId, {
-                    host: '0.peerjs.com',
-                    port: 443,
-                    path: '/',
-                    secure: true,
-                    config: rtcConfig
-                });
-
-                peer.on('open', function() {
-                    _peerReady = true;
-                    setStep('STEP2_WAIT_ACCEPT');
-                    if (_stepLoopTimer) clearInterval(_stepLoopTimer);
-
-                    openDataChannelBothSides();
-
-                    if (role === 'receiver') {
-                        if (isCallAcceptedByMe) {
-                            sendDataSafe({ type: 'CALL_ACCEPTED' });
-                            if (!_micFallbackActive) setStatusMessage('Connecting...', '');
-                        } else if (!_micFallbackActive) {
-                            setStatusMessage('Incoming Call...', '');
-                        }
-                    } else if (!_callEverConnected && !callTimerInterval && !_micFallbackActive) {
-                        setStatusMessage('Ringing...', '');
-                    }
-
-                    _stepLoopTimer = setInterval(runCurrentStepSupervisor, 1000);
-                });
-
-                peer.on('connection', function(c) {
-                    if (dataConn && dataConn !== c) {
-                        try { dataConn.close(); } catch (e) {}
-                    }
-                    dataConn = c;
-                    setupDataConn(c);
-                });
-
-                peer.on('call', function(call) {
-                    if (activeCall && activeCall !== call) {
-                        try { activeCall.close(); } catch (e) {}
-                    }
-                    activeCall = call;
-                    _gotRemoteStream = false;
-                    _disconnectedSince = 0;
-
-                    if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
-                        peerName = call.metadata.name;
-                        updateUI();
-                    }
-                    if (call.metadata && call.metadata.qMode) {
-                        syncQualityFromRemote(call.metadata.qMode, call.metadata.modeTs || 0);
-                    }
-
-                    if (role === 'receiver' && !isCallAcceptedByMe) {
-                        setupCall(call);
-                        return;
-                    }
-
-                    setStep('STEP3_MEDIA_JOIN');
-                    if (!_callEverConnected && !callTimerInterval && !_micFallbackActive) {
-                        setStatusMessage('Connecting...', '');
-                    }
-
-                    call.answer(localStream);
-                    setupCall(call);
-                });
-
-                peer.on('error', function(err) {
-                    var type = err && err.type ? err.type : '';
-                    if (type === 'browser-incompatible') {
-                        setStatusMessage('Browser Unsupported for Calls', 'err');
-                        return;
-                    }
-                    if (type === 'unavailable-id') {
-                        setStatusMessage('Reconnecting ID...', 'warn');
-                        _peerReady = false;
-                        try { if (peer && !peer.destroyed) peer.destroy(); } catch (e) {}
-                        peer = null;
-                        setStep('STEP1_PREWARM');
-                    } else if (type === 'peer-unavailable') {
-                        if (!_callEverConnected && !_micFallbackActive) setStatusMessage('Ringing...', '');
-                    } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
-                        setStatusMessage('Reconnecting...', 'warn');
-                        try { if (peer && !peer.destroyed && peer.disconnected) peer.reconnect(); } catch (e) {}
-                    }
-                });
-
-                peer.on('disconnected', function() {
-                    _peerReady = false;
-                    if (callEnded) return;
-                    try { if (peer && !peer.destroyed) peer.reconnect(); } catch (e) {}
-                });
-
-                _appStarting = false;
-            }).catch(function() {
-                _appStarting = false;
-                setStep('STEP1_PREWARM');
-            });
-        }
-
-        function _restoreTimerDisplay() {
-            if (_micFallbackActive) {
-                setStatusMessage('Mic Unavailable – Retrying...', 'warn');
-                return;
-            }
-            if (callTimerInterval || !_callEverConnected) return;
-            callTimerInterval = setInterval(function() {
-                if (_micFallbackActive) {
-                    clearInterval(callTimerInterval);
-                    callTimerInterval = null;
-                    setStatusMessage('Mic Unavailable – Retrying...', 'warn');
-                    return;
-                }
-                callSeconds++;
-                var m = padTwo(Math.floor(callSeconds / 60));
-                var s = padTwo(callSeconds % 60);
-                setStatusMessage(m + ':' + s, '');
-            }, 1000);
-        }
-
-        function _attachStreamToPlayers(rs) {
-            if (!rs) return;
-            var vTracks = rs.getVideoTracks ? rs.getVideoTracks() : [];
-            if (callType === 'video' && vTracks.length > 0) {
-                attachStreamToElement(remoteVideo, rs);
-                remoteVideo.muted = false;
-                remoteVideo.volume = 1;
-                var vp = remoteVideo.play();
-                if (vp && vp.catch) vp.catch(function() {});
-            } else {
-                if (callType === 'video' && vTracks.length === 0) {
-                    callType = 'audio';
-                    applyCallView();
-                }
-                remoteAudio.autoplay = true;
-                remoteAudio.playsInline = true;
-                remoteAudio.muted = false;
-                remoteAudio.volume = 1;
-                attachStreamToElement(remoteAudio, rs);
-                forcePlay();
-                var aTracks = rs.getAudioTracks ? rs.getAudioTracks() : [];
-                for (var i = 0; i < aTracks.length; i++) {
-                    aTracks[i].enabled = true;
-                    aTracks[i].onunmute = function() { forcePlay(); };
-                    aTracks[i].onended = function() { if (hasAttachedStream(remoteAudio)) remoteAudio.pause(); };
-                }
-            }
-        }
-
-        function activateAllCallSetups(call, rs) {
-            if (activeCall !== call || callEnded) return;
-            setStep('STEP4_CONNECTED');
-            _disconnectedSince = 0;
-            _step3AttemptCount = 0;
-
-            if (rs) {
-                _attachStreamToPlayers(rs);
-                _gotRemoteStream = true;
-            }
-
-            if (_audioPlayTimer) clearInterval(_audioPlayTimer);
-            _audioPlayTimer = setInterval(function() {
-                if (callEnded) { clearInterval(_audioPlayTimer); _audioPlayTimer = null; return; }
-                if (callType === 'audio' && hasAttachedStream(remoteAudio) && remoteAudio.paused) forcePlay();
-                if (callType === 'video' && hasAttachedStream(remoteVideo) && remoteVideo.paused) forcePlay();
-            }, 2000);
-
-            startMediaSession();
-            startBackgroundEngine();
-            startStatsTelemetry();
-
-            if (rs && !_callEverConnected) {
-                _callEverConnected = true;
-                showCallNotification();
-                callSeconds = 0;
-                if (!_micFallbackActive) setStatusMessage('00:00', '');
-            }
-            if (_callEverConnected) _restoreTimerDisplay();
-
-            if (call && call.peerConnection) applyVideoBitrate(call.peerConnection);
-            sendDataSafe({ type: 'NAME', name: myName });
-            sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
-            setTimeout(function() {
-                if (activeCall === call && call.peerConnection) applyVideoBitrate(call.peerConnection);
-            }, 250);
-        }
-
-        function _handleConnectedStream(call, rs) {
-            if (callEnded || !rs || activeCall !== call) return;
-            activateAllCallSetups(call, rs);
-        }
-
-        function _onIceState(call) {
-            if (callEnded || !call.peerConnection || activeCall !== call) return;
-
-            var st = call.peerConnection.iceConnectionState;
-            if (st === 'checking') {
-                if (!callTimerInterval && !_micFallbackActive) setStatusMessage('Connecting...', '');
-            } else if (st === 'disconnected') {
-                setStatusMessage('Reconnecting...', 'warn');
-                if (!_disconnectedSince) _disconnectedSince = Date.now();
-            } else if (st === 'failed') {
-                setStatusMessage('Reconnecting...', 'warn');
-                setStep('STEP3_MEDIA_JOIN');
-            } else if (st === 'connected' || st === 'completed') {
-                var rs = getRemoteStreamFromPc(call.peerConnection);
-                activateAllCallSetups(call, rs);
-            }
-        }
-
-        function setupCall(call) {
-            var pc = call.peerConnection;
-            if (pc) {
-                addPcListener(pc, 'iceconnectionstatechange', function() { _onIceState(call); });
-                addPcListener(pc, 'connectionstatechange', function() {
-                    if (callEnded) return;
-                    var cs = pc.connectionState;
-                    if (cs === 'connected' || cs === 'failed' || cs === 'disconnected') {
-                        _onIceState(call);
-                    }
-                });
-                addPcListener(pc, 'track', function(ev) {
-                    var stream = (ev.streams && ev.streams[0]) ? ev.streams[0] : (ev.track ? new MediaStream([ev.track]) : null);
-                    if (stream) _handleConnectedStream(call, stream);
-                });
-                addPcListener(pc, 'addstream', function(ev) {
-                    if (ev && ev.stream) _handleConnectedStream(call, ev.stream);
-                });
-            }
-
-            call.on('stream', function(rs) { _handleConnectedStream(call, rs); });
-
-            call.on('error', function() {
-                if (activeCall !== call || callEnded) return;
-                activeCall = null;
-                _gotRemoteStream = false;
-                setStep('STEP3_MEDIA_JOIN');
-            });
-
-            call.on('close', function() {
-                if (activeCall !== call || callEnded) return;
-                activeCall = null;
-                _gotRemoteStream = false;
-                if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
-                setStatusMessage(role === 'caller' ? 'Reconnecting...' : 'Waiting...', 'warn');
-                setStep('STEP3_MEDIA_JOIN');
-            });
-        }
-
-        function handleNetworkRecovery() {
-            if (callEnded) return;
-            setTimeout(function() {
-                if (callEnded) return;
-                if (peer && !peer.destroyed && peer.disconnected) {
-                    try { peer.reconnect(); } catch (e) {}
-                }
-                runCurrentStepSupervisor();
-            }, 250);
-        }
-
-        window.addEventListener('online', handleNetworkRecovery);
-        window.addEventListener('offline', function() {
-            if (callEnded) return;
-            if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
-            setStatusMessage('Network Lost...', 'err');
+        peer.on('error',function(err){
+            var t=err&&err.type?err.type:'';
+            if(t==='browser-incompatible'){setStatusMessage('Browser Unsupported for Calls','err');return}
+            if(t==='unavailable-id'){setStatusMessage('Reconnecting ID...','warn');_peerReady=false;try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}peer=null;setStep('STEP1_PREWARM')}
+            else if(t==='peer-unavailable'){if(!_callEverConnected&&!_micFallbackActive)setStatusMessage('Ringing...','')}
+            else if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'){setStatusMessage('Reconnecting...','warn');try{if(peer&&!peer.destroyed&&peer.disconnected)peer.reconnect()}catch(e){}}
         });
-        if (navigator.connection && navigator.connection.addEventListener) {
-            navigator.connection.addEventListener('change', handleNetworkRecovery);
-        }
+        peer.on('disconnected',function(){_peerReady=false;if(!callEnded)try{if(peer&&!peer.destroyed)peer.reconnect()}catch(e){}});
+        _appStarting=false;
+    }).catch(function(){_appStarting=false;setStep('STEP1_PREWARM')});
+}
 
-        window.addEventListener('beforeunload', function() {
-            hideCallNotification();
-            stopBackgroundEngine();
-            stopMediaSession();
-            if (_stepLoopTimer) clearInterval(_stepLoopTimer);
-            if (_audioPlayTimer) clearInterval(_audioPlayTimer);
-            if (_statsTimer) clearInterval(_statsTimer);
-            if (!callEnded) sendDataSafe({ type: 'END_CALL' });
-        });
+function _restoreTimerDisplay(){
+    if(_micFallbackActive){setStatusMessage('Mic Unavailable – Retrying...','warn');return}
+    if(callTimerInterval||!_callEverConnected)return;
+    callTimerInterval=setInterval(function(){if(_micFallbackActive){clearInterval(callTimerInterval);callTimerInterval=null;setStatusMessage('Mic Unavailable – Retrying...','warn');return}callSeconds++;setStatusMessage(padTwo(Math.floor(callSeconds/60))+':'+padTwo(callSeconds%60),'')},1000);
+}
+function _attachStreamToPlayers(rs){
+    if(!rs)return;var vt=rs.getVideoTracks?rs.getVideoTracks():[];
+    if(callType==='video'&&vt.length>0){attachStreamToElement(remoteVideo,rs);remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){})}
+    else{
+        if(callType==='video'&&vt.length===0){callType='audio';applyCallView()}
+        remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;attachStreamToElement(remoteAudio,rs);forcePlay();
+        var at=rs.getAudioTracks?rs.getAudioTracks():[];for(var i=0;i<at.length;i++){at[i].enabled=true;at[i].onunmute=forcePlay;at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()}}
+    }
+}
+function activateAllCallSetups(call,rs){
+    if(activeCall!==call||callEnded)return;setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0;
+    if(rs){_attachStreamToPlayers(rs);_gotRemoteStream=true}
+    if(_audioPlayTimer)clearInterval(_audioPlayTimer);
+    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},2000);
+    startMediaSession();startBackgroundEngine();startStatsTelemetry();
+    if(rs&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;if(!_micFallbackActive)setStatusMessage('00:00','')}
+    if(_callEverConnected)_restoreTimerDisplay();
+    if(call&&call.peerConnection)applyVideoBitrate(call.peerConnection);
+    sendDataSafe({type:'NAME',name:myName});sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});
+    setTimeout(function(){if(activeCall===call&&call.peerConnection)applyVideoBitrate(call.peerConnection)},250);
+}
+function _handleConnectedStream(call,rs){if(!callEnded&&rs&&activeCall===call)activateAllCallSetups(call,rs)}
+function _onIceState(call){
+    if(callEnded||!call.peerConnection||activeCall!==call)return;
+    var st=call.peerConnection.iceConnectionState;
+    if(st==='checking'){if(!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','')}
+    else if(st==='disconnected'){setStatusMessage('Reconnecting...','warn');if(!_disconnectedSince)_disconnectedSince=Date.now()}
+    else if(st==='failed'){setStatusMessage('Reconnecting...','warn');setStep('STEP3_MEDIA_JOIN')}
+    else if(st==='connected'||st==='completed')activateAllCallSetups(call,getRemoteStreamFromPc(call.peerConnection));
+}
+function setupCall(call){
+    var pc=call.peerConnection;
+    if(pc){
+        addPcListener(pc,'iceconnectionstatechange',function(){_onIceState(call)});
+        addPcListener(pc,'connectionstatechange',function(){if(!callEnded&&(pc.connectionState==='connected'||pc.connectionState==='failed'||pc.connectionState==='disconnected'))_onIceState(call)});
+        addPcListener(pc,'track',function(ev){var s=(ev.streams&&ev.streams[0])?ev.streams[0]:(ev.track?new MediaStream([ev.track]):null);if(s)_handleConnectedStream(call,s)});
+        addPcListener(pc,'addstream',function(ev){if(ev&&ev.stream)_handleConnectedStream(call,ev.stream)});
+    }
+    call.on('stream',function(rs){_handleConnectedStream(call,rs)});
+    call.on('error',function(){if(activeCall===call&&!callEnded){activeCall=null;_gotRemoteStream=false;setStep('STEP3_MEDIA_JOIN')}});
+    call.on('close',function(){if(activeCall===call&&!callEnded){activeCall=null;_gotRemoteStream=false;if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null}setStatusMessage(role==='caller'?'Reconnecting...':'Waiting...','warn');setStep('STEP3_MEDIA_JOIN')}});
+}
 
-        /* =========================================================
-           10. CONTROLS & CLEANUP
-           ========================================================= */
-        function openQualityMenu() { updateSaverUI(); $('quality-overlay').classList.add('active'); }
-        function closeQualityMenu(e) { if (e && e.target !== e.currentTarget) return; $('quality-overlay').classList.remove('active'); }
+function handleNetworkRecovery(){if(!callEnded)setTimeout(function(){if(callEnded)return;if(peer&&!peer.destroyed&&peer.disconnected)try{peer.reconnect()}catch(e){}runCurrentStepSupervisor()},250)}
+window.addEventListener('online',handleNetworkRecovery);
+window.addEventListener('offline',function(){if(!callEnded){if(callTimerInterval){clearInterval(callTimerInterval);callTimerInterval=null}setStatusMessage('Network Lost...','err')}});
+if(navigator.connection&&navigator.connection.addEventListener)navigator.connection.addEventListener('change',handleNetworkRecovery);
+window.addEventListener('beforeunload',function(){hideCallNotification();stopBackgroundEngine();stopMediaSession();if(_stepLoopTimer)clearInterval(_stepLoopTimer);if(_audioPlayTimer)clearInterval(_audioPlayTimer);if(_statsTimer)clearInterval(_statsTimer);if(!callEnded)sendDataSafe({type:'END_CALL'})});
 
-        function selectQualityMode(mode) {
-            if (!QUALITY_PRESETS[mode]) return;
-            qualityMode = mode;
-            _modeUpdatedAt = Date.now();
-            applyQualityMode();
-            openDataChannelBothSides();
-            sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
-            closeQualityMenu();
-        }
+function openQualityMenu(){updateSaverUI();$('quality-overlay').classList.add('active')}
+function closeQualityMenu(e){if(e&&e.target!==e.currentTarget)return;$('quality-overlay').classList.remove('active')}
+function selectQualityMode(m){if(!QUALITY_PRESETS[m])return;qualityMode=m;_modeUpdatedAt=Date.now();applyQualityMode();openDataChannelBothSides();sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});closeQualityMenu()}
+function updateSaverUI(){var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd,b=$('saver-btn'),t=$('saver-text'),i=b.querySelector('.icon');b.className='ctrl-btn '+q.className;if(i)i.innerText=q.icon;if(t)t.innerText=q.label;var it=document.querySelectorAll('#quality-list-container .device-item');for(var x=0;x<it.length;x++)if(it[x].getAttribute('data-qmode')===qualityMode)it[x].classList.add('active');else it[x].classList.remove('active')}
+updateSaverUI();
 
-        function updateSaverUI() {
-            var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
-            var b = $('saver-btn'), t = $('saver-text'), i = b.querySelector('.icon');
-            b.className = 'ctrl-btn ' + q.className;
-            if (i) i.innerText = q.icon;
-            if (t) t.innerText = q.label;
-
-            var items = document.querySelectorAll('#quality-list-container .device-item');
-            for (var x = 0; x < items.length; x++) {
-                if (items[x].getAttribute('data-qmode') === qualityMode) items[x].classList.add('active');
-                else items[x].classList.remove('active');
-            }
-        }
-        updateSaverUI();
-
-        function renderDeviceListHtml(mics) {
-            var chk = '<svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>';
-            var h = '<div class="device-item ' + (!currentMicId || currentMicId === 'default' ? 'active' : '') + '" onclick="switchAudio(\'default\')"><span>Default</span>' + chk + '</div>';
-            var list = mics || [];
-            for (var i = 0; i < list.length; i++) {
-                var d = list[i];
-                if (!d.deviceId || d.deviceId === 'default' || d.deviceId === 'communications') continue;
-                var l = d.label || ('Microphone ' + (i + 1));
-                if (strContains(l, 'Speakerphone')) l = 'Speakerphone';
-                if (strContains(l, 'Earpiece')) l = 'Headset earpiece';
-                h += '<div class="device-item ' + (currentMicId === d.deviceId ? 'active' : '') + '" onclick="switchAudio(\'' + d.deviceId + '\')"><span>' + l + '</span>' + chk + '</div>';
-            }
-            return h;
-        }
-
-        function refreshDeviceCache() {
-            if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
-                _devicesLoadedOnce = true;
-                return Promise.resolve(_cachedAudioInputs);
-            }
-            return navigator.mediaDevices.enumerateDevices().then(function(all) {
-                var inputs = [];
-                for (var i = 0; i < all.length; i++) {
-                    if (all[i].kind === 'audioinput') inputs.push(all[i]);
-                }
-                _cachedAudioInputs = inputs;
-                _devicesLoadedOnce = true;
-                if ($('devices-overlay').classList.contains('active')) {
-                    $('device-list-container').innerHTML = renderDeviceListHtml(_cachedAudioInputs);
-                }
-                return _cachedAudioInputs;
-            }).catch(function() {
-                _devicesLoadedOnce = true;
-                return _cachedAudioInputs;
-            });
-        }
-
-        if (navigator.mediaDevices && navigator.mediaDevices.addEventListener) {
-            navigator.mediaDevices.addEventListener('devicechange', refreshDeviceCache);
-        }
-
-        function openDevices() {
-            $('devices-overlay').classList.add('active');
-            var c = $('device-list-container');
-            if (_devicesLoadedOnce) {
-                c.innerHTML = renderDeviceListHtml(_cachedAudioInputs);
-                refreshDeviceCache();
-            } else {
-                c.innerHTML = '<div style="padding:16px;color:#aaa">Loading...</div>';
-                refreshDeviceCache().then(function(mics) { c.innerHTML = renderDeviceListHtml(mics); });
-            }
-        }
-
-        function closeDevices(e) { if (e && e.target !== e.currentTarget) return; $('devices-overlay').classList.remove('active'); }
-
-        function switchAudio(id) {
-            var nrtRef = null;
-            getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 1400).catch(function() {
-                noiseMode = 'off';
-                updateNoiseUI();
-                return getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 1400);
-            }).then(function(ns) {
-                var nrt = ns.getAudioTracks()[0];
-                nrtRef = nrt;
-                if (nrt) nrt.enabled = !isMuted;
-                if (activeCall && activeCall.peerConnection && nrt) {
-                    return replaceAudioTrackCompat(activeCall.peerConnection, nrt, localStream);
-                }
-            }).then(function() {
-                if (localStream) {
-                    var oldTracks = localStream.getAudioTracks();
-                    for (var i = 0; i < oldTracks.length; i++) {
-                        try { oldTracks[i].stop(); } catch (e) {}
-                        localStream.removeTrack(oldTracks[i]);
-                    }
-                    if (nrtRef) localStream.addTrack(nrtRef);
-                }
-                _micFallbackActive = false;
-                currentMicId = id === 'default' ? null : id;
-                $('device-list-container').innerHTML = renderDeviceListHtml(_cachedAudioInputs);
-                if (_callEverConnected) _restoreTimerDisplay();
-                closeDevices();
-            }).catch(function() {
-                alert('Failed to switch device.');
-            });
-        }
-
-        function toggleMic() {
-            isMuted = !isMuted;
-            if (localStream) {
-                var tracks = localStream.getAudioTracks();
-                for (var i = 0; i < tracks.length; i++) { tracks[i].enabled = !isMuted; }
-            }
-            var b = $('mic-btn');
-            if (isMuted) b.classList.add('active');
-            else b.classList.remove('active');
-            b.querySelector('span').innerText = isMuted ? 'Unmute' : 'Mute';
-        }
-
-        function toggleVideo() {
-            if (callType !== 'video') return;
-            isVideoOff = !isVideoOff;
-            if (localStream) {
-                var tracks = localStream.getVideoTracks();
-                for (var i = 0; i < tracks.length; i++) { tracks[i].enabled = !isVideoOff; }
-            }
-            var b = $('vid-btn');
-            if (isVideoOff) b.classList.add('active');
-            else b.classList.remove('active');
-            b.querySelector('span').innerText = isVideoOff ? 'Cam Off' : 'Video';
-        }
-
-        function returnToOriginalChat() {
-            try { if (window.opener && !window.opener.closed) window.opener.postMessage({ type: 'CALL_ENDED', roomId: roomId }, '*'); } catch (e) {}
-            try { if (window.parent && window.parent !== window) window.parent.postMessage({ type: 'CALL_ENDED', roomId: roomId }, '*'); } catch (e) {}
-            try { window.close(); } catch (e) {}
-
-            var savedRef = '';
-            try { savedRef = sessionStorage.getItem('p2p_return_url') || ''; } catch (e) {}
-            var ref = (document.referrer && document.referrer.indexOf('http') === 0 && document.referrer !== location.href)
-                ? document.referrer : savedRef;
-            var targetUrl = customReturnUrl || ref || 'https://ppatel240125.github.io/pure-vault-call/';
-
-            if (!customReturnUrl && !ref && window.history.length > 1) {
-                try { window.history.back(); } catch (e) {}
-                setTimeout(function() { window.location.replace(targetUrl); }, 120);
-                return;
-            }
-            window.location.replace(targetUrl);
-        }
-
-        function endCall(byRemote) {
-            if (callEnded) { returnToOriginalChat(); return; }
-            callEnded = true;
-            hideCallNotification();
-            setStatusMessage(byRemote ? 'Call Ended by Peer' : 'Call Ended', '');
-
-            if (!byRemote) sendDataSafe({ type: 'END_CALL' });
-
-            if (_micRecoveryTimer) { clearTimeout(_micRecoveryTimer); _micRecoveryTimer = null; }
-            _micRecoveryBusy = false;
-            try { stopBackgroundEngine(); } catch (e) {}
-            try { stopMediaSession(); } catch (e) {}
-            if (_stepLoopTimer) clearInterval(_stepLoopTimer);
-            if (_audioPlayTimer) clearInterval(_audioPlayTimer);
-            if (_statsTimer) clearInterval(_statsTimer);
-            if (callTimerInterval) clearInterval(callTimerInterval);
-            _stepLoopTimer = _audioPlayTimer = _statsTimer = callTimerInterval = null;
-
-            try { if (activeCall) activeCall.close(); } catch (e) {}
-            try {
-                if (localStream) {
-                    var trs = localStream.getTracks();
-                    for (var i = 0; i < trs.length; i++) { trs[i].stop(); }
-                }
-            } catch (e) {}
-            try { if (peer && !peer.destroyed) peer.destroy(); } catch (e) {}
-
-            setTimeout(returnToOriginalChat, 60);
-        }
-
-        startApp();
-    </script>
+function renderDeviceListHtml(mics){
+    var chk='<svg class="check-icon" viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg>',h='<div class="device-item '+(!currentMicId||currentMicId==='default'?'active':'')+'" onclick="switchAudio(\'default\')"><span>Default</span>'+chk+'</div>',list=mics||[];
+    for(var i=0;i<list.length;i++){var d=list[i];if(!d.deviceId||d.deviceId==='default'||d.deviceId==='communications')continue;var l=d.label||('Microphone '+(i+1));if(strContains(l,'Speakerphone'))l='Speakerphone';if(strContains(l,'Earpiece'))l='Headset earpiece';h+='<div class="device-item '+(currentMicId===d.deviceId?'active':'')+'" onclick="switchAudio(\''+d.deviceId+'\')"><span>'+l+'</span>'+chk+'</div>'}
+    return h;
+}
+function refreshDeviceCache(){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.enumerateDevices){_devicesLoadedOnce=true;return Promise.resolve(_cachedAudioInputs)}
+    return navigator.mediaDevices.enumerateDevices().then(function(all){var inp=[];for(var i=0;i<all.length;i++)if(all[i].kind==='audioinput')inp.push(all[i]);_cachedAudioInputs=inp;_devicesLoadedOnce=true;if($('devices-overlay').classList.contains('active'))$('device-list-container').innerHTML=renderDeviceListHtml(_cachedAudioInputs);return _cachedAudioInputs}).catch(function(){_devicesLoadedOnce=true;return _cachedAudioInputs});
+}
+if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.mediaDevices.addEventListener('devicechange',refreshDeviceCache);
+function openDevices(){$('devices-overlay').classList.add('active');var c=$('device-list-container');if(_devicesLoadedOnce){c.innerHTML=renderDeviceListHtml(_cachedAudioInputs);refreshDeviceCache()}else{c.innerHTML='<div style="padding:16px;color:#aaa">Loading...</div>';refreshDeviceCache().then(function(m){c.innerHTML=renderDeviceListHtml(m)})}}
+function closeDevices(e){if(e&&e.target!==e.currentTarget)return;$('devices-overlay').classList.remove('active')}
+function switchAudio(id){
+    var nrtRef=null;
+    getUserMediaWithTimeout({audio:getAudioConstraints(id,noiseMode)},1400).catch(function(){noiseMode='off';updateNoiseUI();return getUserMediaWithTimeout({audio:getAudioConstraints(id,'off')},1400)})
+    .then(function(ns){var nrt=ns.getAudioTracks()[0];nrtRef=nrt;if(nrt)nrt.enabled=!isMuted;if(activeCall&&activeCall.peerConnection&&nrt)return replaceAudioTrackCompat(activeCall.peerConnection,nrt,localStream)})
+    .then(function(){if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}if(nrtRef)localStream.addTrack(nrtRef)}_micFallbackActive=false;currentMicId=id==='default'?null:id;$('device-list-container').innerHTML=renderDeviceListHtml(_cachedAudioInputs);if(_callEverConnected)_restoreTimerDisplay();closeDevices()})
+    .catch(function(){alert('Failed to switch device.')});
+}
+function toggleMic(){isMuted=!isMuted;if(localStream){var t=localStream.getAudioTracks();for(var i=0;i<t.length;i++)t[i].enabled=!isMuted}var b=$('mic-btn');if(isMuted)b.classList.add('active');else b.classList.remove('active');b.querySelector('span').innerText=isMuted?'Unmute':'Mute'}
+function toggleVideo(){if(callType!=='video')return;isVideoOff=!isVideoOff;if(localStream){var t=localStream.getVideoTracks();for(var i=0;i<t.length;i++)t[i].enabled=!isVideoOff}var b=$('vid-btn');if(isVideoOff)b.classList.add('active');else b.classList.remove('active');b.querySelector('span').innerText=isVideoOff?'Cam Off':'Video'}
+function returnToOriginalChat(){
+    try{if(window.opener&&!window.opener.closed)window.opener.postMessage({type:'CALL_ENDED',roomId:roomId},'*')}catch(e){}
+    try{if(window.parent&&window.parent!==window)window.parent.postMessage({type:'CALL_ENDED',roomId:roomId},'*')}catch(e){}
+    try{window.close()}catch(e){}
+    var sr='';try{sr=sessionStorage.getItem('p2p_return_url')||''}catch(e){}
+    var ref=(document.referrer&&document.referrer.indexOf('http')===0&&document.referrer!==location.href)?document.referrer:sr,tu=customReturnUrl||ref||'https://ppatel240125.github.io/pure-vault-call/';
+    if(!customReturnUrl&&!ref&&window.history.length>1){try{window.history.back()}catch(e){}setTimeout(function(){window.location.replace(tu)},120);return}
+    window.location.replace(tu);
+}
+function endCall(byRemote){
+    if(callEnded){returnToOriginalChat();return}
+    callEnded=true;hideCallNotification();setStatusMessage(byRemote?'Call Ended by Peer':'Call Ended','');
+    if(!byRemote)sendDataSafe({type:'END_CALL'});
+    if(_micRecoveryTimer){clearTimeout(_micRecoveryTimer);_micRecoveryTimer=null}_micRecoveryBusy=false;
+    try{stopBackgroundEngine()}catch(e){}try{stopMediaSession()}catch(e){}
+    if(_stepLoopTimer)clearInterval(_stepLoopTimer);if(_audioPlayTimer)clearInterval(_audioPlayTimer);if(_statsTimer)clearInterval(_statsTimer);if(callTimerInterval)clearInterval(callTimerInterval);
+    _stepLoopTimer=_audioPlayTimer=_statsTimer=callTimerInterval=null;
+    try{if(activeCall)activeCall.close()}catch(e){}
+    try{if(localStream){var tr=localStream.getTracks();for(var i=0;i<tr.length;i++)tr[i].stop()}}catch(e){}
+    try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}
+    setTimeout(returnToOriginalChat,60);
+}
+startApp();
+</script>
 </body>
 </html>
