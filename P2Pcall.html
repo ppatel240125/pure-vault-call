@@ -361,7 +361,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.3.2/peerjs.min.js"></script>
     <script>
         /* =========================================================
-           1. ES5 POLYFILLS & LEGACY BROWSER / ANDROID 6-17 ENGINE
+           1. ES5 POLYFILLS & LEGACY ANDROID 6 / OLD PC ENGINE
            ========================================================= */
         function padTwo(n) {
             var s = String(n);
@@ -417,6 +417,84 @@
             window.RTCIceCandidate = window.webkitRTCIceCandidate || window.mozRTCIceCandidate;
         }
 
+        // Legacy Safe Helpers for Android 6 & Old PC Browsers
+        function attachStreamToElement(el, stream) {
+            if (!el) return;
+            try {
+                if ('srcObject' in el) {
+                    if (el.srcObject !== stream) el.srcObject = stream;
+                } else if (window.URL && window.URL.createObjectURL) {
+                    el.src = stream ? window.URL.createObjectURL(stream) : '';
+                }
+            } catch (e) {}
+        }
+
+        function hasAttachedStream(el) {
+            if (!el) return false;
+            return !!(el.srcObject || el.src);
+        }
+
+        function addPcListener(pc, eventName, handler) {
+            if (!pc) return;
+            if (typeof pc.addEventListener === 'function') {
+                pc.addEventListener(eventName, handler);
+            } else {
+                var prop = 'on' + eventName;
+                var prev = pc[prop];
+                pc[prop] = function(ev) {
+                    if (typeof prev === 'function') prev.call(pc, ev);
+                    handler(ev);
+                };
+            }
+        }
+
+        function replaceAudioTrackCompat(pc, newTrack, currentStream) {
+            if (!pc || !newTrack) return Promise.resolve();
+            try {
+                if (typeof pc.getSenders === 'function') {
+                    var senders = pc.getSenders();
+                    for (var i = 0; i < senders.length; i++) {
+                        if (senders[i].track && senders[i].track.kind === 'audio' && typeof senders[i].replaceTrack === 'function') {
+                            return senders[i].replaceTrack(newTrack);
+                        }
+                    }
+                }
+                // Fallback for older browsers without replaceTrack
+                if (typeof pc.removeStream === 'function' && typeof pc.addStream === 'function' && currentStream) {
+                    var newStream = new MediaStream([newTrack]);
+                    var vTracks = currentStream.getVideoTracks ? currentStream.getVideoTracks() : [];
+                    for (var j = 0; j < vTracks.length; j++) newStream.addTrack(vTracks[j]);
+                    pc.removeStream(currentStream);
+                    pc.addStream(newStream);
+                    return Promise.resolve();
+                }
+            } catch (e) {
+                return Promise.reject(e);
+            }
+            return Promise.resolve();
+        }
+
+        function getRemoteStreamFromPc(pc) {
+            if (!pc) return null;
+            try {
+                if (typeof pc.getReceivers === 'function') {
+                    var receivers = pc.getReceivers();
+                    var tracks = [];
+                    for (var i = 0; i < receivers.length; i++) {
+                        if (receivers[i].track && receivers[i].track.readyState === 'live') {
+                            tracks.push(receivers[i].track);
+                        }
+                    }
+                    if (tracks.length > 0) return new MediaStream(tracks);
+                }
+                if (typeof pc.getRemoteStreams === 'function') {
+                    var streams = pc.getRemoteStreams();
+                    if (streams && streams.length > 0) return streams[0];
+                }
+            } catch (e) {}
+            return null;
+        }
+
         var QUALITY_PRESETS = {
             ultra: { label: 'Ultra Save', icon: '🪶', className: 'q-ultra', kbpsText: '10–12 kbps', audioBitrate: 11500, videoBitrate: 75000, scaleDown: 2.5, width: 256, height: 144, fps: 10 },
             sd: { label: 'Auto SD', icon: '📶', className: 'q-sd', kbpsText: '14–16 kbps', audioBitrate: 15000, videoBitrate: 150000, scaleDown: 2.0, width: 320, height: 240, fps: 15 },
@@ -425,7 +503,7 @@
         };
 
         /* =========================================================
-           2. PRE-WARM ICE + YOUR HF_TOKEN TURN (BACKGROUND LOAD)
+           2. RACE-FREE ICE/TURN PROMISE (MAX 800ms + FALLBACK)
            ========================================================= */
         var P = parseQueryParams(location.search);
         var roomId = (P.room || '123').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -435,9 +513,8 @@
         var peerName = P.peerName || 'Connecting...';
         var customReturnUrl = P.returnUrl || P.back || P.chatUrl || '';
 
-        // જો એપ નોટિફિકેશન પરથી બેકગ્રાઉન્ડમાં પેજ ખોલે તો ?accepted=0 મોકલી શકે;
-        // Accept દબાવતા જ window.acceptIncomingCall() કોલ થાય અથવા સામાન્ય લિંકમાં તરત accepted=true રહે
-        var isCallAcceptedByMe = (role === 'caller') ? true : (P.accepted !== '0');
+        // Strict Accept Control: ?accepted=0 હોય તો Accept દબાવ્યા પછી જ જોડાશે
+        var isCallAcceptedByMe = (role === 'caller') ? true : (P.accepted === '1');
 
         try {
             if (document.referrer && document.referrer.indexOf('http') === 0 && document.referrer !== location.href) {
@@ -455,28 +532,58 @@
             { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
-        // સ્ટેપ ૧ (Pre-Warmup): કોલર કોલ લગાવે / રિસીવરને નોટિફિકેશન જાય ત્યારે જ TURN તૈયાર કરો
-        (function loadHfTurnInBackground() {
-            if (typeof fetch !== 'function') return;
-            try {
-                fetch('https://turn.fastrtc.org/credentials', {
-                    method: 'GET',
-                    cache: 'no-store',
-                    headers: { Authorization: 'Bearer ' + HF_TOKEN, Accept: 'application/json' }
-                }).then(function(res) {
-                    return res.ok ? res.json() : null;
-                }).then(function(data) {
-                    if (data && data.iceServers && data.iceServers.length > 0) {
-                        FAST_ICE_SERVERS = [FAST_ICE_SERVERS[0]].concat(data.iceServers).concat(FAST_ICE_SERVERS.slice(1));
+        // મુદ્દો 1 નો ઉકેલ: Race-free iceReady Promise (800ms max wait, પછી fallback સાથે આગળ વધે)
+        function createRaceFreeIcePromise() {
+            return new Promise(function(resolve) {
+                if (typeof fetch !== 'function') {
+                    resolve(FAST_ICE_SERVERS);
+                    return;
+                }
+                var settled = false;
+                var timer = setTimeout(function() {
+                    if (!settled) {
+                        settled = true;
+                        resolve(FAST_ICE_SERVERS);
                     }
-                }).catch(function() {});
-            } catch (e) {}
-        })();
+                }, 800);
+
+                try {
+                    fetch('https://turn.fastrtc.org/credentials', {
+                        method: 'GET',
+                        cache: 'no-store',
+                        headers: { Authorization: 'Bearer ' + HF_TOKEN, Accept: 'application/json' }
+                    }).then(function(res) {
+                        return res.ok ? res.json() : null;
+                    }).then(function(data) {
+                        if (data && data.iceServers && data.iceServers.length > 0) {
+                            FAST_ICE_SERVERS = [FAST_ICE_SERVERS[0]].concat(data.iceServers).concat(FAST_ICE_SERVERS.slice(1));
+                        }
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timer);
+                            resolve(FAST_ICE_SERVERS);
+                        }
+                    }).catch(function() {
+                        if (!settled) {
+                            settled = true;
+                            clearTimeout(timer);
+                            resolve(FAST_ICE_SERVERS);
+                        }
+                    });
+                } catch (e) {
+                    if (!settled) {
+                        settled = true;
+                        clearTimeout(timer);
+                        resolve(FAST_ICE_SERVERS);
+                    }
+                }
+            });
+        }
+        var _iceReadyPromise = createRaceFreeIcePromise();
 
         /* =========================================================
            3. 4-STEP STATE MACHINE & UI HELPERS
            ========================================================= */
-        // 4 સ્ટેપ્સ: 'STEP1_PREWARM' -> 'STEP2_WAIT_ACCEPT' -> 'STEP3_MEDIA_JOIN' -> 'STEP4_CONNECTED'
         var currentStep = 'STEP1_PREWARM';
         var _stepEnteredAt = Date.now();
         var _step3AttemptCount = 0;
@@ -586,7 +693,7 @@
 
         function forcePlay() {
             unlockAudioHardware();
-            if (remoteVideo.srcObject) {
+            if (hasAttachedStream(remoteVideo)) {
                 remoteVideo.muted = false;
                 remoteVideo.volume = 1;
                 var vp = remoteVideo.play();
@@ -594,7 +701,7 @@
                     vp.then(function() { tapAudioHint.style.display = 'none'; }).catch(function() {});
                 }
             }
-            if (remoteAudio.srcObject) {
+            if (hasAttachedStream(remoteAudio)) {
                 remoteAudio.muted = false;
                 remoteAudio.volume = 1;
                 var ap = remoteAudio.play();
@@ -611,10 +718,10 @@
         document.body.addEventListener('click', forcePlay);
 
         remoteAudio.addEventListener('pause', function() {
-            if (!callEnded && remoteAudio.srcObject) setTimeout(forcePlay, 100);
+            if (!callEnded && hasAttachedStream(remoteAudio)) setTimeout(forcePlay, 100);
         });
         remoteVideo.addEventListener('pause', function() {
-            if (!callEnded && remoteVideo.srcObject) setTimeout(forcePlay, 100);
+            if (!callEnded && hasAttachedStream(remoteVideo)) setTimeout(forcePlay, 100);
         });
 
         function applyCallView() {
@@ -657,7 +764,7 @@
             _statsTimer = setInterval(function() {
                 if (callEnded || !activeCall || !activeCall.peerConnection) return;
                 var pc = activeCall.peerConnection;
-                if (!isCallConnected() || !pc.getStats) return;
+                if (!isCallConnected() || typeof pc.getStats !== 'function') return;
 
                 try {
                     pc.getStats().then(function(stats) {
@@ -775,10 +882,7 @@
             if (callEnded) return;
             var now = Date.now();
 
-            // -----------------------------------------------------
-            // STEP 1: PRE-WARMUP (માઈક અને PeerJS સિગ્નલિંગ તૈયાર કરવું)
-            // અટકે તો દર 2 સેકન્ડે ફક્ત Step 1 જ રિટ્રાય થાય
-            // -----------------------------------------------------
+            // STEP 1: PRE-WARMUP (માઈક અને PeerJS સિગ્નલિંગ)
             if (!peer || peer.destroyed) {
                 setStep('STEP1_PREWARM');
                 if (now - _stepEnteredAt >= 2000 && !_appStarting) {
@@ -798,12 +902,7 @@
             if (!peer.open) return;
             _peerReady = true;
 
-            // -----------------------------------------------------
-            // STEP 2: SIGNALING HANDSHAKE & ACCEPT CHECK
-            // કોલર અને રિસીવર બંને બેકગ્રાઉન્ડમાં DataChannel જોડી રાખે,
-            // પણ જ્યાં સુધી Receiver Accept ન કરે ત્યાં સુધી Media Join ન થાય!
-            // અટકે તો દર 2 સેકન્ડે ફક્ત Step 2 જ રિટ્રાય થાય
-            // -----------------------------------------------------
+            // STEP 2: SIGNALING HANDSHAKE & STRICT ACCEPT CHECK
             if (!dataConn || !dataConn.open) {
                 if (now - _stepEnteredAt >= 2000) {
                     _stepEnteredAt = now;
@@ -813,11 +912,9 @@
 
             if (role === 'receiver') {
                 if (!isCallAcceptedByMe) {
-                    // હજુ Accept દબાવ્યું નથી — ફક્ત Pre-warm તૈયાર રાખો
                     setStep('STEP2_WAIT_ACCEPT');
                     return;
                 }
-                // Accept દબાવી દીધું છે! દર 2 સેકન્ડે CALL_ACCEPTED મોકલતા રહો જ્યાં સુધી જોડાણ ન થાય
                 if (!isCallConnected()) {
                     setStep('STEP2_WAIT_ACCEPT');
                     if (now - _stepEnteredAt >= 2000) {
@@ -826,7 +923,6 @@
                     }
                 }
             } else {
-                // Caller: જ્યાં સુધી Receiver Accept ન કરે ત્યાં સુધી રાહ જુઓ
                 if (!_receiverHasAccepted) {
                     setStep('STEP2_WAIT_ACCEPT');
                     if (now - _stepEnteredAt >= 2000) {
@@ -837,10 +933,7 @@
                 }
             }
 
-            // -----------------------------------------------------
-            // STEP 3: WEBRTC MEDIA JOIN (Accept થયા પછી જ જોડાણ)
-            // અટકે તો Step 1-2 દોહરાવ્યા વગર દર 2 સેકન્ડે માત્ર Step 3 રિટ્રાય
-            // -----------------------------------------------------
+            // STEP 3: WEBRTC MEDIA JOIN (Accept થયા પછી જ)
             if (role === 'caller') {
                 var pc = activeCall && activeCall.peerConnection;
                 var ice = pc ? pc.iceConnectionState : 'none';
@@ -878,7 +971,6 @@
                         }
                         return;
                     }
-                    // checking સ્થિતિમાં પહેલા પ્રયત્નને 4s અને ત્યારબાદ 6s આપો જેથી નબળા TURN પર કપાય નહીં
                     var waitLimit = _step3AttemptCount === 0 ? 4000 : 6000;
                     if ((ice === 'new' || ice === 'checking') && (now - _stepEnteredAt >= waitLimit)) {
                         _stepEnteredAt = now;
@@ -906,15 +998,12 @@
                 }
             }
 
-            // -----------------------------------------------------
             // STEP 4: AUDIO STREAM & SPEAKER PLAYBACK RECOVERY
-            // જો કનેક્શન થઈ ગયું હોય પણ ઓડિયો પ્લે અટકે, તો દર 2 સેકન્ડે માત્ર Step 4
-            // -----------------------------------------------------
             if (isCallConnected()) {
                 setStep('STEP4_CONNECTED');
                 sendDataSafe({ type: 'PING', ts: now, qMode: qualityMode, modeTs: _modeUpdatedAt });
-                if (callType === 'audio' && remoteAudio.srcObject && remoteAudio.paused) forcePlay();
-                if (callType === 'video' && remoteVideo.srcObject && remoteVideo.paused) forcePlay();
+                if (callType === 'audio' && hasAttachedStream(remoteAudio) && remoteAudio.paused) forcePlay();
+                if (callType === 'video' && hasAttachedStream(remoteVideo) && remoteVideo.paused) forcePlay();
             }
         }
 
@@ -972,17 +1061,14 @@
             }
         }
 
+        // મુદ્દો 4 નો ઉકેલ: visibilitychange પર auto-accept કાઢી નાખ્યું છે.
+        // હવે ફક્ત acceptIncomingCall() દબાવવાથી જ કોલ સ્વીકારાશે.
         document.addEventListener('visibilitychange', function() {
             if (callEnded) return;
-            // જો રિસીવર નોટિફિકેશન પરથી પેજ પર આવે તો Accept ગણીને તરત જોડો
-            if (role === 'receiver' && !document.hidden && !isCallAcceptedByMe) {
-                acceptIncomingCall();
-            }
             forcePlay();
             if (_callEverConnected) { startMediaSession(); startBackgroundEngine(); }
         });
 
-        // એપમાંથી Accept બટન દબાવવા માટેનું ગ્લોબલ ફંક્શન
         window.acceptIncomingCall = function() {
             if (role !== 'receiver' || callEnded) return;
             isCallAcceptedByMe = true;
@@ -1075,13 +1161,13 @@
         }
 
         function applyVideoBitrate(pc) {
-            if (!pc || isLegacyDevice || !pc.getSenders) return;
+            if (!pc || isLegacyDevice || typeof pc.getSenders !== 'function') return;
             var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
             try {
                 var senders = pc.getSenders();
                 for (var i = 0; i < senders.length; i++) {
                     var s = senders[i];
-                    if (!s.track || !s.getParameters) continue;
+                    if (!s.track || typeof s.getParameters !== 'function') continue;
                     var p = s.getParameters();
                     if (!p.encodings || !p.encodings.length) p.encodings = [{}];
                     if (s.track.kind === 'video') {
@@ -1104,7 +1190,7 @@
             var q = QUALITY_PRESETS[qualityMode] || QUALITY_PRESETS.sd;
             if (callType === 'video' && localStream) {
                 var vt = localStream.getVideoTracks()[0];
-                if (vt && vt.applyConstraints) {
+                if (vt && typeof vt.applyConstraints === 'function') {
                     try {
                         vt.applyConstraints({ width: { ideal: q.width }, height: { ideal: q.height } }).catch(function() {});
                     } catch (e) {}
@@ -1114,7 +1200,7 @@
         }
 
         /* =========================================================
-           8. ACCURATE PER-DEVICE CAPABILITY & HONEST MIC FALLBACK
+           8. ACCURATE PER-DEVICE CAPABILITY & SAFE MIC RECOVERY
            ========================================================= */
         function detectBrowserNoiseCapabilities() {
             var sup = (navigator.mediaDevices && navigator.mediaDevices.getSupportedConstraints)
@@ -1271,6 +1357,7 @@
         function openNoiseMenu() { updateNoiseUI(); $('noise-overlay').classList.add('active'); }
         function closeNoiseMenu(e) { if (e && e.target !== e.currentTarget) return; $('noise-overlay').classList.remove('active'); }
 
+        // મુદ્દો 3 નો ઉકેલ: replaceTrack સફળ થાય ત્યાર પછી જ _micFallbackActive = false અને noiseMode બદલો
         function selectNoiseMode(targetMode, isSilentRecovery) {
             if (_unsupportedNoiseModes[targetMode]) return;
             if (!isSilentRecovery) {
@@ -1290,15 +1377,9 @@
                     throw err;
                 }
                 newTrack.enabled = !isMuted;
-                _micFallbackActive = false;
 
-                if (activeCall && activeCall.peerConnection && activeCall.peerConnection.getSenders) {
-                    var senders = activeCall.peerConnection.getSenders();
-                    for (var i = 0; i < senders.length; i++) {
-                        if (senders[i].track && senders[i].track.kind === 'audio' && senders[i].replaceTrack) {
-                            return senders[i].replaceTrack(newTrack);
-                        }
-                    }
+                if (activeCall && activeCall.peerConnection) {
+                    return replaceAudioTrackCompat(activeCall.peerConnection, newTrack, localStream);
                 }
             }).then(function() {
                 if (localStream) {
@@ -1311,6 +1392,7 @@
                 } else {
                     localStream = newStream;
                 }
+                _micFallbackActive = false;
                 noiseMode = targetMode;
                 updateNoiseUI();
                 _ncBusy = false;
@@ -1354,7 +1436,6 @@
                         throw err;
                     }
                     noiseMode = mode;
-                    _micFallbackActive = false;
                     updateNoiseUI();
                     return stream;
                 }).catch(function(err) {
@@ -1374,10 +1455,12 @@
             return tryNextMode();
         }
 
+        // મુદ્દો 2 નો ઉકેલ: _micFallbackActive = false ફક્ત replaceTrack અને localStream અપડેટ સફળ થયા પછી જ કરવું
         function recoverRealMicInBackground() {
             if (!_micFallbackActive || callEnded || _micRecoveryBusy || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
             _micRecoveryBusy = true;
             var realStreamRef = null;
+            var realTrackRef = null;
 
             acquireBestSupportedAudio(false).then(function(realStream) {
                 realStreamRef = realStream;
@@ -1386,32 +1469,29 @@
                     throw new Error('Track not live');
                 }
                 realTrack.enabled = !isMuted;
-                _micFallbackActive = false;
+                realTrackRef = realTrack;
 
-                if (activeCall && activeCall.peerConnection && activeCall.peerConnection.getSenders) {
-                    var senders = activeCall.peerConnection.getSenders();
-                    for (var i = 0; i < senders.length; i++) {
-                        if (senders[i].track && senders[i].track.kind === 'audio' && senders[i].replaceTrack) {
-                            return senders[i].replaceTrack(realTrack).then(function() { return realTrack; });
-                        }
-                    }
+                if (activeCall && activeCall.peerConnection) {
+                    return replaceAudioTrackCompat(activeCall.peerConnection, realTrack, localStream);
                 }
-                return realTrack;
-            }).then(function(realTrack) {
+            }).then(function() {
                 if (localStream) {
                     var oldTracks = localStream.getAudioTracks();
                     for (var i = 0; i < oldTracks.length; i++) {
                         try { oldTracks[i].stop(); } catch (e) {}
                         localStream.removeTrack(oldTracks[i]);
                     }
-                    localStream.addTrack(realTrack);
+                    localStream.addTrack(realTrackRef);
                 } else {
                     localStream = realStreamRef;
                 }
+                // સફળતાપૂર્વક ટ્રેક બદલાયા પછી જ fallback flag false કરો
+                _micFallbackActive = false;
                 updateNoiseUI();
                 if (_callEverConnected) _restoreTimerDisplay();
                 _micRecoveryBusy = false;
             }).catch(function() {
+                if (realTrackRef) { try { realTrackRef.stop(); } catch (err) {} }
                 if (realStreamRef) {
                     var trs = realStreamRef.getTracks();
                     for (var i = 0; i < trs.length; i++) { try { trs[i].stop(); } catch (err) {} }
@@ -1432,7 +1512,7 @@
                 aTracks[i].enabled = !isMuted;
             }
             if (callType === 'video' && localStream.getVideoTracks().length > 0) {
-                localVideo.srcObject = localStream;
+                attachStreamToElement(localVideo, localStream);
             }
             refreshDeviceCache();
             return true;
@@ -1454,10 +1534,12 @@
 
                 return acquireBestSupportedAudio(videoConstraint).then(function(stream) {
                     localStream = stream;
+                    _micFallbackActive = false;
                     return finalizeLocalStream();
                 }).catch(function() {
                     return acquireBestSupportedAudio(false).then(function(audioStream) {
                         localStream = audioStream;
+                        _micFallbackActive = false;
                         callType = 'audio';
                         applyCallView();
                         return finalizeLocalStream();
@@ -1474,6 +1556,7 @@
 
             return acquireBestSupportedAudio(false).then(function(stream) {
                 localStream = stream;
+                _micFallbackActive = false;
                 return finalizeLocalStream();
             }).catch(function(err) {
                 return getUserMediaWithTimeout({ audio: true, video: false }, 1200).then(function(basicStream) {
@@ -1588,7 +1671,7 @@
 
         function initiateSingleCall() {
             if (role !== 'caller' || callEnded || !peer || peer.destroyed || !peer.open) return;
-            if (!_receiverHasAccepted) return; // Accept થયા પછી જ Media Call જોડાય
+            if (!_receiverHasAccepted) return;
 
             if (activeCall) {
                 var pc = activeCall.peerConnection;
@@ -1636,12 +1719,13 @@
             var hasLiveMedia = !!(localStream && localStream.getTracks && localStream.getTracks().length > 0);
             var mediaPromise = hasLiveMedia ? Promise.resolve(true) : initMedia();
 
-            mediaPromise.then(function() {
+            Promise.all([mediaPromise, _iceReadyPromise]).then(function(results) {
                 if (callEnded) { _appStarting = false; return; }
+                var resolvedIce = results[1] || FAST_ICE_SERVERS;
 
                 var rtcConfig = isLegacyDevice
-                    ? { iceServers: FAST_ICE_SERVERS }
-                    : { iceServers: FAST_ICE_SERVERS, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
+                    ? { iceServers: resolvedIce }
+                    : { iceServers: resolvedIce, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
 
                 peer = new Peer(myPeerId, {
                     host: '0.peerjs.com',
@@ -1656,7 +1740,6 @@
                     setStep('STEP2_WAIT_ACCEPT');
                     if (_stepLoopTimer) clearInterval(_stepLoopTimer);
 
-                    // Pre-Warmup પૂરું: બેકગ્રાઉન્ડમાં DataChannel તૈયાર કરો
                     openDataChannelBothSides();
 
                     if (role === 'receiver') {
@@ -1669,7 +1752,6 @@
                         setStatusMessage('Ringing...', '');
                     }
 
-                    // દર 1 સેકન્ડે ચેક કરશે અને જે સ્ટેપ અટક્યો હોય તેની 2 સેકન્ડે રિટ્રાય કરશે
                     _stepLoopTimer = setInterval(runCurrentStepSupervisor, 1000);
                 });
 
@@ -1697,7 +1779,6 @@
                         syncQualityFromRemote(call.metadata.qMode, call.metadata.modeTs || 0);
                     }
 
-                    // જ્યાં સુધી Receiver Accept ન કરે ત્યાં સુધી call.answer() રોકી રાખો
                     if (role === 'receiver' && !isCallAcceptedByMe) {
                         setupCall(call);
                         return;
@@ -1766,14 +1847,16 @@
         }
 
         function _attachStreamToPlayers(rs) {
-            if (callType === 'video' && rs.getVideoTracks().length > 0) {
-                if (remoteVideo.srcObject !== rs) remoteVideo.srcObject = rs;
+            if (!rs) return;
+            var vTracks = rs.getVideoTracks ? rs.getVideoTracks() : [];
+            if (callType === 'video' && vTracks.length > 0) {
+                attachStreamToElement(remoteVideo, rs);
                 remoteVideo.muted = false;
                 remoteVideo.volume = 1;
                 var vp = remoteVideo.play();
                 if (vp && vp.catch) vp.catch(function() {});
             } else {
-                if (callType === 'video' && rs.getVideoTracks().length === 0) {
+                if (callType === 'video' && vTracks.length === 0) {
                     callType = 'audio';
                     applyCallView();
                 }
@@ -1781,13 +1864,13 @@
                 remoteAudio.playsInline = true;
                 remoteAudio.muted = false;
                 remoteAudio.volume = 1;
-                if (remoteAudio.srcObject !== rs) remoteAudio.srcObject = rs;
+                attachStreamToElement(remoteAudio, rs);
                 forcePlay();
-                var aTracks = rs.getAudioTracks();
+                var aTracks = rs.getAudioTracks ? rs.getAudioTracks() : [];
                 for (var i = 0; i < aTracks.length; i++) {
                     aTracks[i].enabled = true;
                     aTracks[i].onunmute = function() { forcePlay(); };
-                    aTracks[i].onended = function() { if (remoteAudio.srcObject === rs) remoteAudio.pause(); };
+                    aTracks[i].onended = function() { if (hasAttachedStream(remoteAudio)) remoteAudio.pause(); };
                 }
             }
         }
@@ -1806,8 +1889,8 @@
             if (_audioPlayTimer) clearInterval(_audioPlayTimer);
             _audioPlayTimer = setInterval(function() {
                 if (callEnded) { clearInterval(_audioPlayTimer); _audioPlayTimer = null; return; }
-                if (callType === 'audio' && remoteAudio.srcObject && remoteAudio.paused) forcePlay();
-                if (callType === 'video' && remoteVideo.srcObject && remoteVideo.paused) forcePlay();
+                if (callType === 'audio' && hasAttachedStream(remoteAudio) && remoteAudio.paused) forcePlay();
+                if (callType === 'video' && hasAttachedStream(remoteVideo) && remoteVideo.paused) forcePlay();
             }, 2000);
 
             startMediaSession();
@@ -1848,17 +1931,7 @@
                 setStatusMessage('Reconnecting...', 'warn');
                 setStep('STEP3_MEDIA_JOIN');
             } else if (st === 'connected' || st === 'completed') {
-                var rs = null;
-                try {
-                    var receivers = call.peerConnection.getReceivers ? call.peerConnection.getReceivers() : [];
-                    var tracks = [];
-                    for (var i = 0; i < receivers.length; i++) {
-                        if (receivers[i].track && receivers[i].track.readyState === 'live') {
-                            tracks.push(receivers[i].track);
-                        }
-                    }
-                    if (tracks.length > 0) rs = new MediaStream(tracks);
-                } catch (e) {}
+                var rs = getRemoteStreamFromPc(call.peerConnection);
                 activateAllCallSetups(call, rs);
             }
         }
@@ -1866,17 +1939,20 @@
         function setupCall(call) {
             var pc = call.peerConnection;
             if (pc) {
-                pc.addEventListener('iceconnectionstatechange', function() { _onIceState(call); });
-                pc.addEventListener('connectionstatechange', function() {
+                addPcListener(pc, 'iceconnectionstatechange', function() { _onIceState(call); });
+                addPcListener(pc, 'connectionstatechange', function() {
                     if (callEnded) return;
                     var cs = pc.connectionState;
                     if (cs === 'connected' || cs === 'failed' || cs === 'disconnected') {
                         _onIceState(call);
                     }
                 });
-                pc.addEventListener('track', function(ev) {
+                addPcListener(pc, 'track', function(ev) {
                     var stream = (ev.streams && ev.streams[0]) ? ev.streams[0] : (ev.track ? new MediaStream([ev.track]) : null);
                     if (stream) _handleConnectedStream(call, stream);
+                });
+                addPcListener(pc, 'addstream', function(ev) {
+                    if (ev && ev.stream) _handleConnectedStream(call, ev.stream);
                 });
             }
 
@@ -2025,14 +2101,9 @@
             }).then(function(ns) {
                 var nrt = ns.getAudioTracks()[0];
                 nrtRef = nrt;
-                if (nrt) { nrt.enabled = !isMuted; _micFallbackActive = false; }
-                if (activeCall && activeCall.peerConnection && activeCall.peerConnection.getSenders) {
-                    var senders = activeCall.peerConnection.getSenders();
-                    for (var i = 0; i < senders.length; i++) {
-                        if (senders[i].track && senders[i].track.kind === 'audio' && senders[i].replaceTrack && nrt) {
-                            return senders[i].replaceTrack(nrt);
-                        }
-                    }
+                if (nrt) nrt.enabled = !isMuted;
+                if (activeCall && activeCall.peerConnection && nrt) {
+                    return replaceAudioTrackCompat(activeCall.peerConnection, nrt, localStream);
                 }
             }).then(function() {
                 if (localStream) {
@@ -2043,6 +2114,7 @@
                     }
                     if (nrtRef) localStream.addTrack(nrtRef);
                 }
+                _micFallbackActive = false;
                 currentMicId = id === 'default' ? null : id;
                 $('device-list-container').innerHTML = renderDeviceListHtml(_cachedAudioInputs);
                 if (_callEverConnected) _restoreTimerDisplay();
