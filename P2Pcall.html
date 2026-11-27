@@ -245,7 +245,7 @@ var _iceReadyPromise=createRaceFreeIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,_mediaInitPromise=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,_mediaInitPromise=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_micMutedSince=0,_micAutoRecoverBusy=false,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -507,6 +507,28 @@ function recoverRealMicInBackground(){
 }
 
 function finalizeLocalStream(){var at=localStream.getAudioTracks();for(var i=0;i<at.length;i++)at[i].enabled=!isMuted;if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);refreshDeviceCache();return true}
+// OPPO/older Android browsers can leave a live MediaStreamTrack muted after
+// the audio capture service is suspended. Reacquire and replace that track.
+function autoRecoverMutedMic(){
+    if(_micAutoRecoverBusy||callEnded||isMuted||!localStream||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
+    var oldTrack=localStream.getAudioTracks()[0];
+    if(!oldTrack)return;
+    if(oldTrack.readyState==='live'&&!oldTrack.muted)return;
+    _micAutoRecoverBusy=true;setStatusMessage('માઇક ફરી શરૂ કરી રહ્યા છીએ…','warn');
+    getUserMediaWithTimeout({audio:true,video:false},15000).then(function(ns){
+        var fresh=ns.getAudioTracks()[0];
+        if(!fresh||fresh.readyState!=='live'||fresh.muted)throw new Error('Microphone is still unavailable');
+        fresh.enabled=!isMuted;fresh.onmute=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક થોડી વાર માટે બંધ થયું…','warn')}};
+        fresh.onunmute=function(){_micMutedSince=0;if(!callEnded)setStatusMessage('માઇક ચાલુ છે','')};
+        fresh.onended=function(){if(!callEnded){_micMutedSince=Date.now();setStatusMessage('માઇક બંધ થયું — ફરી જોડવાનો પ્રયાસ થશે','warn')}};
+        return replaceAudioTrackCompat(activeCall&&activeCall.peerConnection,fresh,localStream).then(function(){
+            if(oldTrack&&oldTrack!==fresh){oldTrack.onended=null;oldTrack.onmute=null;oldTrack.onunmute=null;try{oldTrack.stop()}catch(e){}localStream.removeTrack(oldTrack)}
+            localStream.addTrack(fresh);_micMutedSince=0;setStatusMessage('માઇક ફરી ચાલુ થયું','');
+        });
+    }).catch(function(){
+        if(!callEnded)setStatusMessage('OPPOનું માઇક બંધ છે. સ્ક્રીન ચાલુ રાખો અને માઇક પરવાનગી તપાસો.','warn');
+    }).then(function(){_micAutoRecoverBusy=false},function(){_micAutoRecoverBusy=false});
+}
 function initMedia(){
     if(_mediaInitPromise)return _mediaInitPromise;
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
@@ -527,13 +549,13 @@ function initMedia(){
         noiseMode='off';
         tracks[0].enabled=!isMuted;
         tracks[0].onended=function(){
-            if(!callEnded)setStatusMessage('Microphone stopped by device. Reconnecting…','warn');
+            if(!callEnded){_micMutedSince=Date.now();setStatusMessage('માઇક બંધ થયું — ફરી ચાલુ કરવાનો પ્રયાસ…','warn');setTimeout(autoRecoverMutedMic,1200)}
         };
         tracks[0].onmute=function(){
-            if(!callEnded)setStatusMessage('Microphone temporarily unavailable…','warn');
+            if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક થોડી વાર માટે બંધ થયું…','warn');setTimeout(function(){if(_micMutedSince&&Date.now()-_micMutedSince>=4000)autoRecoverMutedMic()},4500)}
         };
         tracks[0].onunmute=function(){
-            if(!callEnded&&isCallConnected())setStatusMessage('Microphone restored','');
+            _micMutedSince=0;if(!callEnded&&isCallConnected())setStatusMessage('માઇક ફરી ચાલુ છે','');
         };
         updateNoiseUI();
         return finalizeLocalStream();
