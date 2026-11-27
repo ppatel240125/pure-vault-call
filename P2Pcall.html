@@ -425,7 +425,7 @@
         };
 
         /* =========================================================
-           2. URL PARAMS & SYNCHRONIZED ICE/TURN RESOLUTION
+           2. ZERO-DELAY ICE SERVERS (0ms BOOT + BACKGROUND TURN)
            ========================================================= */
         var P = parseQueryParams(location.search);
         var roomId = (P.room || '123').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -459,52 +459,22 @@
         ];
         var RESOLVED_ICE_SERVERS = STUN_SERVERS.concat(FALLBACK_TURN);
 
-        function resolveIceServersBeforePeer() {
-            return new Promise(function(resolve) {
-                if (typeof fetch !== 'function') {
-                    resolve(RESOLVED_ICE_SERVERS);
-                    return;
-                }
-                var finished = false;
-                var timer = setTimeout(function() {
-                    if (!finished) {
-                        finished = true;
-                        resolve(RESOLVED_ICE_SERVERS);
+        (function fetchExtraTurnAsync() {
+            if (typeof fetch !== 'function') return;
+            try {
+                fetch('https://turn.fastrtc.org/credentials', {
+                    method: 'GET',
+                    cache: 'no-store',
+                    headers: { Authorization: 'Bearer ' + HF_TOKEN, Accept: 'application/json' }
+                }).then(function(res) {
+                    return res.ok ? res.json() : null;
+                }).then(function(data) {
+                    if (data && data.iceServers && data.iceServers.length > 0) {
+                        RESOLVED_ICE_SERVERS = STUN_SERVERS.concat(data.iceServers).concat(FALLBACK_TURN);
                     }
-                }, 1200);
-
-                try {
-                    fetch('https://turn.fastrtc.org/credentials', {
-                        method: 'GET',
-                        cache: 'no-store',
-                        headers: { Authorization: 'Bearer ' + HF_TOKEN, Accept: 'application/json' }
-                    }).then(function(res) {
-                        return res.ok ? res.json() : null;
-                    }).then(function(data) {
-                        if (finished) return;
-                        finished = true;
-                        clearTimeout(timer);
-                        if (data && data.iceServers && data.iceServers.length > 0) {
-                            RESOLVED_ICE_SERVERS = STUN_SERVERS.concat(data.iceServers).concat(FALLBACK_TURN);
-                        }
-                        resolve(RESOLVED_ICE_SERVERS);
-                    }).catch(function() {
-                        if (!finished) {
-                            finished = true;
-                            clearTimeout(timer);
-                            resolve(RESOLVED_ICE_SERVERS);
-                        }
-                    });
-                } catch (e) {
-                    if (!finished) {
-                        finished = true;
-                        clearTimeout(timer);
-                        resolve(RESOLVED_ICE_SERVERS);
-                    }
-                }
-            });
-        }
-        var _iceReadyPromise = resolveIceServersBeforePeer();
+                }).catch(function() {});
+            } catch (e) {}
+        })();
 
         /* =========================================================
            3. STATE & UI HELPERS
@@ -513,8 +483,9 @@
         var currentMicId = null, _micFallbackActive = false;
         var _cachedAudioInputs = [], _devicesLoadedOnce = false;
         var _appStarting = false, _peerReady = false, _callEverConnected = false;
-        var _gotRemoteStream = false, _ncBusy = false, _receiverReadyBoosted = false;
-        var _callSeq = 0, _callAttemptStartedAt = 0, _disconnectedSince = 0;
+        var _gotRemoteStream = false, _ncBusy = false;
+        var _remotePeerOnline = false, _callSeq = 0, _callAttemptStartedAt = 0;
+        var _disconnectedSince = 0, _lastIceRestartAt = 0, _iceRestartCount = 0;
         var _micRecoveryBusy = false, _micRecoveryTimer = null;
         var _supervisorTimer = null, _audioPlayTimer = null, _statsTimer = null;
         var _prevOutBytes = 0, _prevInBytes = 0, _zeroOutTicks = 0, _zeroInTicks = 0;
@@ -789,28 +760,40 @@
         }
 
         /* =========================================================
-           5. DUAL SUPERVISOR (CALLER + RECEIVER RECOVERY LOOP)
+           5. STEP-LEVEL RECOVERY ENGINE (FIX ONLY THE STUCK STEP)
            ========================================================= */
         function onBackgroundTick() {
             if (callEnded) return;
+            // સ્ટેપ ૧: જો સિગ્નલિંગ (Peer) તૂટી હોય તો ફક્ત તેને જ રીકનેક્ટ કરો
+            if (!peer || peer.destroyed) {
+                startApp();
+                return;
+            }
+            if (peer.disconnected) {
+                try { peer.reconnect(); } catch (e) {}
+                return;
+            }
+            if (!peer.open) return;
+            _peerReady = true;
+
             if (role === 'caller') {
-                runCallerSupervisor();
+                stepRecoverCaller();
             } else {
-                runReceiverSupervisor();
+                stepRecoverReceiver();
             }
         }
 
         function startBackgroundEngine() {
             if (_bgWorker || _bgFallbackTimer || callEnded) return;
             try {
-                var workerCode = 'setInterval(function(){postMessage("tick");},1500);';
+                var workerCode = 'setInterval(function(){postMessage("tick");},800);';
                 var blob = new Blob([workerCode], { type: 'application/javascript' });
                 var url = URL.createObjectURL(blob);
                 _bgWorker = new Worker(url);
                 URL.revokeObjectURL(url);
                 _bgWorker.onmessage = onBackgroundTick;
             } catch (e) {
-                _bgFallbackTimer = setInterval(onBackgroundTick, 1500);
+                _bgFallbackTimer = setInterval(onBackgroundTick, 800);
             }
         }
 
@@ -1037,7 +1020,7 @@
         }
 
         function getUserMediaWithTimeout(constraints, ms) {
-            var timeoutMs = ms || 2200;
+            var timeoutMs = ms || 1200;
             return new Promise(function(resolve, reject) {
                 var done = false;
                 var t = setTimeout(function() {
@@ -1145,7 +1128,7 @@
             _ncBusy = true;
             var newStream = null, newTrack = null;
 
-            getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 2200).then(function(stream) {
+            getUserMediaWithTimeout({ audio: getAudioConstraints(currentMicId, targetMode) }, 1400).then(function(stream) {
                 newStream = stream;
                 newTrack = newStream.getAudioTracks()[0];
                 if (!verifyAudioTrackForMode(newTrack, targetMode)) {
@@ -1209,7 +1192,7 @@
                 return getUserMediaWithTimeout({
                     audio: getAudioConstraints(currentMicId, mode),
                     video: videoConstraints || false
-                }, 2200).then(function(stream) {
+                }, 1100).then(function(stream) {
                     streamRef = stream;
                     var track = stream.getAudioTracks()[0];
                     if (!verifyAudioTrackForMode(track, mode)) {
@@ -1340,7 +1323,7 @@
                 localStream = stream;
                 return finalizeLocalStream();
             }).catch(function(err) {
-                return getUserMediaWithTimeout({ audio: true, video: false }, 1800).then(function(basicStream) {
+                return getUserMediaWithTimeout({ audio: true, video: false }, 1200).then(function(basicStream) {
                     localStream = basicStream;
                     noiseMode = 'off';
                     _micFallbackActive = false;
@@ -1356,7 +1339,7 @@
         }
 
         /* =========================================================
-           9. SINGLE-CALL SUPERVISOR & RECEIVER RECOVERY
+           9. SURGICAL STEP-BY-STEP CONNECTION & ICE RESTART ENGINE
            ========================================================= */
         function sendDataSafe(payload) {
             if (dataConn && dataConn.open) {
@@ -1376,7 +1359,8 @@
             }
         }
 
-        function openCallerDataChannel() {
+        // સ્ટેપ ૨: હળવા DataChannel દ્વારા સામેવાળાની હાજરી તપાસવી (આખો કોલ ફાયર કર્યા વગર)
+        function probeRemotePeer() {
             if (role !== 'caller' || callEnded || !peer || peer.destroyed || !_peerReady) return;
             if (dataConn && dataConn.open) return;
             if (dataConn && dataConn.peerConnection && dataConn.peerConnection.iceConnectionState === 'checking') return;
@@ -1396,6 +1380,7 @@
                     try { dataConn.close(); } catch (e) {}
                 }
                 dataConn = tc;
+                _remotePeerOnline = true;
 
                 if (!_callEverConnected && !callTimerInterval && statusText.innerText === 'Ringing...') {
                     setStatusMessage('Connecting...', '');
@@ -1404,23 +1389,28 @@
                 sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
 
                 if (role === 'receiver') {
+                    // સ્ટેપ ૨ (Receiver): ઓનલાઈન થતા જ Caller ને તરત સંદેશ મોકલો
                     sendDataSafe({ type: 'RECEIVER_READY' });
-                } else if (role === 'caller' && !isCallConnected() && !_receiverReadyBoosted) {
-                    _receiverReadyBoosted = true;
-                    setTimeout(function() {
-                        if (!callEnded && !isCallConnected()) initiateSingleCall();
-                    }, 150);
+                } else if (role === 'caller' && !isCallConnected()) {
+                    // સ્ટેપ ૨ (Caller): સામેવાળો ઓનલાઈન છે! જો હજુ કોલ ન લાગ્યો હોય તો તરત એક સચોટ કોલ લગાવો
+                    if (!activeCall) {
+                        initiateSingleCall();
+                    } else {
+                        // જો પહેલેથી કોલ ચાલુ હોય અને અટક્યો હોય તો આખો કોલ કાપ્યા વગર માત્ર ICE Restart કરો
+                        tryIceRestartInPlace();
+                    }
                 }
             });
 
             tc.on('data', function(d) {
                 if (!d || typeof d !== 'object') return;
                 if (d.type === 'RECEIVER_READY') {
+                    _remotePeerOnline = true;
                     if (role === 'caller' && !isCallConnected()) {
-                        var pc = activeCall && activeCall.peerConnection;
-                        var ice = pc ? pc.iceConnectionState : 'none';
-                        if (ice !== 'checking' && ice !== 'connected' && ice !== 'completed') {
+                        if (!activeCall) {
                             initiateSingleCall();
+                        } else {
+                            tryIceRestartInPlace();
                         }
                     }
                 } else if (d.type === 'NAME') {
@@ -1435,87 +1425,114 @@
                 } else if (d.type === 'END_CALL') {
                     endCall(true);
                 } else if (d.type === 'PING') {
+                    _remotePeerOnline = true;
                     if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
                     sendDataSafe({ type: 'PONG', ts: d.ts, qMode: qualityMode, modeTs: _modeUpdatedAt });
                 } else if (d.type === 'PONG') {
+                    _remotePeerOnline = true;
                     if (d.qMode) syncQualityFromRemote(d.qMode, d.modeTs);
                 }
             });
 
             tc.on('close', function() {
-                if (dataConn === tc) {
-                    dataConn = null;
-                    _receiverReadyBoosted = false;
-                }
+                if (dataConn === tc) dataConn = null;
             });
 
             tc.on('error', function() {
-                if (dataConn === tc) {
-                    dataConn = null;
-                    _receiverReadyBoosted = false;
-                }
+                if (dataConn === tc) dataConn = null;
             });
         }
 
-        function runCallerSupervisor() {
-            if (role !== 'caller' || callEnded) return;
-            if (!peer || peer.destroyed) { startApp(); return; }
-            if (peer.disconnected) { try { peer.reconnect(); } catch (e) {} return; }
-            if (!peer.open) return;
-            _peerReady = true;
+        // સ્ટેપ ૩: આખો કોલ કાપ્યા વગર ચાલુ કનેક્શનમાં જ નેટવર્ક (ICE) રિસ્ટાર્ટ કરવું
+        function tryIceRestartInPlace() {
+            if (!activeCall || !activeCall.peerConnection || callEnded) return false;
+            var pc = activeCall.peerConnection;
+            var now = Date.now();
+            if (now - _lastIceRestartAt < 2500) return true; // દર 2.5 સેકન્ડમાં એક જ વાર
 
-            openCallerDataChannel();
+            if (typeof pc.restartIce === 'function' && _iceRestartCount < 3) {
+                _lastIceRestartAt = now;
+                _iceRestartCount++;
+                try {
+                    pc.restartIce();
+                    return true;
+                } catch (e) {}
+            }
+            return false;
+        }
+
+        function stepRecoverCaller() {
+            if (role !== 'caller' || callEnded) return;
+
+            // સ્ટેપ ૨: પહેલા હળવા સિગ્નલથી સામેવાળાની હાજરી જોડો
+            probeRemotePeer();
             sendDataSafe({ type: 'PING', ts: Date.now(), qMode: qualityMode, modeTs: _modeUpdatedAt });
+
+            // જો કોલ હજુ સુધી બન્યો જ ન હોય, તો પહેલો કોલ તરત લગાવો
+            if (!activeCall) {
+                initiateSingleCall();
+                return;
+            }
+
+            var pc = activeCall.peerConnection;
+            var ice = pc ? pc.iceConnectionState : 'none';
+
+            if (ice === 'connected' || ice === 'completed') {
+                _disconnectedSince = 0;
+                _iceRestartCount = 0;
+                return;
+            }
+
+            // સ્ટેપ ૩: જો ICE 'disconnected' કે 'failed' થાય, તો પહેલા in-place ICE Restart કરો
+            if (ice === 'disconnected') {
+                if (!_disconnectedSince) _disconnectedSince = Date.now();
+                if (Date.now() - _disconnectedSince >= 2000) {
+                    if (!tryIceRestartInPlace()) {
+                        // જો 3 વાર ICE Restart પછી પણ ન જોડાય તો જ નવો કોલ બનાવો
+                        closeAndRecreateCall();
+                    }
+                }
+                return;
+            }
+
+            if (ice === 'failed') {
+                if (!tryIceRestartInPlace()) {
+                    closeAndRecreateCall();
+                }
+                return;
+            }
+
+            // જો 'checking' 4.5 સેકન્ડથી વધુ અટકે, તો આખો કોલ કાપ્યા વગર માત્ર ICE Restart કરો
+            if ((ice === 'new' || ice === 'checking') && (Date.now() - _callAttemptStartedAt >= 4500)) {
+                if (!tryIceRestartInPlace()) {
+                    closeAndRecreateCall();
+                }
+            }
+        }
+
+        function stepRecoverReceiver() {
+            if (role !== 'receiver' || callEnded) return;
 
             var pc = activeCall && activeCall.peerConnection;
             var ice = pc ? pc.iceConnectionState : 'none';
 
             if (ice === 'connected' || ice === 'completed') {
                 _disconnectedSince = 0;
+                _iceRestartCount = 0;
+                sendDataSafe({ type: 'PONG', ts: Date.now(), qMode: qualityMode, modeTs: _modeUpdatedAt });
                 return;
             }
 
             if (ice === 'disconnected') {
                 if (!_disconnectedSince) _disconnectedSince = Date.now();
-                if (Date.now() - _disconnectedSince < 5000) return;
-            } else {
-                _disconnectedSince = 0;
-            }
-
-            if (activeCall && (ice === 'new' || ice === 'checking') && (Date.now() - _callAttemptStartedAt < 10000)) {
+                if (Date.now() - _disconnectedSince >= 2000) {
+                    tryIceRestartInPlace();
+                    sendDataSafe({ type: 'RECEIVER_READY' });
+                }
                 return;
             }
 
-            if (activeCall) {
-                var stale = activeCall;
-                activeCall = null;
-                try { stale.close(); } catch (e) {}
-            }
-
-            initiateSingleCall();
-        }
-
-        function runReceiverSupervisor() {
-            if (role !== 'receiver' || callEnded) return;
-            if (!peer || peer.destroyed) { startApp(); return; }
-            if (peer.disconnected) {
-                setStatusMessage('Reconnecting Signaling...', 'warn');
-                try { peer.reconnect(); } catch (e) {}
-                return;
-            }
-            if (!peer.open) return;
-            _peerReady = true;
-
-            var pc = activeCall && activeCall.peerConnection;
-            var ice = pc ? pc.iceConnectionState : 'none';
-
-            if (ice === 'connected' || ice === 'completed') {
-                _disconnectedSince = 0;
-                sendDataSafe({ type: 'PONG', ts: Date.now(), qMode: qualityMode, modeTs: _modeUpdatedAt });
-                return;
-            }
-
-            if (ice === 'failed' || (ice === 'disconnected' && _disconnectedSince && (Date.now() - _disconnectedSince >= 5000))) {
+            if (ice === 'failed') {
                 var stale = activeCall;
                 activeCall = null;
                 _gotRemoteStream = false;
@@ -1526,6 +1543,17 @@
             } else if (!activeCall) {
                 sendDataSafe({ type: 'RECEIVER_READY' });
             }
+        }
+
+        function closeAndRecreateCall() {
+            if (role !== 'caller' || callEnded || isCallConnected()) return;
+            if (activeCall) {
+                var stale = activeCall;
+                activeCall = null;
+                try { stale.close(); } catch (e) {}
+            }
+            _iceRestartCount = 0;
+            initiateSingleCall();
         }
 
         function initiateSingleCall() {
@@ -1575,13 +1603,12 @@
             var hasLiveMedia = !!(localStream && localStream.getTracks && localStream.getTracks().length > 0);
             var mediaPromise = hasLiveMedia ? Promise.resolve(true) : initMedia();
 
-            Promise.all([mediaPromise, _iceReadyPromise]).then(function(results) {
+            mediaPromise.then(function() {
                 if (callEnded) { _appStarting = false; return; }
-                var iceServers = results[1] || RESOLVED_ICE_SERVERS;
 
                 var rtcConfig = isLegacyDevice
-                    ? { iceServers: iceServers }
-                    : { iceServers: iceServers, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
+                    ? { iceServers: RESOLVED_ICE_SERVERS }
+                    : { iceServers: RESOLVED_ICE_SERVERS, iceTransportPolicy: 'all', continualGatheringPolicy: 'gather_continually' };
 
                 peer = new Peer(myPeerId, {
                     host: '0.peerjs.com',
@@ -1595,14 +1622,14 @@
                     _peerReady = true;
                     if (_supervisorTimer) clearInterval(_supervisorTimer);
                     if (role === 'caller') {
-                        openCallerDataChannel();
+                        probeRemotePeer();
                         initiateSingleCall();
-                        _supervisorTimer = setInterval(runCallerSupervisor, 1500);
+                        _supervisorTimer = setInterval(onBackgroundTick, 800);
                     } else {
                         if (!_callEverConnected && !callTimerInterval && !_micFallbackActive) {
                             setStatusMessage('Ringing...', '');
                         }
-                        _supervisorTimer = setInterval(runReceiverSupervisor, 1500);
+                        _supervisorTimer = setInterval(onBackgroundTick, 800);
                     }
                 });
 
@@ -1621,6 +1648,7 @@
                     activeCall = call;
                     _gotRemoteStream = false;
                     _disconnectedSince = 0;
+                    _iceRestartCount = 0;
 
                     if (peerName === 'Connecting...' && call.metadata && call.metadata.name) {
                         peerName = call.metadata.name;
@@ -1648,8 +1676,14 @@
                         _peerReady = false;
                         try { if (peer && !peer.destroyed) peer.destroy(); } catch (e) {}
                         peer = null;
-                        setTimeout(function() { if (!callEnded) startApp(); }, 600);
+                        setTimeout(function() { if (!callEnded) startApp(); }, 450);
                     } else if (type === 'peer-unavailable') {
+                        // સ્ટેપ ૨: સામેવાળો હજુ ઓનલાઈન નથી; અટકેલો કોલ સાફ કરીને માત્ર probe ચાલુ રાખો
+                        if (role === 'caller' && activeCall && !isCallConnected()) {
+                            var stale = activeCall;
+                            activeCall = null;
+                            try { stale.close(); } catch (e) {}
+                        }
                         if (!_callEverConnected && !_micFallbackActive) setStatusMessage('Waiting for peer...', '');
                     } else if (type === 'network' || type === 'server-error' || type === 'socket-error' || type === 'socket-closed') {
                         setStatusMessage('Reconnecting...', 'warn');
@@ -1667,7 +1701,7 @@
             }).catch(function() {
                 _appStarting = false;
                 setStatusMessage('Reconnecting...', 'warn');
-                setTimeout(function() { if (!callEnded && (!peer || peer.destroyed)) startApp(); }, 1000);
+                setTimeout(function() { if (!callEnded && (!peer || peer.destroyed)) startApp(); }, 800);
             });
         }
 
@@ -1721,6 +1755,7 @@
         function activateAllCallSetups(call, rs) {
             if (activeCall !== call || callEnded) return;
             _disconnectedSince = 0;
+            _iceRestartCount = 0;
 
             if (rs) {
                 _attachStreamToPlayers(rs);
@@ -1732,7 +1767,7 @@
                 if (callEnded) { clearInterval(_audioPlayTimer); _audioPlayTimer = null; return; }
                 if (callType === 'audio' && remoteAudio.srcObject && remoteAudio.paused) forcePlay();
                 if (callType === 'video' && remoteVideo.srcObject && remoteVideo.paused) forcePlay();
-            }, 1000);
+            }, 900);
 
             startMediaSession();
             startBackgroundEngine();
@@ -1768,15 +1803,12 @@
             } else if (st === 'disconnected') {
                 setStatusMessage('Reconnecting...', 'warn');
                 if (!_disconnectedSince) _disconnectedSince = Date.now();
+                tryIceRestartInPlace();
             } else if (st === 'failed') {
-                setStatusMessage('Connection Failed – Retrying...', 'err');
-                if (role === 'caller') {
-                    var stale = activeCall;
-                    activeCall = null;
-                    if (stale) { try { stale.close(); } catch (e) {} }
-                    initiateSingleCall();
-                } else {
-                    runReceiverSupervisor();
+                setStatusMessage('Reconnecting Route...', 'warn');
+                if (!tryIceRestartInPlace()) {
+                    if (role === 'caller') closeAndRecreateCall();
+                    else stepRecoverReceiver();
                 }
             } else if (st === 'connected' || st === 'completed') {
                 var rs = null;
@@ -1825,8 +1857,7 @@
                 _gotRemoteStream = false;
                 if (callTimerInterval) { clearInterval(callTimerInterval); callTimerInterval = null; }
                 setStatusMessage(role === 'caller' ? 'Reconnecting...' : 'Waiting...', 'warn');
-                if (role === 'caller') runCallerSupervisor();
-                else runReceiverSupervisor();
+                onBackgroundTick();
             });
         }
 
@@ -1837,9 +1868,10 @@
                 if (peer && !peer.destroyed && peer.disconnected) {
                     try { peer.reconnect(); } catch (e) {}
                 }
-                if (role === 'caller') runCallerSupervisor();
-                else runReceiverSupervisor();
-            }, 350);
+                // નેટવર્ક બદલાય ત્યારે આખો કોલ કાપ્યા વગર માત્ર ICE Restart કરો
+                tryIceRestartInPlace();
+                onBackgroundTick();
+            }, 250);
         }
 
         window.addEventListener('online', handleNetworkRecovery);
@@ -1873,7 +1905,7 @@
             qualityMode = mode;
             _modeUpdatedAt = Date.now();
             applyQualityMode();
-            if (role === 'caller') openCallerDataChannel();
+            if (role === 'caller') probeRemotePeer();
             sendDataSafe({ type: 'QUALITY_MODE', mode: qualityMode, ts: _modeUpdatedAt });
             closeQualityMenu();
         }
@@ -1950,10 +1982,10 @@
 
         function switchAudio(id) {
             var nrtRef = null;
-            getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 2200).catch(function() {
+            getUserMediaWithTimeout({ audio: getAudioConstraints(id, noiseMode) }, 1400).catch(function() {
                 noiseMode = 'off';
                 updateNoiseUI();
-                return getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 2200);
+                return getUserMediaWithTimeout({ audio: getAudioConstraints(id, 'off') }, 1400);
             }).then(function(ns) {
                 var nrt = ns.getAudioTracks()[0];
                 nrtRef = nrt;
