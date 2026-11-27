@@ -203,7 +203,7 @@ if(!window.RTCPeerConnection)window.RTCPeerConnection=window.webkitRTCPeerConnec
 if(!window.RTCSessionDescription)window.RTCSessionDescription=window.webkitRTCSessionDescription||window.mozRTCSessionDescription;
 if(!window.RTCIceCandidate)window.RTCIceCandidate=window.webkitRTCIceCandidate||window.mozRTCIceCandidate;
 
-function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el){if(el.srcObject!==stream)el.srcObject=stream}else if(window.URL&&window.URL.createObjectURL){el.src=stream?window.URL.createObjectURL(stream):''}}catch(e){}}
+function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el){if(el.srcObject!==stream){el.srcObject=stream;if(typeof el.load==='function')el.load()}}else if(window.URL&&window.URL.createObjectURL){el.src=stream?window.URL.createObjectURL(stream):''}}catch(e){}}
 function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
 function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
 
@@ -340,8 +340,8 @@ function forcePlay(){
 }
 document.body.addEventListener('touchstart',forcePlay,{passive:true});
 document.body.addEventListener('click',forcePlay);
-remoteAudio.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteAudio))setTimeout(forcePlay,100)});
-remoteVideo.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteVideo))setTimeout(forcePlay,100)});
+remoteAudio.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteAudio))setTimeout(forcePlay,50)});
+remoteVideo.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteVideo))setTimeout(forcePlay,50)});
 
 function applyCallView(){
     if(callType==='video'){$('audio-view').style.display='none';$('video-view').style.display='block';$('vid-btn').style.display='flex'}
@@ -399,7 +399,7 @@ function startStatsTelemetry(){
                 }
             }).catch(function(){});
         }catch(e){}
-    },2000);
+    },1000);
 }
 
 function runCurrentStepSupervisor(){
@@ -705,10 +705,11 @@ function _attachStreamToPlayers(rs){
 function activateAllCallSetups(call,rs){
     if(activeCall!==call||callEnded)return;setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0;
     if(rs){_attachStreamToPlayers(rs);_gotRemoteStream=true}
+    else{var pcRs=getRemoteStreamFromPc(call&&call.peerConnection);if(pcRs){_attachStreamToPlayers(pcRs);_gotRemoteStream=true}}
     if(_audioPlayTimer)clearInterval(_audioPlayTimer);
-    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},2000);
+    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},1000);
     startMediaSession();startBackgroundEngine();startStatsTelemetry();
-    if(rs&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
+    if((rs||_gotRemoteStream)&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
     if(_callEverConnected)_restoreTimerDisplay();
     if(call&&call.peerConnection)applyVideoBitrate(call.peerConnection);
     sendDataSafe({type:'NAME',name:myName});sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});
@@ -771,6 +772,9 @@ function switchAudio(id){
     .then(function(s){ns=s;nt=s.getAudioTracks()[0];if(!nt||nt.readyState!=='live')throw new Error('No track');return swapAudioStreamAndSender(ns,nt,!isMuted)})
     .then(function(){
         _micFallbackActive=false;
+        refreshDeviceCache().then(function(){
+            if($('devices-overlay').classList.contains('active'))$('device-list-container').innerHTML=renderDeviceListHtml(_cachedAudioInputs);
+        });
         forcePlay();
         if(_callEverConnected)_restoreTimerDisplay();
     }).catch(function(){
