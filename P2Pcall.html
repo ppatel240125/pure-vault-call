@@ -29,7 +29,6 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
 .diag-dot.warn{background:#f59e0b;box-shadow:0 0 6px #f59e0b}
 .diag-dot.err{background:#ef4444;box-shadow:0 0 6px #ef4444}
 #txt-route{color:#93c5fd}
-#tap-audio-hint{display:none;margin-top:10px;padding:8px 16px;border-radius:20px;background:rgba(59,130,246,.95);color:#fff;font-size:12px;font-weight:600;border:none;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.4)}
 #lock-btn{position:absolute;top:20px;top:max(20px,env(safe-area-inset-top));right:20px;width:44px;height:44px;border-radius:50%;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.12);display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;z-index:30;cursor:pointer;color:#fff}
 .controls-container{position:absolute;bottom:28px;bottom:max(28px,env(safe-area-inset-bottom));left:10px;right:10px;background:rgba(30,35,50,.94);border-radius:36px;padding:10px 8px;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-pack:justify;-ms-flex-pack:justify;justify-content:space-between;-webkit-box-align:center;-ms-flex-align:center;align-items:center;z-index:20;box-shadow:0 10px 30px rgba(0,0,0,.5);border:1px solid rgba(255,255,255,.06)}
 .ctrl-btn{display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;background:transparent;border:1px solid transparent;color:#fff;cursor:pointer;-webkit-box-flex:1;-ms-flex:1;flex:1;min-width:44px;padding:6px 2px;border-radius:12px;margin:0 1px}
@@ -103,7 +102,6 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
             <span><i id="dot-in" class="diag-dot"></i><b id="txt-in">In: --</b></span><span>•</span>
             <span><b id="txt-route">🔍 Direct...</b></span>
         </div>
-        <button id="tap-audio-hint" onclick="forcePlay()">🔊 Tap to hear audio</button>
     </div>
     <div class="controls-container">
         <button id="mic-btn" class="ctrl-btn" onclick="toggleMic()">
@@ -247,13 +245,12 @@ var _iceReadyPromise=createRaceFreeIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPermissionState='unknown',_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroOutTicks=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
-var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay'),tapAudioHint=$('tap-audio-hint');
+var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
 
 function setStatusMessage(msg,lvl){if(!statusText)return;statusText.innerText=msg;statusText.className=lvl==='err'?'err-status':(lvl==='warn'?'warn-status':'')}
-function getUniversalErrorText(err){var n=err&&err.name?String(err.name):'',k={NotAllowedError:'Tap screen or Unmute to allow Mic',SecurityError:'Microphone blocked (HTTPS required)',NotFoundError:'No microphone found',NotReadableError:'Microphone busy in another app',OverconstrainedError:'Audio option unavailable',AbortError:'Media request interrupted',TimeoutError:'Tap screen to allow Mic'};return k[n]||'Connection retrying...'}
 
 function prepareCallNotification(){if(!('serviceWorker' in navigator)||window.isSecureContext===false)return;try{navigator.serviceWorker.register('./call-notification-sw.js',{scope:'./'}).then(function(r){_callNotificationSW=r}).catch(function(){})}catch(e){}}
 function showCallNotification(){if(!('Notification' in window)||Notification.permission!=='granted')return;try{prepareCallNotification();var w=_callNotificationSW&&(_callNotificationSW.active||_callNotificationSW.waiting);if(w)w.postMessage({type:'CALL_ACTIVE',title:(peerName&&peerName!=='Connecting...')?peerName:'Secure Call',callType:callType==='video'?'Video Call':'Voice Call'})}catch(e){}}
@@ -262,20 +259,14 @@ function hideCallNotification(){try{var w=_callNotificationSW&&(_callNotificatio
 function isCallConnected(){var pc=activeCall&&activeCall.peerConnection;if(!pc)return false;return pc.iceConnectionState==='connected'||pc.iceConnectionState==='completed'||pc.connectionState==='connected'}
 function unlockAudioHardware(){try{var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){if(!_unlockCtx)_unlockCtx=new Ctx();if(_unlockCtx.state==='suspended')_unlockCtx.resume().catch(function(){})}}catch(e){}}
 
-function onUserGesture(){
-    forcePlay();
-    if(_micFallbackActive&&!_micPromptInProgress&&!callEnded){
-        _micPermissionState='prompt';
-        recoverRealMicInBackground(true);
-    }
-}
 function forcePlay(){
     unlockAudioHardware();
-    if(hasAttachedStream(remoteVideo)){remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.then)vp.then(function(){tapAudioHint.style.display='none'}).catch(function(){})}
-    if(hasAttachedStream(remoteAudio)){remoteAudio.muted=false;remoteAudio.volume=1;var ap=remoteAudio.play();if(ap&&ap.then)ap.then(function(){tapAudioHint.style.display='none'}).catch(function(){if(!callEnded&&_gotRemoteStream)tapAudioHint.style.display='inline-block'})}
+    if(hasAttachedStream(remoteVideo)){remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){})}
+    if(hasAttachedStream(remoteAudio)){remoteAudio.muted=false;remoteAudio.volume=1;var ap=remoteAudio.play();if(ap&&ap.catch)ap.catch(function(){})}
+    if(_micFallbackActive&&!_micPromptInProgress&&!callEnded)recoverRealMicInBackground();
 }
-document.body.addEventListener('touchstart',onUserGesture,{passive:true});
-document.body.addEventListener('click',onUserGesture);
+document.body.addEventListener('touchstart',forcePlay,{passive:true});
+document.body.addEventListener('click',forcePlay);
 remoteAudio.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteAudio))setTimeout(forcePlay,100)});
 remoteVideo.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteVideo))setTimeout(forcePlay,100)});
 
@@ -290,7 +281,7 @@ updateUI();
 function isPrivateLanAddress(ip){if(!ip)return false;var c=String(ip).trim().toLowerCase();return/^(192\.168\.|10\.|172\.(1[6-9]|2\d|3[01])\.)/.test(c)||/\.local$/.test(c)||/^(fe80:|fc[0-9a-f]{2}:|fd[0-9a-f]{2}:)/.test(c)}
 function startStatsTelemetry(){
     if(_statsTimer)clearInterval(_statsTimer);
-    _prevOutBytes=0;_prevInBytes=0;_zeroOutTicks=0;_zeroInTicks=0;var prevPacketsLost=0;
+    _prevOutBytes=0;_prevInBytes=0;_zeroInTicks=0;var prevPacketsLost=0;
     $('audio-diag-bar').style.display='flex';
     _statsTimer=setInterval(function(){
         if(callEnded||!activeCall||!activeCall.peerConnection)return;
@@ -311,13 +302,12 @@ function startStatsTelemetry(){
                     else if(lt==='host'&&rt==='host'&&isPrivateLanAddress(li)&&isPrivateLanAddress(ri)){txtRoute.innerText='🏠 Wi-Fi';txtRoute.style.color='#4ade80'}
                     else if(lt||rt){txtRoute.innerText='⚡ P2P';txtRoute.style.color='#38bdf8'}
                 }
-                var dOut=outBytes-_prevOutBytes,dIn=inBytes-_prevInBytes,dLost=packetsLost-prevPacketsLost;_prevOutBytes=outBytes;_prevInBytes=inBytes;prevPacketsLost=packetsLost;
+                var dIn=inBytes-_prevInBytes,dLost=packetsLost-prevPacketsLost;_prevOutBytes=outBytes;_prevInBytes=inBytes;prevPacketsLost=packetsLost;
                 var localTrack=localStream&&localStream.getAudioTracks()[0],dotOut=$('dot-out'),txtOut=$('txt-out');
-                // માઈક ટ્રેક live હોય તો સ્થિર Mic: Active બતાવો (0dB ફ્લિકરિંગ અને ઓટો-રીસેટ દૂર કર્યું)
-                if(_micFallbackActive){dotOut.className='diag-dot warn';txtOut.innerText=_micPermissionState==='granted'?'Mic: Starting...':'Mic: Tap to Allow'}
+                if(_micFallbackActive){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Connecting...'}
                 else if(isMuted){dotOut.className='diag-dot warn';txtOut.innerText='Mic: Muted'}
                 else if(!localTrack||localTrack.readyState!=='live'){dotOut.className='diag-dot err';txtOut.innerText='Mic: Disconnected'}
-                else{dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active';_zeroOutTicks=0}
+                else{dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active'}
 
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
                 if(dIn>0){dotIn.className='diag-dot ok';txtIn.innerText='In: Active';_zeroInTicks=0}
@@ -344,7 +334,6 @@ function runCurrentStepSupervisor(){
         if(!isCallAcceptedByMe){setStep('STEP2_WAIT_ACCEPT');return}
         if(!isCallConnected()){setStep('STEP2_WAIT_ACCEPT');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'CALL_ACCEPTED'})}}
     }else if(!_receiverHasAccepted){
-        // જ્યાં સુધી સામેવાળો યુઝર ખરેખર Accept ન દબાવે ત્યાં સુધી Caller Ringing માં જ રહેશે
         setStep('STEP2_WAIT_ACCEPT');
         if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt})}
         return;
@@ -387,7 +376,7 @@ window.acceptIncomingCall=function(){
     isCallAcceptedByMe=true;
     setStatusMessage('Connecting...','');setStep('STEP2_WAIT_ACCEPT');
     openDataChannelBothSides();sendDataSafe({type:'CALL_ACCEPTED'});
-    if(_micFallbackActive){_micPermissionState='prompt';recoverRealMicInBackground(true)}
+    if(_micFallbackActive)recoverRealMicInBackground();
     if(activeCall&&localStream)try{activeCall.answer(localStream)}catch(e){}
 };
 window.addEventListener('message',function(ev){var d=ev&&ev.data;if(d&&(d==='ACCEPT_CALL'||d.type==='ACCEPT_CALL'||d.type==='CALL_ACCEPTED'))window.acceptIncomingCall()});
@@ -426,22 +415,13 @@ detectBrowserNoiseCapabilities();
 function markNoiseUnsupported(m){if(m&&m!=='raw'&&m!=='off')_unsupportedNoiseModes[m]=true;updateNoiseUI()}
 function createSilentFallbackStream(){try{var c=document.createElement('canvas');c.width=2;c.height=2;var ctx=c.getContext('2d');if(ctx)ctx.fillRect(0,0,2,2);var s=c.captureStream?c.captureStream(1):new MediaStream(),vt=s.getVideoTracks();for(var i=0;i<vt.length;i++){try{vt[i].stop()}catch(e){}s.removeTrack(vt[i])}var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){var ac=new Ctx();if(ac.state==='suspended')ac.resume().catch(function(){});var dest=ac.createMediaStreamDestination(),osc=ac.createOscillator(),g=ac.createGain();g.gain.value=0;osc.connect(g);g.connect(dest);osc.start();var at=dest.stream.getAudioTracks();for(var j=0;j<at.length;j++)s.addTrack(at[j])}_micFallbackActive=true;return s}catch(e){}_micFallbackActive=true;return new MediaStream()}
 
-function checkMicPermissionState(){
-    if(!navigator.permissions||typeof navigator.permissions.query!=='function')return Promise.resolve('unknown');
-    return navigator.permissions.query({name:'microphone'}).then(function(st){
-        _micPermissionState=st.state||'unknown';
-        try{st.onchange=function(){_micPermissionState=st.state;if(st.state==='granted'&&_micFallbackActive)recoverRealMicInBackground(true)}}catch(e){}
-        return _micPermissionState;
-    }).catch(function(){return 'unknown'});
-}
-
 function getUserMediaWithTimeout(constraints,ms){
     var tMs=ms||(isLegacyDevice?15000:3500);
     _micPromptInProgress=true;
     return new Promise(function(resolve,reject){
         var done=false,t=setTimeout(function(){if(!done){done=true;_micPromptInProgress=false;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);
         navigator.mediaDevices.getUserMedia(constraints).then(function(s){
-            _micPromptInProgress=false;_micPermissionState='granted';
+            _micPromptInProgress=false;
             if(done){var tr=s.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(e){}return}
             done=true;clearTimeout(t);resolve(s);
         }).catch(function(err){
@@ -484,7 +464,7 @@ function selectNoiseMode(targetMode,isSilent){
         nt.enabled=!isMuted;if(activeCall&&activeCall.peerConnection)return replaceAudioTrackCompat(activeCall.peerConnection,nt,localStream);
     }).then(function(){
         if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}localStream.addTrack(nt)}else localStream=ns;
-        _micFallbackActive=false;_micPermissionState='granted';noiseMode=targetMode;updateNoiseUI();_ncBusy=false;
+        _micFallbackActive=false;noiseMode=targetMode;updateNoiseUI();_ncBusy=false;
     }).catch(function(e){
         if(nt)try{nt.stop()}catch(x){}if(ns){var tr=ns.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(x){}}
         if(e&&(e.name==='OverconstrainedError'||e.name==='NotSupportedError'))markNoiseUnsupported(targetMode);
@@ -512,59 +492,36 @@ function acquireBestSupportedAudio(videoConstraints){
     return tryNext();
 }
 
-function recoverRealMicInBackground(fromUserGesture){
+function recoverRealMicInBackground(){
     if(!_micFallbackActive||callEnded||_micRecoveryBusy||_micPromptInProgress||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
-    if(_micPermissionState!=='granted'&&!fromUserGesture)return;
     _micRecoveryBusy=true;var rStream=null,rTrack=null;
     acquireBestSupportedAudio(false).then(function(s){
         rStream=s;var tr=s.getAudioTracks()[0];if(!tr||tr.readyState!=='live')throw new Error('Dead');
         tr.enabled=!isMuted;rTrack=tr;if(activeCall&&activeCall.peerConnection)return replaceAudioTrackCompat(activeCall.peerConnection,tr,localStream);
     }).then(function(){
         if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}localStream.addTrack(rTrack)}else localStream=rStream;
-        _micFallbackActive=false;_micPermissionState='granted';updateNoiseUI();if(_callEverConnected)_restoreTimerDisplay();_micRecoveryBusy=false;
-    }).catch(function(err){
+        _micFallbackActive=false;updateNoiseUI();if(_callEverConnected)_restoreTimerDisplay();_micRecoveryBusy=false;
+    }).catch(function(){
         if(rTrack)try{rTrack.stop()}catch(e){}if(rStream){var trs=rStream.getTracks();for(var i=0;i<trs.length;i++)try{trs[i].stop()}catch(e){}}
         _micRecoveryBusy=false;
-        if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='TimeoutError')){
-            _micPermissionState='denied';
-            setStatusMessage(getUniversalErrorText(err),'warn');
-            return;
-        }
-        if(!_micRecoveryTimer&&!callEnded)_micRecoveryTimer=setTimeout(function(){_micRecoveryTimer=null;recoverRealMicInBackground(false)},3000);
     });
 }
 
 function finalizeLocalStream(){var at=localStream.getAudioTracks();for(var i=0;i<at.length;i++)at[i].enabled=!isMuted;if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);refreshDeviceCache();return true}
 function initMedia(){
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){localStream=createSilentFallbackStream();return Promise.resolve(true)}
-    return checkMicPermissionState().then(function(perm){
-        if(perm==='denied'){
-            localStream=createSilentFallbackStream();
-            setStatusMessage('Tap screen or Unmute to allow Mic','warn');
-            return true;
-        }
-        var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;
-        if(callType==='video'){
-            var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
-            return acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
-                return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(err){
-                    callType='audio';applyCallView();localStream=createSilentFallbackStream();
-                    if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='TimeoutError'))_micPermissionState='denied';
-                    setStatusMessage(getUniversalErrorText(err),'warn');
-                    return finalizeLocalStream();
-                });
+    var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;
+    if(callType==='video'){
+        var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
+        return acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+            return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(){
+                callType='audio';applyCallView();localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
-        }
-        return acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(err){
-            if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='TimeoutError')){
-                _micPermissionState='denied';localStream=createSilentFallbackStream();setStatusMessage(getUniversalErrorText(err),'warn');return finalizeLocalStream();
-            }
-            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?10000:2000).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(fErr){
-                localStream=createSilentFallbackStream();
-                if(fErr&&(fErr.name==='NotAllowedError'||fErr.name==='SecurityError'||fErr.name==='TimeoutError'))_micPermissionState='denied';
-                setStatusMessage(getUniversalErrorText(fErr),'warn');
-                return finalizeLocalStream();
-            });
+        });
+    }
+    return acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+        return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?10000:2000).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(){
+            localStream=createSilentFallbackStream();return finalizeLocalStream();
         });
     });
 }
@@ -583,8 +540,7 @@ function setupDataConn(tc){
     });
     tc.on('data',function(d){
         if(!d||typeof d!=='object')return;
-        // ફક્ત CALL_ACCEPTED મળ્યા પછી જ Caller કોલ જોડશે
-        if(d.type==='CALL_ACCEPTED'){if(role==='caller'){_receiverHasAccepted=true;if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','');if(!isCallConnected()&&!activeCall){setStep('STEP3_MEDIA_JOIN');initiateSingleCall()}}}
+        if(d.type==='CALL_ACCEPTED'){if(role==='caller'){_receiverHasAccepted=true;if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Connecting...','');if(!isCallConnected()&&!activeCall){setStep('STEP3_MEDIA_JOIN');initiateSingleCall()}}}
         else if(d.type==='NAME'){if(d.name&&(peerName==='Connecting...'||peerName==='User')){peerName=d.name;updateUI()}}
         else if(d.type==='QUALITY_MODE')syncQualityFromRemote(d.mode,d.ts);
         else if(d.type==='MODE')syncQualityFromRemote(d.active?'hd':'sd',d.ts);
@@ -616,8 +572,8 @@ function startApp(){
         peer=new Peer(myPeerId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:cfg});
         peer.on('open',function(){
             _peerReady=true;setStep('STEP2_WAIT_ACCEPT');if(_stepLoopTimer)clearInterval(_stepLoopTimer);openDataChannelBothSides();
-            if(role==='receiver'){if(isCallAcceptedByMe){sendDataSafe({type:'CALL_ACCEPTED'});if(!_micFallbackActive)setStatusMessage('Connecting...','')}else if(!_micFallbackActive)setStatusMessage('Incoming Call...','')}
-            else if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Ringing...','');
+            if(role==='receiver'){if(isCallAcceptedByMe){sendDataSafe({type:'CALL_ACCEPTED'});setStatusMessage('Connecting...','')}else setStatusMessage('Incoming Call...','')}
+            else if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Ringing...','');
             _stepLoopTimer=setInterval(runCurrentStepSupervisor,1000);
         });
         peer.on('connection',function(c){if(dataConn&&dataConn!==c)try{dataConn.close()}catch(e){}dataConn=c;setupDataConn(c)});
@@ -627,14 +583,14 @@ function startApp(){
             if(peerName==='Connecting...'&&call.metadata&&call.metadata.name){peerName=call.metadata.name;updateUI()}
             if(call.metadata&&call.metadata.qMode)syncQualityFromRemote(call.metadata.qMode,call.metadata.modeTs||0);
             if(role==='receiver'&&!isCallAcceptedByMe){setupCall(call);return}
-            setStep('STEP3_MEDIA_JOIN');if(!_callEverConnected&&!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','');
+            setStep('STEP3_MEDIA_JOIN');if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Connecting...','');
             call.answer(localStream);setupCall(call);
         });
         peer.on('error',function(err){
             var t=err&&err.type?err.type:'';
             if(t==='browser-incompatible'){setStatusMessage('Browser Unsupported for Calls','err');return}
             if(t==='unavailable-id'){setStatusMessage('Reconnecting ID...','warn');_peerReady=false;try{if(peer&&!peer.destroyed)peer.destroy()}catch(e){}peer=null;setStep('STEP1_PREWARM')}
-            else if(t==='peer-unavailable'){if(!_callEverConnected&&!_micFallbackActive)setStatusMessage('Ringing...','')}
+            else if(t==='peer-unavailable'){if(!_callEverConnected)setStatusMessage('Ringing...','')}
             else if(t==='network'||t==='server-error'||t==='socket-error'||t==='socket-closed'){setStatusMessage('Reconnecting...','warn');try{if(peer&&!peer.destroyed&&peer.disconnected)peer.reconnect()}catch(e){}}
         });
         peer.on('disconnected',function(){_peerReady=false;if(!callEnded)try{if(peer&&!peer.destroyed)peer.reconnect()}catch(e){}});
@@ -643,7 +599,6 @@ function startApp(){
 }
 
 function _restoreTimerDisplay(){
-    if(_micFallbackActive&&_micPermissionState!=='granted'){setStatusMessage('Tap screen or Unmute to allow Mic','warn');return}
     if(callTimerInterval||!_callEverConnected)return;
     callTimerInterval=setInterval(function(){callSeconds++;setStatusMessage(padTwo(Math.floor(callSeconds/60))+':'+padTwo(callSeconds%60),'')},1000);
 }
@@ -662,7 +617,7 @@ function activateAllCallSetups(call,rs){
     if(_audioPlayTimer)clearInterval(_audioPlayTimer);
     _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},2000);
     startMediaSession();startBackgroundEngine();startStatsTelemetry();
-    if(rs&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;if(!_micFallbackActive||_micPermissionState==='granted')setStatusMessage('00:00','')}
+    if(rs&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
     if(_callEverConnected)_restoreTimerDisplay();
     if(call&&call.peerConnection)applyVideoBitrate(call.peerConnection);
     sendDataSafe({type:'NAME',name:myName});sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});
@@ -672,7 +627,7 @@ function _handleConnectedStream(call,rs){if(!callEnded&&rs&&activeCall===call)ac
 function _onIceState(call){
     if(callEnded||!call.peerConnection||activeCall!==call)return;
     var st=call.peerConnection.iceConnectionState;
-    if(st==='checking'){if(!callTimerInterval&&!_micFallbackActive)setStatusMessage('Connecting...','')}
+    if(st==='checking'){if(!callTimerInterval)setStatusMessage('Connecting...','')}
     else if(st==='disconnected'){setStatusMessage('Reconnecting...','warn');if(!_disconnectedSince)_disconnectedSince=Date.now()}
     else if(st==='failed'){setStatusMessage('Reconnecting...','warn');setStep('STEP3_MEDIA_JOIN')}
     else if(st==='connected'||st==='completed')activateAllCallSetups(call,getRemoteStreamFromPc(call.peerConnection));
@@ -718,11 +673,11 @@ function switchAudio(id){
     var nrtRef=null;
     getUserMediaWithTimeout({audio:getAudioConstraints(id,noiseMode)},isLegacyDevice?12000:2500).catch(function(){noiseMode='off';updateNoiseUI();return getUserMediaWithTimeout({audio:getAudioConstraints(id,'off')},isLegacyDevice?12000:2500)})
     .then(function(ns){var nrt=ns.getAudioTracks()[0];nrtRef=nrt;if(nrt)nrt.enabled=!isMuted;if(activeCall&&activeCall.peerConnection&&nrt)return replaceAudioTrackCompat(activeCall.peerConnection,nrt,localStream)})
-    .then(function(){if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}if(nrtRef)localStream.addTrack(nrtRef)}_micFallbackActive=false;_micPermissionState='granted';currentMicId=id==='default'?null:id;$('device-list-container').innerHTML=renderDeviceListHtml(_cachedAudioInputs);if(_callEverConnected)_restoreTimerDisplay();closeDevices()})
+    .then(function(){if(localStream){var old=localStream.getAudioTracks();for(var i=0;i<old.length;i++){try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}if(nrtRef)localStream.addTrack(nrtRef)}_micFallbackActive=false;currentMicId=id==='default'?null:id;$('device-list-container').innerHTML=renderDeviceListHtml(_cachedAudioInputs);if(_callEverConnected)_restoreTimerDisplay();closeDevices()})
     .catch(function(){alert('Failed to switch device.')});
 }
 function toggleMic(){
-    if(_micFallbackActive){_micPermissionState='prompt';recoverRealMicInBackground(true);return}
+    if(_micFallbackActive){recoverRealMicInBackground();return}
     isMuted=!isMuted;if(localStream){var t=localStream.getAudioTracks();for(var i=0;i<t.length;i++)t[i].enabled=!isMuted}var b=$('mic-btn');if(isMuted)b.classList.add('active');else b.classList.remove('active');b.querySelector('span').innerText=isMuted?'Unmute':'Mute'
 }
 function toggleVideo(){if(callType!=='video')return;isVideoOff=!isVideoOff;if(localStream){var t=localStream.getVideoTracks();for(var i=0;i<t.length;i++)t[i].enabled=!isVideoOff}var b=$('vid-btn');if(isVideoOff)b.classList.add('active');else b.classList.remove('active');b.querySelector('span').innerText=isVideoOff?'Cam Off':'Video'}
