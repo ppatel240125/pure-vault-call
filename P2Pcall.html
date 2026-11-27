@@ -245,7 +245,7 @@ var _iceReadyPromise=createRaceFreeIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,_mediaInitPromise=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_micMutedSince=0,_micAutoRecoverBusy=false,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,_mediaInitPromise=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_micRecoveryBusy=false,_micRecoveryTimer=null,_micMutedSince=0,_micAutoRecoverBusy=false,_micHadAudio=false,_micSilentSince=0,_micLastEnergy=null,_micLastAutoRecoveryAt=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevOutBytes=0,_prevInBytes=0,_zeroInTicks=0,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -282,16 +282,21 @@ function isPrivateLanAddress(ip){if(!ip)return false;var c=String(ip).trim().toL
 function startStatsTelemetry(){
     if(_statsTimer)clearInterval(_statsTimer);
     _prevOutBytes=0;_prevInBytes=0;_zeroInTicks=0;var prevPacketsLost=0;
+    _micHadAudio=false;_micSilentSince=0;_micLastEnergy=null;
     $('audio-diag-bar').style.display='flex';
     _statsTimer=setInterval(function(){
         if(callEnded||!activeCall||!activeCall.peerConnection)return;
         var pc=activeCall.peerConnection;if(!isCallConnected()||typeof pc.getStats!=='function')return;
         try{
             pc.getStats().then(function(stats){
-                var outBytes=0,inBytes=0,packetsLost=0,selectedPair=null,candidates={};
+                var outBytes=0,inBytes=0,packetsLost=0,selectedPair=null,candidates={},audioLevel=null,totalEnergy=null;
                 stats.forEach(function(r){
                     if(r.type==='outbound-rtp'&&(r.kind==='audio'||r.mediaType==='audio'))outBytes=r.bytesSent||0;
                     if(r.type==='inbound-rtp'&&(r.kind==='audio'||r.mediaType==='audio')){inBytes=r.bytesReceived||0;packetsLost=r.packetsLost||0}
+                    if(r.type==='media-source'&&(r.kind==='audio'||r.mediaType==='audio')){
+                        var lt=localStream&&localStream.getAudioTracks?localStream.getAudioTracks()[0]:null;
+                        if(!lt||!r.trackIdentifier||r.trackIdentifier===lt.id){if(typeof r.audioLevel==='number')audioLevel=r.audioLevel;if(typeof r.totalAudioEnergy==='number')totalEnergy=r.totalAudioEnergy}
+                    }
                     if(r.type==='local-candidate'||r.type==='remote-candidate'||r.type==='localcandidate'||r.type==='remotecandidate')candidates[r.id]=r;
                     if((r.type==='candidate-pair'||r.type==='googCandidatePair')&&(r.nominated||r.state==='succeeded'||r.googActiveConnection==='true'))if(!selectedPair||r.nominated)selectedPair=r;
                 });
@@ -309,20 +314,30 @@ function startStatsTelemetry(){
                 else if(!localTrack||localTrack.readyState!=='live'){dotOut.className='diag-dot err';txtOut.innerText='Mic: Disconnected'}
                 else{dotOut.className='diag-dot ok';txtOut.innerText='Mic: Active'}
 
+                // On some older OPPO/Android builds a capture track remains "live"
+                // while the hardware capture pipeline silently stops producing audio.
+                // Detect a transition from real audio to a sustained zero-energy source.
+                var energyMoving=false;
+                if(totalEnergy!==null){if(_micLastEnergy!==null&&totalEnergy>_micLastEnergy+0.0000001)energyMoving=true;_micLastEnergy=totalEnergy}
+                var hasSignal=(audioLevel!==null&&audioLevel>0.012)||energyMoving;
+                if(hasSignal){_micHadAudio=true;_micSilentSince=0}
+                else if(_micHadAudio&&!isMuted&&localTrack&&localTrack.readyState==='live'&&!localTrack.muted&&outBytes>0){
+                    if(!_micSilentSince)_micSilentSince=Date.now();
+                    if(Date.now()-_micSilentSince>25000&&Date.now()-_micLastAutoRecoveryAt>60000&&!_micAutoRecoverBusy){
+                        _micLastAutoRecoveryAt=Date.now();_micSilentSince=0;autoRecoverMutedMic(true);
+                    }
+                }
+
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
                 if(dIn>0){dotIn.className='diag-dot ok';txtIn.innerText='In: Active';_zeroInTicks=0}
                 else{
                     _zeroInTicks++;
-                    if(_zeroInTicks>=2){
-                        dotIn.className='diag-dot err';
-                        txtIn.innerText=dLost>0?'In: Packet Loss':(selectedPair&&selectedPair.state!=='succeeded'?'In: Route Blocked':'In: Peer Mic Off');
-                    }
+                    if(_zeroInTicks>=2){dotIn.className='diag-dot err';txtIn.innerText=dLost>0?'In: Packet Loss':(selectedPair&&selectedPair.state!=='succeeded'?'In: Route Blocked':'In: Peer Mic Off')}
                 }
             }).catch(function(){});
         }catch(e){}
     },2000);
 }
-
 function runCurrentStepSupervisor(){
     if(callEnded)return;var now=Date.now();
     if(!peer||peer.destroyed){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=2000&&!_appStarting){_stepEnteredAt=now;startApp()}return}
@@ -461,14 +476,41 @@ updateNoiseUI();
 function openNoiseMenu(){updateNoiseUI();$('noise-overlay').classList.add('active')}
 function closeNoiseMenu(e){if(e&&e.target!==e.currentTarget)return;$('noise-overlay').classList.remove('active')}
 
+function _applyUserSelectedMicStream(ns,selectedId,selectedMode){
+    var fresh=ns&&ns.getAudioTracks?ns.getAudioTracks()[0]:null;
+    if(!fresh||fresh.readyState!=='live')throw new Error('Microphone unavailable');
+    fresh.enabled=!isMuted;
+    var oldTracks=localStream&&localStream.getAudioTracks?localStream.getAudioTracks():[];
+    return replaceAudioTrackCompat(activeCall&&activeCall.peerConnection,fresh,localStream).then(function(){
+        if(localStream){for(var i=0;i<oldTracks.length;i++){if(oldTracks[i]!==fresh){oldTracks[i].onended=null;oldTracks[i].onmute=null;oldTracks[i].onunmute=null;try{oldTracks[i].stop()}catch(e){}localStream.removeTrack(oldTracks[i])}}localStream.addTrack(fresh)}
+        else localStream=ns;
+        currentMicId=selectedId||null;noiseMode=selectedMode||'off';_micFallbackActive=false;
+        fresh.onended=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક બંધ થયું — ફરી શરૂ કરવાનો પ્રયાસ…','warn');setTimeout(autoRecoverMutedMic,1200)}};
+        fresh.onmute=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક થોડી વાર માટે બંધ થયું…','warn');setTimeout(function(){if(_micMutedSince&&Date.now()-_micMutedSince>=4000)autoRecoverMutedMic()},4500)}};
+        fresh.onunmute=function(){_micMutedSince=0};
+        updateNoiseUI();refreshDeviceCache();if(_callEverConnected)_restoreTimerDisplay();
+    });
+}
 function selectNoiseMode(targetMode,isSilent){
-    if(_unsupportedNoiseModes[targetMode])return;
+    if(!targetMode||_unsupportedNoiseModes[targetMode])return;
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){updateNoiseUI('Microphone permission unavailable');return}
     if(!isSilent){_noiseModeManuallySelected=true;closeNoiseMenu()}
-    // Do not reacquire/stop the live microphone when changing a cosmetic filter
-    // setting. That track replacement caused intermittent transmit loss on
-    // older Android audio stacks. Keep the OS default voice processing instead.
-    noiseMode='off';
-    updateNoiseUI();
+    // The click itself starts getUserMedia so the browser can show its permission
+    // prompt here. Keep the current live track until the replacement succeeds.
+    var constraints=getAudioConstraints(currentMicId,targetMode),requested=targetMode;
+    setStatusMessage('માઇક સેટિંગ લાગુ કરી રહ્યા છીએ…','warn');
+    getUserMediaWithTimeout({audio:constraints,video:false},isLegacyDevice?15000:12000).then(function(ns){
+        return _applyUserSelectedMicStream(ns,currentMicId,targetMode).catch(function(e){ns.getTracks().forEach(function(t){try{t.stop()}catch(x){}});throw e});
+    }).catch(function(err){
+        if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError')){setStatusMessage('માઇક પરવાનગી બંધ છે. Browser Settings માં Microphone Allow કરો.','err');return}
+        if(err&&(err.name==='OverconstrainedError'||err.name==='NotSupportedError')){
+            markNoiseUnsupported(requested);
+            // Some Android browsers do not implement ENC/voice-isolation flags.
+            // Retry with the selected physical mic and browser-default processing.
+            return getUserMediaWithTimeout({audio:currentMicId?{deviceId:{ideal:currentMicId}}:true,video:false},isLegacyDevice?15000:12000).then(function(ns){return _applyUserSelectedMicStream(ns,currentMicId,'off').then(function(){setStatusMessage('આ વિકલ્પ આ ફોનમાં સપોર્ટ નથી; Standard માઇક ચાલુ છે.','warn')})});
+        }
+        setStatusMessage('માઇક સેટિંગ લાગુ ન થયું. પહેલાનું માઇક ચાલુ રાખ્યું છે.','warn');
+    });
 }
 
 function acquireBestSupportedAudio(videoConstraints){
@@ -509,24 +551,26 @@ function recoverRealMicInBackground(){
 function finalizeLocalStream(){var at=localStream.getAudioTracks();for(var i=0;i<at.length;i++)at[i].enabled=!isMuted;if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);refreshDeviceCache();return true}
 // OPPO/older Android browsers can leave a live MediaStreamTrack muted after
 // the audio capture service is suspended. Reacquire and replace that track.
-function autoRecoverMutedMic(){
+function autoRecoverMutedMic(forceRestart){
     if(_micAutoRecoverBusy||callEnded||isMuted||!localStream||!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return;
     var oldTrack=localStream.getAudioTracks()[0];
     if(!oldTrack)return;
-    if(oldTrack.readyState==='live'&&!oldTrack.muted)return;
+    if(!forceRestart&&oldTrack.readyState==='live'&&!oldTrack.muted)return;
     _micAutoRecoverBusy=true;setStatusMessage('માઇક ફરી શરૂ કરી રહ્યા છીએ…','warn');
-    getUserMediaWithTimeout({audio:true,video:false},15000).then(function(ns){
+    var primary={audio:currentMicId?{deviceId:{ideal:currentMicId}}:true,video:false};
+    getUserMediaWithTimeout(primary,15000).catch(function(){return getUserMediaWithTimeout({audio:true,video:false},15000)}).then(function(ns){
         var fresh=ns.getAudioTracks()[0];
         if(!fresh||fresh.readyState!=='live'||fresh.muted)throw new Error('Microphone is still unavailable');
-        fresh.enabled=!isMuted;fresh.onmute=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક થોડી વાર માટે બંધ થયું…','warn')}};
+        fresh.enabled=!isMuted;
+        fresh.onmute=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક થોડી વાર માટે બંધ થયું…','warn');setTimeout(function(){if(_micMutedSince&&Date.now()-_micMutedSince>=4000)autoRecoverMutedMic(false)},4500)}};
         fresh.onunmute=function(){_micMutedSince=0;if(!callEnded)setStatusMessage('માઇક ચાલુ છે','')};
-        fresh.onended=function(){if(!callEnded){_micMutedSince=Date.now();setStatusMessage('માઇક બંધ થયું — ફરી જોડવાનો પ્રયાસ થશે','warn')}};
+        fresh.onended=function(){if(!callEnded&&!isMuted){_micMutedSince=Date.now();setStatusMessage('માઇક બંધ થયું — ફરી જોડવાનો પ્રયાસ થશે','warn');setTimeout(function(){autoRecoverMutedMic(false)},1200)}};
         return replaceAudioTrackCompat(activeCall&&activeCall.peerConnection,fresh,localStream).then(function(){
             if(oldTrack&&oldTrack!==fresh){oldTrack.onended=null;oldTrack.onmute=null;oldTrack.onunmute=null;try{oldTrack.stop()}catch(e){}localStream.removeTrack(oldTrack)}
-            localStream.addTrack(fresh);_micMutedSince=0;setStatusMessage('માઇક ફરી ચાલુ થયું','');
+            localStream.addTrack(fresh);_micMutedSince=0;_micHadAudio=false;_micSilentSince=0;_micLastEnergy=null;setStatusMessage('માઇક ફરી ચાલુ થયું','');
         });
     }).catch(function(){
-        if(!callEnded)setStatusMessage('OPPOનું માઇક બંધ છે. સ્ક્રીન ચાલુ રાખો અને માઇક પરવાનગી તપાસો.','warn');
+        if(!callEnded)setStatusMessage('OPPOનું માઇક ફરી શરૂ ન થયું. Chromeમાં Microphone Allow અને ફોનની Mic permission તપાસો.','warn');
     }).then(function(){_micAutoRecoverBusy=false},function(){_micAutoRecoverBusy=false});
 }
 function initMedia(){
@@ -720,25 +764,39 @@ if(navigator.mediaDevices&&navigator.mediaDevices.addEventListener)navigator.med
 function openDevices(){$('devices-overlay').classList.add('active');var c=$('device-list-container');if(_devicesLoadedOnce){c.innerHTML=renderDeviceListHtml(_cachedAudioInputs);refreshDeviceCache()}else{c.innerHTML='<div style="padding:16px;color:#aaa">Loading...</div>';refreshDeviceCache().then(function(m){c.innerHTML=renderDeviceListHtml(m)})}}
 function closeDevices(e){if(e&&e.target!==e.currentTarget)return;$('devices-overlay').classList.remove('active')}
 function switchAudio(id){
-    var audioConstraint=id==='default'?true:{deviceId:{exact:id}};
-    getUserMediaWithTimeout({audio:audioConstraint,video:false},isLegacyDevice?15000:10000).then(function(ns){
-        var nrt=ns.getAudioTracks()[0];
-        if(!nrt||nrt.readyState!=='live')throw new Error('Microphone unavailable');
-        nrt.enabled=!isMuted;
-        return replaceAudioTrackCompat(activeCall&&activeCall.peerConnection,nrt,localStream).then(function(){
-            var old=localStream?localStream.getAudioTracks():[];
-            if(localStream){
-                for(var i=0;i<old.length;i++){
-                    if(old[i]!==nrt){old[i].onended=null;try{old[i].stop()}catch(e){}localStream.removeTrack(old[i])}
-                }
-                localStream.addTrack(nrt);
-            }
-            currentMicId=id==='default'?null:id;
-            nrt.onended=function(){if(!callEnded)setStatusMessage('Microphone stopped by device. Reconnect the call.','warn')};
-            closeDevices();refreshDeviceCache();
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){alert('Microphone permission is unavailable in this browser.');return}
+    var requestedId=(id&&id!=='default')?id:null;
+    // Request permission directly from this user action. Try the exact selected
+    // input first, then a relaxed device match, then browser default as recovery.
+    var attempts=requestedId?[
+        {audio:{deviceId:{exact:requestedId}},video:false},
+        {audio:{deviceId:{ideal:requestedId}},video:false}
+    ]:[{audio:true,video:false}];
+    if(requestedId)attempts.push({audio:true,video:false});
+    var idx=0,usedDefault=false;
+    function tryNext(err){
+        if(idx>=attempts.length){
+            if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'))alert('માઇક પરવાનગી બંધ છે. Browser Settings માં Microphone Allow કરો.');
+            else alert('પસંદ કરેલું માઇક ચાલુ થઈ શક્યું નથી. પહેલાનું માઇક ચાલુ રાખ્યું છે.');
+            return;
+        }
+        var c=attempts[idx++];usedDefault=!!(requestedId&&idx===attempts.length);
+        getUserMediaWithTimeout(c,isLegacyDevice?15000:12000).then(function(ns){
+            var actualId=requestedId&&!usedDefault?requestedId:null;
+            return _applyUserSelectedMicStream(ns,actualId,noiseMode).then(function(){
+                if(usedDefault)setStatusMessage('પસંદ કરેલું માઇક ઉપલબ્ધ નથી; Default માઇક ચાલુ કર્યું.','warn');
+                else setStatusMessage('માઇક બદલાઈ ગયું.','');
+                closeDevices();
+            }).catch(function(e){ns.getTracks().forEach(function(t){try{t.stop()}catch(x){}});throw e});
+        }).catch(function(e){
+            if(e&&(e.name==='NotAllowedError'||e.name==='SecurityError')){alert('માઇક પરવાનગી બંધ છે. Browser Settings માં Microphone Allow કરો.');setStatusMessage('માઇક પરવાનગી જરૂરી છે.','err');return}
+            if(e&&(e.name==='OverconstrainedError'||e.name==='NotFoundError'||e.name==='NotSupportedError'||e.name==='AbortError')){tryNext(e);return}
+            tryNext(e);
         });
-    }).catch(function(){alert('Could not switch microphone. The current microphone is still in use.')});
+    }
+    setStatusMessage('પસંદ કરેલું માઇક ચાલુ કરી રહ્યા છીએ…','warn');tryNext();
 }
+
 function toggleMic(){
     if(_micFallbackActive){recoverRealMicInBackground();return}
     isMuted=!isMuted;if(localStream){var t=localStream.getAudioTracks();for(var i=0;i<t.length;i++)t[i].enabled=!isMuted}var b=$('mic-btn');if(isMuted)b.classList.add('active');else b.classList.remove('active');b.querySelector('span').innerText=isMuted?'Unmute':'Mute'
