@@ -417,7 +417,6 @@
             window.RTCIceCandidate = window.webkitRTCIceCandidate || window.mozRTCIceCandidate;
         }
 
-        // Legacy Safe Helpers for Android 6 & Old PC Browsers
         function attachStreamToElement(el, stream) {
             if (!el) return;
             try {
@@ -459,7 +458,6 @@
                         }
                     }
                 }
-                // Fallback for older browsers without replaceTrack
                 if (typeof pc.removeStream === 'function' && typeof pc.addStream === 'function' && currentStream) {
                     var newStream = new MediaStream([newTrack]);
                     var vTracks = currentStream.getVideoTracks ? currentStream.getVideoTracks() : [];
@@ -503,7 +501,7 @@
         };
 
         /* =========================================================
-           2. RACE-FREE ICE/TURN PROMISE (MAX 800ms + FALLBACK)
+           2. RACE-FREE ICE/TURN PROMISE & SMART ACCEPT DEFAULT
            ========================================================= */
         var P = parseQueryParams(location.search);
         var roomId = (P.room || '123').replace(/[^a-zA-Z0-9_-]/g, '');
@@ -513,8 +511,7 @@
         var peerName = P.peerName || 'Connecting...';
         var customReturnUrl = P.returnUrl || P.back || P.chatUrl || '';
 
-        // Strict Accept Control: ?accepted=0 હોય તો Accept દબાવ્યા પછી જ જોડાશે
-        var isCallAcceptedByMe = (role === 'caller') ? true : (P.accepted === '1');
+        var isCallAcceptedByMe = (role === 'caller') ? true : (P.accepted !== '0');
 
         try {
             if (document.referrer && document.referrer.indexOf('http') === 0 && document.referrer !== location.href) {
@@ -532,7 +529,6 @@
             { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' }
         ];
 
-        // મુદ્દો 1 નો ઉકેલ: Race-free iceReady Promise (800ms max wait, પછી fallback સાથે આગળ વધે)
         function createRaceFreeIcePromise() {
             return new Promise(function(resolve) {
                 if (typeof fetch !== 'function') {
@@ -902,7 +898,7 @@
             if (!peer.open) return;
             _peerReady = true;
 
-            // STEP 2: SIGNALING HANDSHAKE & STRICT ACCEPT CHECK
+            // STEP 2: SIGNALING HANDSHAKE & ACCEPT CHECK
             if (!dataConn || !dataConn.open) {
                 if (now - _stepEnteredAt >= 2000) {
                     _stepEnteredAt = now;
@@ -933,7 +929,7 @@
                 }
             }
 
-            // STEP 3: WEBRTC MEDIA JOIN (Accept થયા પછી જ)
+            // STEP 3: WEBRTC MEDIA JOIN
             if (role === 'caller') {
                 var pc = activeCall && activeCall.peerConnection;
                 var ice = pc ? pc.iceConnectionState : 'none';
@@ -1061,8 +1057,6 @@
             }
         }
 
-        // મુદ્દો 4 નો ઉકેલ: visibilitychange પર auto-accept કાઢી નાખ્યું છે.
-        // હવે ફક્ત acceptIncomingCall() દબાવવાથી જ કોલ સ્વીકારાશે.
         document.addEventListener('visibilitychange', function() {
             if (callEnded) return;
             forcePlay();
@@ -1081,6 +1075,14 @@
                 try { activeCall.answer(localStream); } catch (e) {}
             }
         };
+
+        window.addEventListener('message', function(ev) {
+            var d = ev && ev.data;
+            if (!d) return;
+            if (d === 'ACCEPT_CALL' || d.type === 'ACCEPT_CALL' || d.type === 'CALL_ACCEPTED') {
+                window.acceptIncomingCall();
+            }
+        });
 
         /* =========================================================
            6. SCREEN LOCK OVERLAY
@@ -1357,7 +1359,6 @@
         function openNoiseMenu() { updateNoiseUI(); $('noise-overlay').classList.add('active'); }
         function closeNoiseMenu(e) { if (e && e.target !== e.currentTarget) return; $('noise-overlay').classList.remove('active'); }
 
-        // મુદ્દો 3 નો ઉકેલ: replaceTrack સફળ થાય ત્યાર પછી જ _micFallbackActive = false અને noiseMode બદલો
         function selectNoiseMode(targetMode, isSilentRecovery) {
             if (_unsupportedNoiseModes[targetMode]) return;
             if (!isSilentRecovery) {
@@ -1455,7 +1456,6 @@
             return tryNextMode();
         }
 
-        // મુદ્દો 2 નો ઉકેલ: _micFallbackActive = false ફક્ત replaceTrack અને localStream અપડેટ સફળ થયા પછી જ કરવું
         function recoverRealMicInBackground() {
             if (!_micFallbackActive || callEnded || _micRecoveryBusy || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
             _micRecoveryBusy = true;
@@ -1485,7 +1485,6 @@
                 } else {
                     localStream = realStreamRef;
                 }
-                // સફળતાપૂર્વક ટ્રેક બદલાયા પછી જ fallback flag false કરો
                 _micFallbackActive = false;
                 updateNoiseUI();
                 if (_callEverConnected) _restoreTimerDisplay();
@@ -1745,6 +1744,7 @@
                     if (role === 'receiver') {
                         if (isCallAcceptedByMe) {
                             sendDataSafe({ type: 'CALL_ACCEPTED' });
+                            if (!_micFallbackActive) setStatusMessage('Connecting...', '');
                         } else if (!_micFallbackActive) {
                             setStatusMessage('Incoming Call...', '');
                         }
