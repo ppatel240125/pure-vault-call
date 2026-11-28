@@ -533,9 +533,14 @@ function selectNoiseMode(targetMode,isSilent){
         if(!isSilent)updateNoiseUI('Not Supported');_ncBusy=false;
     });
 }
-
 function acquireBestSupportedAudio(videoConstraints){
-    var all=_noiseModeManuallySelected?[noiseMode]:(isLegacyDevice?['off','raw']:['enc','nc','off','raw']),modes=[];
+    if(isLegacyDevice&&!_noiseModeManuallySelected&&(!currentMicId||currentMicId==='default')){
+        return getUserMediaWithTimeout({audio:true,video:videoConstraints||false},15000).then(function(s){
+            noiseMode='off';updateNoiseUI();return s;
+        });
+    }
+  
+    var all=_noiseModeManuallySelected?[noiseMode]:['enc','nc','off','raw'],modes=[];
     for(var i=0;i<all.length;i++)if(!_unsupportedNoiseModes[all[i]])modes.push(all[i]);
     var idx=0;
     function tryNext(){
