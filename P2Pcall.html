@@ -192,7 +192,7 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
 <script>
 function padTwo(n){var s=String(n);return s.length<2?'0'+s:s}
 function strContains(str,sub){return String(str||'').indexOf(sub)!==-1}
-function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=decodeURIComponent(pair[0]||''),val=decodeURIComponent((pair[1]||'').replace(/\+/g,' '));if(key)res[key]=val}return res}
+function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');function safeDecode(v){try{return decodeURIComponent(String(v||'').replace(/\+/g,' '))}catch(e){return String(v||'')}}for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=safeDecode(pair[0]).trim().toLowerCase(),val=safeDecode(pair.slice(1).join('='));if(key)res[key]=val}return res}
 
 var UA=navigator.userAgent||'',androidMatch=UA.match(/Android\s+(\d+)/i),chromeMatch=UA.match(/Chrome\/(\d+)/i),androidVer=androidMatch?parseInt(androidMatch[1],10):0,chromeVer=chromeMatch?parseInt(chromeMatch[1],10):0;
 var isLegacyDevice=(androidVer>0&&androidVer<=11)||(chromeVer>0&&chromeVer<110)||!('wakeLock' in navigator);
@@ -533,9 +533,14 @@ function selectNoiseMode(targetMode,isSilent){
         if(!isSilent)updateNoiseUI('Not Supported');_ncBusy=false;
     });
 }
-
 function acquireBestSupportedAudio(videoConstraints){
-    var all=_noiseModeManuallySelected?[noiseMode]:(isLegacyDevice?['off','raw']:['enc','nc','off','raw']),modes=[];
+    if(isLegacyDevice&&!_noiseModeManuallySelected&&(!currentMicId||currentMicId==='default')){
+        return getUserMediaWithTimeout({audio:true,video:videoConstraints||false},15000).then(function(s){
+            noiseMode='off';updateNoiseUI();return s;
+        });
+    }
+  
+    var all=_noiseModeManuallySelected?[noiseMode]:['enc','nc','off','raw'],modes=[];
     for(var i=0;i<all.length;i++)if(!_unsupportedNoiseModes[all[i]])modes.push(all[i]);
     var idx=0;
     function tryNext(){
@@ -592,8 +597,11 @@ function initMedia(){
     if(callType==='video'){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
         p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
+            // Retry camera using browser-default constraints if ideal settings fail.
+            return acquireBestSupportedAudio(true).then(function(vs){return adoptAudioCapture(vs)}).catch(function(){
             return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
                 callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
+            });
             });
         });
     }else{
