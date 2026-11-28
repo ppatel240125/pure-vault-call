@@ -192,7 +192,7 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
 <script>
 function padTwo(n){var s=String(n);return s.length<2?'0'+s:s}
 function strContains(str,sub){return String(str||'').indexOf(sub)!==-1}
-function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');function safeDecode(v){try{return decodeURIComponent(String(v||'').replace(/\+/g,' '))}catch(e){return String(v||'')}}for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=safeDecode(pair[0]).trim().toLowerCase(),val=safeDecode(pair.slice(1).join('='));if(key)res[key]=val}return res}
+function parseQueryParams(searchStr){var res={},q=String(searchStr||'').replace(/^\?/,'');if(!q)return res;var parts=q.split('&');for(var i=0;i<parts.length;i++){var pair=parts[i].split('='),key=decodeURIComponent(pair[0]||''),val=decodeURIComponent((pair[1]||'').replace(/\+/g,' '));if(key)res[key]=val}return res}
 
 var UA=navigator.userAgent||'',androidMatch=UA.match(/Android\s+(\d+)/i),chromeMatch=UA.match(/Chrome\/(\d+)/i),androidVer=androidMatch?parseInt(androidMatch[1],10):0,chromeVer=chromeMatch?parseInt(chromeMatch[1],10):0;
 var isLegacyDevice=(androidVer>0&&androidVer<=11)||(chromeVer>0&&chromeVer<110)||!('wakeLock' in navigator);
@@ -207,45 +207,10 @@ function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el
 function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
 function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
 
-function bindAudioTrackHealth(tr){if(!tr)return;tr.enabled=!isMuted;tr.onended=function(){};}
-
-function syncVideoTrackToStreamAndPc(newStream){
-    var vTracks=newStream&&newStream.getVideoTracks?newStream.getVideoTracks():[];
-    var newVTrack=vTracks[0]||null;
-    if(!newVTrack&&localStream&&localStream.getVideoTracks){
-        var existingV=localStream.getVideoTracks();
-        for(var e=0;e<existingV.length;e++){if(existingV[e].readyState==='live'){newVTrack=existingV[e];break}}
-    }
-    if(!newVTrack)return Promise.resolve();
-    newVTrack.enabled=!isVideoOff;
-
-    var pc=activeCall&&activeCall.peerConnection;
-    var vPromise=Promise.resolve();
-    if(pc){
-        try{
-            if(typeof pc.getSenders==='function'){
-                var senders=pc.getSenders(),vidSender=null;
-                for(var i=0;i<senders.length;i++){if(senders[i].track&&senders[i].track.kind==='video'){vidSender=senders[i];break}}
-                if(!vidSender){for(var j=0;j<senders.length;j++){if(!senders[j].track){vidSender=senders[j];break}}}
-                if(vidSender&&typeof vidSender.replaceTrack==='function'){
-                    vPromise=vidSender.replaceTrack(newVTrack).then(function(){
-                        if(vidSender.track!==newVTrack&&typeof pc.addTrack==='function'&&localStream){try{pc.addTrack(newVTrack,localStream)}catch(err){}}
-                    });
-                }else if(typeof pc.addTrack==='function'&&localStream){try{pc.addTrack(newVTrack,localStream)}catch(err){}}
-            }
-        }catch(err){vPromise=Promise.reject(err)}
-    }
-
-    return vPromise.then(function(){
-        if(!localStream)localStream=new MediaStream([newVTrack]);
-        var oldV=localStream.getVideoTracks?localStream.getVideoTracks():[];
-        for(var k=0;k<oldV.length;k++){if(oldV[k]!==newVTrack){try{localStream.removeTrack(oldV[k])}catch(err){}}}
-        var hasV=false,curV=localStream.getVideoTracks();
-        for(var m=0;m<curV.length;m++)if(curV[m]===newVTrack){hasV=true;break}
-        if(!hasV)localStream.addTrack(newVTrack);
-        for(var n=0;n<oldV.length;n++){if(oldV[n]!==newVTrack){try{oldV[n].stop()}catch(err){}}}
-        attachStreamToElement(localVideo,localStream);
-    });
+function bindAudioTrackHealth(tr){
+    if(!tr)return;
+    tr.enabled=!isMuted;
+    tr.onended=function(){};
 }
 
 function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
@@ -261,15 +226,26 @@ function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
         try{
             if(typeof pc.getSenders==='function'){
                 var senders=pc.getSenders(),audioSender=null;
-                for(var i=0;i<senders.length;i++){if(senders[i].track&&senders[i].track.kind==='audio'){audioSender=senders[i];break}}
-                if(!audioSender){for(var j=0;j<senders.length;j++){if(!senders[j].track){audioSender=senders[j];break}}}
+                for(var i=0;i<senders.length;i++){
+                    if(senders[i].track&&senders[i].track.kind==='audio'){audioSender=senders[i];break}
+                }
+                if(!audioSender){
+                    for(var j=0;j<senders.length;j++){
+                        if(!senders[j].track){audioSender=senders[j];break}
+                    }
+                }
                 if(audioSender&&typeof audioSender.replaceTrack==='function'){
                     swapPromise=audioSender.replaceTrack(newTrack).then(function(){
-                        if(audioSender.track!==newTrack&&typeof pc.addTrack==='function'&&newStream){try{pc.addTrack(newTrack,newStream)}catch(e){}}
+                        if(audioSender.track!==newTrack&&typeof pc.addTrack==='function'&&newStream){
+                            try{pc.addTrack(newTrack,newStream)}catch(e){}
+                        }
                     });
-                }else if(typeof pc.addTrack==='function'&&newStream){try{pc.addTrack(newTrack,newStream)}catch(e){}}
+                }else if(typeof pc.addTrack==='function'&&newStream){
+                    try{pc.addTrack(newTrack,newStream)}catch(e){}
+                }
             }else if(typeof pc.removeStream==='function'&&typeof pc.addStream==='function'&&localStream&&newStream){
-                pc.removeStream(localStream);pc.addStream(newStream);
+                pc.removeStream(localStream);
+                pc.addStream(newStream);
             }
         }catch(e){swapPromise=Promise.reject(e)}
     }
@@ -277,13 +253,28 @@ function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
     return swapPromise.then(function(){
         var oldTracks=localStream&&localStream.getAudioTracks?localStream.getAudioTracks():[];
         if(!localStream)localStream=newStream||new MediaStream([newTrack]);
-        for(var k=0;k<oldTracks.length;k++){if(oldTracks[k]!==newTrack){try{localStream.removeTrack(oldTracks[k])}catch(e){}}}
+        for(var k=0;k<oldTracks.length;k++){
+            if(oldTracks[k]!==newTrack){
+                try{localStream.removeTrack(oldTracks[k])}catch(e){}
+            }
+        }
         var hasNew=false,curAt=localStream.getAudioTracks();
         for(var m=0;m<curAt.length;m++)if(curAt[m]===newTrack){hasNew=true;break}
         if(!hasNew)localStream.addTrack(newTrack);
-        for(var n=0;n<oldTracks.length;n++){if(oldTracks[n]!==newTrack){try{oldTracks[n].onended=null;oldTracks[n].stop()}catch(e){}}}
-        if(newStream){var extra=newStream.getTracks();for(var p=0;p<extra.length;p++){if(extra[p]!==newTrack&&extra[p].kind==='audio'){try{extra[p].stop()}catch(e){}}}}
-        return syncVideoTrackToStreamAndPc(newStream);
+
+        for(var n=0;n<oldTracks.length;n++){
+            if(oldTracks[n]!==newTrack){
+                try{oldTracks[n].onended=null;oldTracks[n].stop()}catch(e){}
+            }
+        }
+        if(newStream){
+            var extra=newStream.getTracks();
+            for(var p=0;p<extra.length;p++){
+                if(extra[p]!==newTrack&&extra[p].kind==='audio'){
+                    try{extra[p].stop()}catch(e){}
+                }
+            }
+        }
     });
 }
 
@@ -328,7 +319,7 @@ var _iceReadyPromise=createMandatoryTurnIcePromise();
 var currentStep='STEP1_PREWARM',_stepEnteredAt=Date.now(),_step3AttemptCount=0,_receiverHasAccepted=false;
 function setStep(s){if(currentStep!==s){currentStep=s;_stepEnteredAt=Date.now()}}
 
-var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_mediaInitPromise=null,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
+var peer=null,activeCall=null,localStream=null,dataConn=null,currentMicId=null,_micFallbackActive=false,_micPromptInProgress=false,_mediaInitPromise=null,_cachedAudioInputs=[],_devicesLoadedOnce=false,_appStarting=false,_peerReady=false,_callEverConnected=false,_gotRemoteStream=false,_ncBusy=false,_deviceSwitchBusy=false,_callSeq=0,_disconnectedSince=0,_stepLoopTimer=null,_audioPlayTimer=null,_statsTimer=null,_prevInBytes=0,_hasInboundAudioFlow=false,isMuted=false,isVideoOff=false,callEnded=false,noiseMode='off',qualityMode='sd',_modeUpdatedAt=0,_noiseModeManuallySelected=false,_unsupportedNoiseModes={enc:false,nc:false,off:false,raw:false},callTimerInterval=null,callSeconds=0,lastTap=0,_bgWorker=null,_bgFallbackTimer=null,_unlockCtx=null,_callNotificationSW=null;
 
 function $(id){return document.getElementById(id)}
 var remoteVideo=$('remote-video'),localVideo=$('local-video'),remoteAudio=$('remote-audio'),statusText=$('call-status'),lockOverlay=$('lock-overlay');
@@ -397,7 +388,9 @@ function startStatsTelemetry(){
                 for(var i=0;i<remTracks.length;i++){if(remTracks[i].readyState==='live'){hasLiveRemoteTrack=true;break}}
 
                 var dotIn=$('dot-in'),txtIn=$('txt-in');
-                if(_hasInboundAudioFlow||dIn>0||(hasLiveRemoteTrack&&_gotRemoteStream&&isCallConnected())){
+                if(_hasInboundAudioFlow||dIn>0){
+                    dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
+                }else if(hasLiveRemoteTrack&&_gotRemoteStream&&isCallConnected()){
                     dotIn.className='diag-dot ok';txtIn.innerText='In: Active';
                 }else if(isCallConnected()){
                     dotIn.className='diag-dot warn';txtIn.innerText='In: Waiting Audio...';
@@ -468,9 +461,7 @@ window.acceptIncomingCall=function(){
 };
 window.addEventListener('message',function(ev){var d=ev&&ev.data;if(d&&(d==='ACCEPT_CALL'||d.type==='ACCEPT_CALL'||d.type==='CALL_ACCEPTED'))window.acceptIncomingCall()});
 
-function enterCallFullscreen(){var el=document.documentElement;try{if(el.requestFullscreen){var p=el.requestFullscreen();if(p&&p.catch)p.catch(function(){})}else if(el.webkitRequestFullscreen){el.webkitRequestFullscreen()}}catch(e){}}
-function exitCallFullscreen(){try{if(document.fullscreenElement&&document.exitFullscreen){var p=document.exitFullscreen();if(p&&p.catch)p.catch(function(){})}else if(document.webkitFullscreenElement&&document.webkitExitFullscreen){document.webkitExitFullscreen()}}catch(e){}}
-function toggleLock(l){if(l){lockOverlay.classList.add('active');enterCallFullscreen()}else{lockOverlay.classList.remove('active');exitCallFullscreen()}}
+function toggleLock(l){if(l)lockOverlay.classList.add('active');else lockOverlay.classList.remove('active')}
 lockOverlay.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();if(!e.target.closest||!e.target.closest('.lock-icon'))return;var now=Date.now();if(now-lastTap<400){toggleLock(false);lastTap=0}else lastTap=now});
 
 function mungeLocalSDP(sdp){
@@ -504,28 +495,14 @@ detectBrowserNoiseCapabilities();
 function markNoiseUnsupported(m){if(m&&m!=='raw'&&m!=='off')_unsupportedNoiseModes[m]=true;updateNoiseUI()}
 function createSilentFallbackStream(){try{var c=document.createElement('canvas');c.width=2;c.height=2;var ctx=c.getContext('2d');if(ctx)ctx.fillRect(0,0,2,2);var s=c.captureStream?c.captureStream(1):new MediaStream(),vt=s.getVideoTracks();for(var i=0;i<vt.length;i++){try{vt[i].stop()}catch(e){}s.removeTrack(vt[i])}var Ctx=window.AudioContext||window.webkitAudioContext;if(Ctx){var ac=new Ctx();if(ac.state==='suspended')ac.resume().catch(function(){});var dest=ac.createMediaStreamDestination(),osc=ac.createOscillator(),g=ac.createGain();g.gain.value=0;osc.connect(g);g.connect(dest);osc.start();var at=dest.stream.getAudioTracks();for(var j=0;j<at.length;j++)s.addTrack(at[j])}_micFallbackActive=true;return s}catch(e){}_micFallbackActive=true;return new MediaStream()}
 
-function recoverLateMicrophone(s){
-    if(!s||callEnded)return;
-    var tracks=s.getAudioTracks?s.getAudioTracks():[],tr=tracks[0];
-    if(!tr||tr.readyState!=='live'){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}return}
-    var current=localStream&&localStream.getAudioTracks?localStream.getAudioTracks():[];
-    var usable=false;for(var i=0;i<current.length;i++)if(current[i].readyState==='live'&&current[i]!==tr)usable=true;
-    if(usable&&!_micFallbackActive){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}return}
-    swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
-        _micFallbackActive=false;bindAudioTrackHealth(tr);tr.enabled=!isMuted;refreshDeviceCache();
-    }).catch(function(){try{s.getTracks().forEach(function(x){x.stop()})}catch(e){}});
-}
-
 function getUserMediaWithTimeout(constraints,ms){
-    var tMs=ms||(isLegacyDevice?12000:4000);
+    var tMs=ms||(isLegacyDevice?20000:4000);
     _micPromptInProgress=true;
     return new Promise(function(resolve,reject){
-        var done=false,request;
-        try{request=navigator.mediaDevices.getUserMedia(constraints)}catch(e){_micPromptInProgress=false;reject(e);return}
-        var t=setTimeout(function(){if(!done){done=true;_micPromptInProgress=false;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);
-        Promise.resolve(request).then(function(s){
+        var done=false,t=setTimeout(function(){if(!done){done=true;_micPromptInProgress=false;var err=new Error('Media timeout');err.name='TimeoutError';reject(err)}},tMs);
+        navigator.mediaDevices.getUserMedia(constraints).then(function(s){
             _micPromptInProgress=false;
-            if(done){recoverLateMicrophone(s);return}
+            if(done){var tr=s.getTracks();for(var i=0;i<tr.length;i++)try{tr[i].stop()}catch(e){}return}
             done=true;clearTimeout(t);resolve(s);
         }).catch(function(err){
             _micPromptInProgress=false;
@@ -573,20 +550,15 @@ function selectNoiseMode(targetMode,isSilent){
         if(!isSilent)updateNoiseUI('Not Supported');_ncBusy=false;
     });
 }
+
 function acquireBestSupportedAudio(videoConstraints){
-    if(isLegacyDevice&&!_noiseModeManuallySelected&&(!currentMicId||currentMicId==='default')){
-        return getUserMediaWithTimeout({audio:true,video:videoConstraints||false},15000).then(function(s){
-            noiseMode='off';updateNoiseUI();return s;
-        });
-    }
-  
-    var all=_noiseModeManuallySelected?[noiseMode]:['enc','nc','off','raw'],modes=[];
+    var all=_noiseModeManuallySelected?[noiseMode]:(isLegacyDevice?['off','raw']:['enc','nc','off','raw']),modes=[];
     for(var i=0;i<all.length;i++)if(!_unsupportedNoiseModes[all[i]])modes.push(all[i]);
     var idx=0;
     function tryNext(){
         if(idx>=modes.length)return Promise.reject(new Error('No audio'));
         var mode=modes[idx++],sRef=null;
-        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?15000:3000).then(function(s){
+        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?20000:3000).then(function(s){
             sRef=s;var tr=s.getAudioTracks()[0];if(!verifyAudioTrackForMode(tr,mode)){var err=new Error('Inactive');err.name='OverconstrainedError';throw err}
             noiseMode=mode;updateNoiseUI();return s;
         }).catch(function(err){
@@ -599,59 +571,18 @@ function acquireBestSupportedAudio(videoConstraints){
     return tryNext();
 }
 
-function acquireVideoOnlyFallback(vc){
-    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return Promise.resolve(null);
-    return getUserMediaWithTimeout({audio:false,video:vc||true},isLegacyDevice?12000:3500).catch(function(){
-        return getUserMediaWithTimeout({audio:false,video:true},isLegacyDevice?12000:3500).catch(function(){return null});
-    });
-}
-
 function finalizeLocalStream(){
     var at=localStream.getAudioTracks();
     for(var i=0;i<at.length;i++){bindAudioTrackHealth(at[i]);at[i].enabled=!isMuted}
-    var vt=localStream.getVideoTracks?localStream.getVideoTracks():[];
-    for(var j=0;j<vt.length;j++){vt[j].enabled=!isVideoOff}
-    if(vt.length>0){
-        callType='video';
-        applyCallView();
-        attachStreamToElement(localVideo,localStream);
-        if(activeCall&&activeCall.peerConnection)syncVideoTrackToStreamAndPc(localStream).catch(function(){});
-    }else if(callType==='video'){
-        applyCallView();
-    }
+    if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);
     refreshDeviceCache();
     return true;
-}
-
-function adoptAudioCapture(s){
-    var at=s&&s.getAudioTracks?s.getAudioTracks():[],tr=at[0];
-    var vt=s&&s.getVideoTracks?s.getVideoTracks():[];
-    if(!tr||tr.readyState!=='live'){
-        if(vt.length>0){
-            if(!localStream)localStream=createSilentFallbackStream();
-            for(var k=0;k<vt.length;k++)localStream.addTrack(vt[k]);
-            _micFallbackActive=true;
-            return finalizeLocalStream();
-        }
-        return Promise.reject(new Error('No live microphone track'));
-    }
-    if(_micFallbackActive&&localStream){
-        return swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
-            _micFallbackActive=false;
-            return finalizeLocalStream();
-        });
-    }
-    localStream=s;_micFallbackActive=false;
-    return finalizeLocalStream();
 }
 
 function initMedia(){
     if(localStream&&!_micFallbackActive){
         var curAt=localStream.getAudioTracks();
         for(var k=0;k<curAt.length;k++)curAt[k].enabled=!isMuted;
-        var curVt=localStream.getVideoTracks?localStream.getVideoTracks():[];
-        for(var m=0;m<curVt.length;m++)curVt[m].enabled=!isVideoOff;
-        if(callType==='video'&&curVt.length>0){applyCallView();attachStreamToElement(localVideo,localStream)}
         return Promise.resolve(true);
     }
     if(_mediaInitPromise)return _mediaInitPromise;
@@ -664,31 +595,14 @@ function initMedia(){
     var p;
     if(callType==='video'){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
-        p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
-            return acquireBestSupportedAudio(true).then(function(vs){return adoptAudioCapture(vs)}).catch(function(){
-                return acquireBestSupportedAudio(false).then(function(as){
-                    return acquireVideoOnlyFallback(vc).then(function(vOnly){
-                        if(vOnly){
-                            var vtr=vOnly.getVideoTracks?vOnly.getVideoTracks():[];
-                            for(var i=0;i<vtr.length;i++)as.addTrack(vtr[i]);
-                        }
-                        return adoptAudioCapture(as);
-                    });
-                }).catch(function(){
-                    return acquireVideoOnlyFallback(vc).then(function(vOnly){
-                        if(!localStream)localStream=createSilentFallbackStream();
-                        if(vOnly){
-                            var vtr=vOnly.getVideoTracks?vOnly.getVideoTracks():[];
-                            for(var i=0;i<vtr.length;i++)localStream.addTrack(vtr[i]);
-                        }
-                        return finalizeLocalStream();
-                    });
-                });
+        p=acquireBestSupportedAudio(vc).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+            return acquireBestSupportedAudio(false).then(function(as){localStream=as;_micFallbackActive=false;callType='audio';applyCallView();return finalizeLocalStream()}).catch(function(){
+                callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
     }else{
-        p=acquireBestSupportedAudio(false).then(function(s){return adoptAudioCapture(s)}).catch(function(){
-            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?12000:2500).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
+        p=acquireBestSupportedAudio(false).then(function(s){localStream=s;_micFallbackActive=false;return finalizeLocalStream()}).catch(function(){
+            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?15000:2500).then(function(bs){localStream=bs;noiseMode='off';_micFallbackActive=false;updateNoiseUI();return finalizeLocalStream()}).catch(function(){
                 if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
@@ -725,7 +639,7 @@ function setupDataConn(tc){
 }
 
 function initiateSingleCall(){
-    if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted||!localStream)return;
+    if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted)return;
     if(activeCall){var pc=activeCall.peerConnection,st=pc?pc.iceConnectionState:'none';if(st==='connected'||st==='completed'||st==='checking'||st==='new')return;try{activeCall.close()}catch(e){}activeCall=null}
     _callSeq++;_stepEnteredAt=Date.now();_disconnectedSince=0;_gotRemoteStream=false;
     try{var c=peer.call(remotePeerId,localStream,{metadata:{name:myName,qMode:qualityMode,modeTs:_modeUpdatedAt,seq:_callSeq}});if(c){activeCall=c;setupCall(c)}}catch(e){}
@@ -737,16 +651,12 @@ function startApp(){
     _appStarting=true;setStep('STEP1_PREWARM');
 
     var shouldRequestMediaNow=(role==='caller')||isCallAcceptedByMe;
-    if(!localStream)localStream=createSilentFallbackStream();
+    if(!localStream&&!shouldRequestMediaNow)localStream=createSilentFallbackStream();
     var mediaReady=shouldRequestMediaNow?initMedia():Promise.resolve(true);
-    mediaReady.then(function(){
-        if(callEnded)return;
-        if(role==='caller'&&_receiverHasAccepted)initiateSingleCall();
-    }).catch(function(){});
 
-    _iceReadyPromise.then(function(ice){
+    Promise.all([mediaReady,_iceReadyPromise]).then(function(res){
         if(callEnded){_appStarting=false;return}
-        var cfg=isLegacyDevice?{iceServers:ice||FAST_ICE_SERVERS}:{iceServers:ice||FAST_ICE_SERVERS,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
+        var ice=res[1]||FAST_ICE_SERVERS,cfg=isLegacyDevice?{iceServers:ice}:{iceServers:ice,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
         peer=new Peer(myPeerId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:cfg});
         peer.on('open',function(){
             _peerReady=true;setStep('STEP2_WAIT_ACCEPT');if(_stepLoopTimer)clearInterval(_stepLoopTimer);openDataChannelBothSides();
@@ -784,45 +694,20 @@ function _restoreTimerDisplay(){
     callTimerInterval=setInterval(function(){callSeconds++;setStatusMessage(padTwo(Math.floor(callSeconds/60))+':'+padTwo(callSeconds%60),'')},1000);
 }
 function _attachStreamToPlayers(rs){
-    if(!rs)return;
-    var vt=rs.getVideoTracks?rs.getVideoTracks():[];
-    var hasLiveVideo=false;
-    for(var v=0;v<vt.length;v++){if(vt[v].readyState==='live'){hasLiveVideo=true;break}}
-
-    remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;
-    attachStreamToElement(remoteAudio,rs);forcePlay();
-    var at=rs.getAudioTracks?rs.getAudioTracks():[];
-    for(var i=0;i<at.length;i++){
-        at[i].enabled=true;at[i].onunmute=forcePlay;
-        at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()};
-    }
-
-    if(callType==='video'||hasLiveVideo){
-        if(!hasLiveVideo&&localStream&&localStream.getVideoTracks&&localStream.getVideoTracks().length>0){
-            callType='video';applyCallView();
-            var vpLocal=localVideo.play();if(vpLocal&&vpLocal.catch)vpLocal.catch(function(){});
-        }else if(hasLiveVideo){
-            callType='video';applyCallView();
-            attachStreamToElement(remoteVideo,rs);
-            remoteVideo.muted=false;remoteVideo.volume=1;
-            var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){});
-        }else{
-            applyCallView();
-        }
+    if(!rs)return;var vt=rs.getVideoTracks?rs.getVideoTracks():[];
+    if(callType==='video'&&vt.length>0){attachStreamToElement(remoteVideo,rs);remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){})}
+    else{
+        if(callType==='video'&&vt.length===0){callType='audio';applyCallView()}
+        remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;attachStreamToElement(remoteAudio,rs);forcePlay();
+        var at=rs.getAudioTracks?rs.getAudioTracks():[];for(var i=0;i<at.length;i++){at[i].enabled=true;at[i].onunmute=forcePlay;at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()}}
     }
 }
 function activateAllCallSetups(call,rs){
     if(activeCall!==call||callEnded)return;setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0;
-    var effectiveStream=rs||getRemoteStreamFromPc(call&&call.peerConnection);
-    if(effectiveStream){_attachStreamToPlayers(effectiveStream);_gotRemoteStream=true}
+    if(rs){_attachStreamToPlayers(rs);_gotRemoteStream=true}
+    else{var pcRs=getRemoteStreamFromPc(call&&call.peerConnection);if(pcRs){_attachStreamToPlayers(pcRs);_gotRemoteStream=true}}
     if(_audioPlayTimer)clearInterval(_audioPlayTimer);
-    _audioPlayTimer=setInterval(function(){
-        if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}
-        var latest=getRemoteStreamFromPc(call&&call.peerConnection);
-        if(latest&&!_gotRemoteStream){_attachStreamToPlayers(latest);_gotRemoteStream=true}
-        if(hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();
-        if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay();
-    },1000);
+    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},1000);
     startMediaSession();startBackgroundEngine();startStatsTelemetry();
     if((rs||_gotRemoteStream)&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
     if(_callEverConnected)_restoreTimerDisplay();
@@ -844,11 +729,7 @@ function setupCall(call){
     if(pc){
         addPcListener(pc,'iceconnectionstatechange',function(){_onIceState(call)});
         addPcListener(pc,'connectionstatechange',function(){if(!callEnded&&(pc.connectionState==='connected'||pc.connectionState==='failed'||pc.connectionState==='disconnected'))_onIceState(call)});
-        addPcListener(pc,'track',function(ev){
-            var s=(ev.streams&&ev.streams[0])?ev.streams[0]:(ev.track?new MediaStream([ev.track]):null);
-            if(ev.track&&ev.track.kind==='video'){callType='video';applyCallView()}
-            if(s)_handleConnectedStream(call,s);
-        });
+        addPcListener(pc,'track',function(ev){var s=(ev.streams&&ev.streams[0])?ev.streams[0]:(ev.track?new MediaStream([ev.track]):null);if(s)_handleConnectedStream(call,s)});
         addPcListener(pc,'addstream',function(ev){if(ev&&ev.stream)_handleConnectedStream(call,ev.stream)});
     }
     call.on('stream',function(rs){_handleConnectedStream(call,rs)});
