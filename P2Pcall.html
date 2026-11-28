@@ -533,25 +533,21 @@ function selectNoiseMode(targetMode,isSilent){
         if(!isSilent)updateNoiseUI('Not Supported');_ncBusy=false;
     });
 }
+
 function acquireBestSupportedAudio(videoConstraints){
-    if(isLegacyDevice&&!_noiseModeManuallySelected&&(!currentMicId||currentMicId==='default')){
-        return getUserMediaWithTimeout({audio:true,video:videoConstraints||false},15000).then(function(s){
-            noiseMode='off';updateNoiseUI();return s;
-        });
-    }
-  
-    var all=_noiseModeManuallySelected?[noiseMode]:['enc','nc','off','raw'],modes=[];
+    var all=_noiseModeManuallySelected?[noiseMode]:(isLegacyDevice?['off','raw']:['enc','nc','off','raw']),modes=[];
     for(var i=0;i<all.length;i++)if(!_unsupportedNoiseModes[all[i]])modes.push(all[i]);
     var idx=0;
+    var perTryMs=isLegacyDevice?7000:3000;
     function tryNext(){
         if(idx>=modes.length)return Promise.reject(new Error('No audio'));
         var mode=modes[idx++],sRef=null;
-        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?15000:3000).then(function(s){
+        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},perTryMs).then(function(s){
             sRef=s;var tr=s.getAudioTracks()[0];if(!verifyAudioTrackForMode(tr,mode)){var err=new Error('Inactive');err.name='OverconstrainedError';throw err}
             noiseMode=mode;updateNoiseUI();return s;
         }).catch(function(err){
             if(sRef){var trs=sRef.getTracks();for(var j=0;j<trs.length;j++)try{trs[j].stop()}catch(e){}}
-            if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='NotFoundError'||err.name==='TimeoutError'))return Promise.reject(err);
+            if(err&&(err.name==='NotAllowedError'||err.name==='SecurityError'||err.name==='NotFoundError'))return Promise.reject(err);
             if(err&&(err.name==='OverconstrainedError'||err.name==='NotSupportedError'))markNoiseUnsupported(mode);
             return tryNext();
         });
@@ -562,7 +558,13 @@ function acquireBestSupportedAudio(videoConstraints){
 function finalizeLocalStream(){
     var at=localStream.getAudioTracks();
     for(var i=0;i<at.length;i++){bindAudioTrackHealth(at[i]);at[i].enabled=!isMuted}
-    if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);
+    if(callType==='video'&&localStream.getVideoTracks().length>0){
+        applyCallView();
+        attachStreamToElement(localVideo,localStream);
+    }else if(callType==='video'&&localStream.getVideoTracks().length===0){
+        callType='audio';
+        applyCallView();
+    }
     refreshDeviceCache();
     return true;
 }
@@ -571,10 +573,22 @@ function adoptAudioCapture(s){
     var at=s&&s.getAudioTracks?s.getAudioTracks():[],tr=at[0];
     if(!tr||tr.readyState!=='live')return Promise.reject(new Error('No live microphone track'));
     if(_micFallbackActive&&localStream){
+        var prevVt=localStream.getVideoTracks?localStream.getVideoTracks():[];
+        var nextVt=s.getVideoTracks?s.getVideoTracks():[];
+        if(prevVt.length>0&&nextVt.length===0){
+            for(var v=0;v<prevVt.length;v++){try{s.addTrack(prevVt[v])}catch(e){}}
+        }
         return swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
             _micFallbackActive=false;
             return finalizeLocalStream();
         });
+    }
+    if(localStream&&localStream.getVideoTracks&&s.getVideoTracks){
+        var oldV=localStream.getVideoTracks();
+        var newV=s.getVideoTracks();
+        if(oldV.length>0&&newV.length===0){
+            for(var k=0;k<oldV.length;k++){try{s.addTrack(oldV[k])}catch(e){}}
+        }
     }
     localStream=s;_micFallbackActive=false;
     return finalizeLocalStream();
@@ -584,6 +598,10 @@ function initMedia(){
     if(localStream&&!_micFallbackActive){
         var curAt=localStream.getAudioTracks();
         for(var k=0;k<curAt.length;k++)curAt[k].enabled=!isMuted;
+        if(callType==='video'&&localStream.getVideoTracks().length>0){
+            applyCallView();
+            attachStreamToElement(localVideo,localStream);
+        }
         return Promise.resolve(true);
     }
     if(_mediaInitPromise)return _mediaInitPromise;
@@ -595,15 +613,21 @@ function initMedia(){
     var q=QUALITY_PRESETS[qualityMode]||QUALITY_PRESETS.sd;
     var p;
     if(callType==='video'){
-        var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
+        var vc=isLegacyDevice?{facingMode:'user'}:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
         p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
-            return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
-                callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
+            return navigator.mediaDevices.getUserMedia({audio:true,video:vc}).then(function(vs){
+                noiseMode='off';updateNoiseUI();return adoptAudioCapture(vs);
+            }).catch(function(){
+                return acquireBestSupportedAudio(false).then(function(as){
+                    callType='audio';applyCallView();return adoptAudioCapture(as);
+                }).catch(function(){
+                    callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
+                });
             });
         });
     }else{
         p=acquireBestSupportedAudio(false).then(function(s){return adoptAudioCapture(s)}).catch(function(){
-            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?12000:2500).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
+            return getUserMediaWithTimeout({audio:true,video:false},isLegacyDevice?7000:2500).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
                 if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
             });
         });
