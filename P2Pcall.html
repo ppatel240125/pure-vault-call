@@ -209,6 +209,45 @@ function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='
 
 function bindAudioTrackHealth(tr){if(!tr)return;tr.enabled=!isMuted;tr.onended=function(){};}
 
+function syncVideoTrackToStreamAndPc(newStream){
+    var vTracks=newStream&&newStream.getVideoTracks?newStream.getVideoTracks():[];
+    var newVTrack=vTracks[0]||null;
+    if(!newVTrack&&localStream&&localStream.getVideoTracks){
+        var existingV=localStream.getVideoTracks();
+        for(var e=0;e<existingV.length;e++){if(existingV[e].readyState==='live'){newVTrack=existingV[e];break}}
+    }
+    if(!newVTrack)return Promise.resolve();
+    newVTrack.enabled=!isVideoOff;
+
+    var pc=activeCall&&activeCall.peerConnection;
+    var vPromise=Promise.resolve();
+    if(pc){
+        try{
+            if(typeof pc.getSenders==='function'){
+                var senders=pc.getSenders(),vidSender=null;
+                for(var i=0;i<senders.length;i++){if(senders[i].track&&senders[i].track.kind==='video'){vidSender=senders[i];break}}
+                if(!vidSender){for(var j=0;j<senders.length;j++){if(!senders[j].track){vidSender=senders[j];break}}}
+                if(vidSender&&typeof vidSender.replaceTrack==='function'){
+                    vPromise=vidSender.replaceTrack(newVTrack).then(function(){
+                        if(vidSender.track!==newVTrack&&typeof pc.addTrack==='function'&&localStream){try{pc.addTrack(newVTrack,localStream)}catch(err){}}
+                    });
+                }else if(typeof pc.addTrack==='function'&&localStream){try{pc.addTrack(newVTrack,localStream)}catch(err){}}
+            }
+        }catch(err){vPromise=Promise.reject(err)}
+    }
+
+    return vPromise.then(function(){
+        if(!localStream)localStream=new MediaStream([newVTrack]);
+        var oldV=localStream.getVideoTracks?localStream.getVideoTracks():[];
+        for(var k=0;k<oldV.length;k++){if(oldV[k]!==newVTrack){try{localStream.removeTrack(oldV[k])}catch(err){}}}
+        var hasV=false,curV=localStream.getVideoTracks();
+        for(var m=0;m<curV.length;m++)if(curV[m]===newVTrack){hasV=true;break}
+        if(!hasV)localStream.addTrack(newVTrack);
+        for(var n=0;n<oldV.length;n++){if(oldV[n]!==newVTrack){try{oldV[n].stop()}catch(err){}}}
+        attachStreamToElement(localVideo,localStream);
+    });
+}
+
 function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
     if(!newTrack)return Promise.resolve();
     var targetMuted=(typeof muteFlag==='boolean')?muteFlag:isMuted;
@@ -244,6 +283,7 @@ function swapAudioStreamAndSender(newStream,newTrack,muteFlag){
         if(!hasNew)localStream.addTrack(newTrack);
         for(var n=0;n<oldTracks.length;n++){if(oldTracks[n]!==newTrack){try{oldTracks[n].onended=null;oldTracks[n].stop()}catch(e){}}}
         if(newStream){var extra=newStream.getTracks();for(var p=0;p<extra.length;p++){if(extra[p]!==newTrack&&extra[p].kind==='audio'){try{extra[p].stop()}catch(e){}}}}
+        return syncVideoTrackToStreamAndPc(newStream);
     });
 }
 
@@ -559,17 +599,42 @@ function acquireBestSupportedAudio(videoConstraints){
     return tryNext();
 }
 
+function acquireVideoOnlyFallback(vc){
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia)return Promise.resolve(null);
+    return getUserMediaWithTimeout({audio:false,video:vc||true},isLegacyDevice?12000:3500).catch(function(){
+        return getUserMediaWithTimeout({audio:false,video:true},isLegacyDevice?12000:3500).catch(function(){return null});
+    });
+}
+
 function finalizeLocalStream(){
     var at=localStream.getAudioTracks();
     for(var i=0;i<at.length;i++){bindAudioTrackHealth(at[i]);at[i].enabled=!isMuted}
-    if(callType==='video'&&localStream.getVideoTracks().length>0)attachStreamToElement(localVideo,localStream);
+    var vt=localStream.getVideoTracks?localStream.getVideoTracks():[];
+    for(var j=0;j<vt.length;j++){vt[j].enabled=!isVideoOff}
+    if(vt.length>0){
+        callType='video';
+        applyCallView();
+        attachStreamToElement(localVideo,localStream);
+        if(activeCall&&activeCall.peerConnection)syncVideoTrackToStreamAndPc(localStream).catch(function(){});
+    }else if(callType==='video'){
+        applyCallView();
+    }
     refreshDeviceCache();
     return true;
 }
 
 function adoptAudioCapture(s){
     var at=s&&s.getAudioTracks?s.getAudioTracks():[],tr=at[0];
-    if(!tr||tr.readyState!=='live')return Promise.reject(new Error('No live microphone track'));
+    var vt=s&&s.getVideoTracks?s.getVideoTracks():[];
+    if(!tr||tr.readyState!=='live'){
+        if(vt.length>0){
+            if(!localStream)localStream=createSilentFallbackStream();
+            for(var k=0;k<vt.length;k++)localStream.addTrack(vt[k]);
+            _micFallbackActive=true;
+            return finalizeLocalStream();
+        }
+        return Promise.reject(new Error('No live microphone track'));
+    }
     if(_micFallbackActive&&localStream){
         return swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
             _micFallbackActive=false;
@@ -584,6 +649,9 @@ function initMedia(){
     if(localStream&&!_micFallbackActive){
         var curAt=localStream.getAudioTracks();
         for(var k=0;k<curAt.length;k++)curAt[k].enabled=!isMuted;
+        var curVt=localStream.getVideoTracks?localStream.getVideoTracks():[];
+        for(var m=0;m<curVt.length;m++)curVt[m].enabled=!isVideoOff;
+        if(callType==='video'&&curVt.length>0){applyCallView();attachStreamToElement(localVideo,localStream)}
         return Promise.resolve(true);
     }
     if(_mediaInitPromise)return _mediaInitPromise;
@@ -597,11 +665,25 @@ function initMedia(){
     if(callType==='video'){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
         p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
-            // Retry camera using browser-default constraints if ideal settings fail.
             return acquireBestSupportedAudio(true).then(function(vs){return adoptAudioCapture(vs)}).catch(function(){
-            return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
-                callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
-            });
+                return acquireBestSupportedAudio(false).then(function(as){
+                    return acquireVideoOnlyFallback(vc).then(function(vOnly){
+                        if(vOnly){
+                            var vtr=vOnly.getVideoTracks?vOnly.getVideoTracks():[];
+                            for(var i=0;i<vtr.length;i++)as.addTrack(vtr[i]);
+                        }
+                        return adoptAudioCapture(as);
+                    });
+                }).catch(function(){
+                    return acquireVideoOnlyFallback(vc).then(function(vOnly){
+                        if(!localStream)localStream=createSilentFallbackStream();
+                        if(vOnly){
+                            var vtr=vOnly.getVideoTracks?vOnly.getVideoTracks():[];
+                            for(var i=0;i<vtr.length;i++)localStream.addTrack(vtr[i]);
+                        }
+                        return finalizeLocalStream();
+                    });
+                });
             });
         });
     }else{
@@ -702,20 +784,45 @@ function _restoreTimerDisplay(){
     callTimerInterval=setInterval(function(){callSeconds++;setStatusMessage(padTwo(Math.floor(callSeconds/60))+':'+padTwo(callSeconds%60),'')},1000);
 }
 function _attachStreamToPlayers(rs){
-    if(!rs)return;var vt=rs.getVideoTracks?rs.getVideoTracks():[];
-    if(callType==='video'&&vt.length>0){attachStreamToElement(remoteVideo,rs);remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){})}
-    else{
-        if(callType==='video'&&vt.length===0){callType='audio';applyCallView()}
-        remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;attachStreamToElement(remoteAudio,rs);forcePlay();
-        var at=rs.getAudioTracks?rs.getAudioTracks():[];for(var i=0;i<at.length;i++){at[i].enabled=true;at[i].onunmute=forcePlay;at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()}}
+    if(!rs)return;
+    var vt=rs.getVideoTracks?rs.getVideoTracks():[];
+    var hasLiveVideo=false;
+    for(var v=0;v<vt.length;v++){if(vt[v].readyState==='live'){hasLiveVideo=true;break}}
+
+    remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;
+    attachStreamToElement(remoteAudio,rs);forcePlay();
+    var at=rs.getAudioTracks?rs.getAudioTracks():[];
+    for(var i=0;i<at.length;i++){
+        at[i].enabled=true;at[i].onunmute=forcePlay;
+        at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()};
+    }
+
+    if(callType==='video'||hasLiveVideo){
+        if(!hasLiveVideo&&localStream&&localStream.getVideoTracks&&localStream.getVideoTracks().length>0){
+            callType='video';applyCallView();
+            var vpLocal=localVideo.play();if(vpLocal&&vpLocal.catch)vpLocal.catch(function(){});
+        }else if(hasLiveVideo){
+            callType='video';applyCallView();
+            attachStreamToElement(remoteVideo,rs);
+            remoteVideo.muted=false;remoteVideo.volume=1;
+            var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){});
+        }else{
+            applyCallView();
+        }
     }
 }
 function activateAllCallSetups(call,rs){
     if(activeCall!==call||callEnded)return;setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0;
-    if(rs){_attachStreamToPlayers(rs);_gotRemoteStream=true}
-    else{var pcRs=getRemoteStreamFromPc(call&&call.peerConnection);if(pcRs){_attachStreamToPlayers(pcRs);_gotRemoteStream=true}}
+    var effectiveStream=rs||getRemoteStreamFromPc(call&&call.peerConnection);
+    if(effectiveStream){_attachStreamToPlayers(effectiveStream);_gotRemoteStream=true}
     if(_audioPlayTimer)clearInterval(_audioPlayTimer);
-    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},1000);
+    _audioPlayTimer=setInterval(function(){
+        if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}
+        var latest=getRemoteStreamFromPc(call&&call.peerConnection);
+        if(latest&&!_gotRemoteStream){_attachStreamToPlayers(latest);_gotRemoteStream=true}
+        if(hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();
+        if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay();
+    },1000);
     startMediaSession();startBackgroundEngine();startStatsTelemetry();
     if((rs||_gotRemoteStream)&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
     if(_callEverConnected)_restoreTimerDisplay();
@@ -737,7 +844,11 @@ function setupCall(call){
     if(pc){
         addPcListener(pc,'iceconnectionstatechange',function(){_onIceState(call)});
         addPcListener(pc,'connectionstatechange',function(){if(!callEnded&&(pc.connectionState==='connected'||pc.connectionState==='failed'||pc.connectionState==='disconnected'))_onIceState(call)});
-        addPcListener(pc,'track',function(ev){var s=(ev.streams&&ev.streams[0])?ev.streams[0]:(ev.track?new MediaStream([ev.track]):null);if(s)_handleConnectedStream(call,s)});
+        addPcListener(pc,'track',function(ev){
+            var s=(ev.streams&&ev.streams[0])?ev.streams[0]:(ev.track?new MediaStream([ev.track]):null);
+            if(ev.track&&ev.track.kind==='video'){callType='video';applyCallView()}
+            if(s)_handleConnectedStream(call,s);
+        });
         addPcListener(pc,'addstream',function(ev){if(ev&&ev.stream)_handleConnectedStream(call,ev.stream)});
     }
     call.on('stream',function(rs){_handleConnectedStream(call,rs)});
