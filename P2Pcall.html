@@ -14,15 +14,15 @@ html,body{height:100%;margin:0;padding:0;overflow:hidden;background:#0f111a;back
 .avatar-circle{width:120px;height:120px;border-radius:50%;background:#1e2332;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;font-size:50px;font-weight:700;color:#fff;border:2px solid rgba(255,255,255,.1);box-shadow:0 10px 30px rgba(0,0,0,.5);text-transform:uppercase}
 #remote-audio{position:fixed;width:120px;height:24px;opacity:.02;pointer-events:none;bottom:4px;left:4px;z-index:1}
 #video-view{position:absolute;top:0;right:0;bottom:0;left:0;display:none;background:#000;z-index:1}
-#remote-video{width:100%;height:100%;object-fit:cover}
-#local-video-container{position:absolute;top:60px;right:20px;width:90px;height:130px;border-radius:16px;overflow:hidden;border:2px solid rgba(255,255,255,.2);box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:10}
+#remote-video{width:100%;height:100%;object-fit:cover;background:#000}
+#local-video-container{position:absolute;top:76px;right:20px;width:96px;height:136px;border-radius:16px;overflow:hidden;border:2px solid rgba(255,255,255,.25);box-shadow:0 4px 12px rgba(0,0,0,.5);z-index:12;background:#111}
 #local-video{width:100%;height:100%;object-fit:cover;-webkit-transform:scaleX(-1);transform:scaleX(-1)}
 .header{position:absolute;top:36px;top:max(36px,env(safe-area-inset-top));left:0;right:0;display:-webkit-box;display:-ms-flexbox;display:flex;-webkit-box-orient:vertical;-webkit-box-direction:normal;-ms-flex-direction:column;flex-direction:column;-webkit-box-align:center;-ms-flex-align:center;align-items:center;z-index:10;text-shadow:0 2px 4px rgba(0,0,0,.8)}
 .header h1{margin:0;font-size:22px;font-weight:600;color:#fff}
 .header p{margin:4px 0 0;font-size:14px;color:#ddd;text-align:center;padding:0 16px}
 .header p.warn-status{color:#fde047;font-weight:600}
 .header p.err-status{color:#fca5a5;font-weight:600}
-#audio-diag-bar{display:none;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-webkit-box-wrap:wrap;flex-wrap:wrap;margin-top:10px;max-width:94vw;padding:5px 12px;border-radius:20px;background:rgba(15,17,26,.85);border:1px solid rgba(255,255,255,.12);font-size:11px;color:#cbd5e1}
+#audio-diag-bar{display:none;-webkit-box-align:center;-ms-flex-align:center;align-items:center;-webkit-box-pack:center;-ms-flex-pack:center;justify-content:center;-ms-flex-wrap:wrap;flex-wrap:wrap;margin-top:10px;max-width:94vw;padding:5px 12px;border-radius:20px;background:rgba(15,17,26,.85);border:1px solid rgba(255,255,255,.12);font-size:11px;color:#cbd5e1}
 #audio-diag-bar>span{margin:0 4px}
 .diag-dot{display:inline-block;width:7px;height:7px;border-radius:50%;background:#64748b;margin-right:4px;vertical-align:middle}
 .diag-dot.ok{background:#22c55e;box-shadow:0 0 6px #22c55e}
@@ -203,7 +203,22 @@ if(!window.RTCPeerConnection)window.RTCPeerConnection=window.webkitRTCPeerConnec
 if(!window.RTCSessionDescription)window.RTCSessionDescription=window.webkitRTCSessionDescription||window.mozRTCSessionDescription;
 if(!window.RTCIceCandidate)window.RTCIceCandidate=window.webkitRTCIceCandidate||window.mozRTCIceCandidate;
 
-function attachStreamToElement(el,stream){if(!el)return;try{if('srcObject' in el){if(el.srcObject!==stream){el.srcObject=stream;if(typeof el.load==='function')el.load()}}else if(window.URL&&window.URL.createObjectURL){el.src=stream?window.URL.createObjectURL(stream):''}}catch(e){}}
+function attachStreamToElement(el,stream){
+    if(!el)return;
+    try{
+        if('srcObject' in el){
+            if(el.srcObject!==stream){
+                el.srcObject=stream;
+                if(stream&&typeof el.play==='function'){
+                    var p=el.play();
+                    if(p&&p.catch)p.catch(function(){});
+                }
+            }
+        }else if(window.URL&&window.URL.createObjectURL){
+            el.src=stream?window.URL.createObjectURL(stream):'';
+        }
+    }catch(e){}
+}
 function hasAttachedStream(el){return!!(el&&(el.srcObject||el.src))}
 function addPcListener(pc,ev,fn){if(!pc)return;if(typeof pc.addEventListener==='function')pc.addEventListener(ev,fn);else{var p='on'+ev,prev=pc[p];pc[p]=function(e){if(typeof prev==='function')prev.call(pc,e);fn(e)}}}
 
@@ -280,7 +295,7 @@ try{if(document.referrer&&document.referrer.indexOf('http')===0&&document.referr
 
 var myPeerId='p2p_ds_'+roomId+'_'+role,remotePeerId='p2p_ds_'+roomId+'_'+(role==='caller'?'receiver':'caller');
 var HF_TOKEN='hf_WglTVlbY'+'gIPSjykIoGZC'+'UGDMcMFXcmjdxB';
-var FAST_ICE_SERVERS=[
+var FALLBACK_ICE_SERVERS=[
     {urls:'stun:stun.l.google.com:19302'},
     {urls:'turn:openrelay.metered.ca:80',username:'openrelayproject',credential:'openrelayproject'},
     {urls:'turn:openrelay.metered.ca:443?transport=tcp',username:'openrelayproject',credential:'openrelayproject'}
@@ -288,17 +303,18 @@ var FAST_ICE_SERVERS=[
 
 function createMandatoryTurnIcePromise(){
     return new Promise(function(resolve){
-        if(typeof fetch!=='function'){resolve(FAST_ICE_SERVERS);return}
-        var settled=false,timer=setTimeout(function(){if(!settled){settled=true;resolve(FAST_ICE_SERVERS)}},2500);
+        if(typeof fetch!=='function'){resolve(FALLBACK_ICE_SERVERS);return}
+        var settled=false,timer=setTimeout(function(){if(!settled){settled=true;resolve(FALLBACK_ICE_SERVERS)}},1200);
         try{
             fetch('https://turn.fastrtc.org/credentials',{method:'GET',cache:'no-store',headers:{Authorization:'Bearer '+HF_TOKEN,Accept:'application/json'}})
             .then(function(r){return r.ok?r.json():null})
             .then(function(d){
-                var list=(d&&d.iceServers&&d.iceServers.length>0)?d.iceServers.concat(FAST_ICE_SERVERS):FAST_ICE_SERVERS;
-                if(!settled){settled=true;clearTimeout(timer);resolve(list)}
+                var hfList=(d&&Array.isArray(d.iceServers)&&d.iceServers.length>0)?d.iceServers:[];
+                var merged=hfList.concat(FALLBACK_ICE_SERVERS);
+                if(!settled){settled=true;clearTimeout(timer);resolve(merged)}
             })
-            .catch(function(){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}});
-        }catch(e){if(!settled){settled=true;clearTimeout(timer);resolve(FAST_ICE_SERVERS)}}
+            .catch(function(){if(!settled){settled=true;clearTimeout(timer);resolve(FALLBACK_ICE_SERVERS)}});
+        }catch(e){if(!settled){settled=true;clearTimeout(timer);resolve(FALLBACK_ICE_SERVERS)}}
     });
 }
 var _iceReadyPromise=createMandatoryTurnIcePromise();
@@ -322,8 +338,18 @@ function unlockAudioHardware(){try{var Ctx=window.AudioContext||window.webkitAud
 
 function forcePlay(){
     unlockAudioHardware();
-    if(hasAttachedStream(remoteVideo)){remoteVideo.muted=false;remoteVideo.volume=1;var vp=remoteVideo.play();if(vp&&vp.then)vp.then(function(){}).catch(function(){})}
-    if(hasAttachedStream(remoteAudio)){remoteAudio.muted=false;remoteAudio.volume=1;var ap=remoteAudio.play();if(ap&&ap.then)ap.then(function(){}).catch(function(){})}
+    if(hasAttachedStream(remoteVideo)){
+        remoteVideo.muted=false;remoteVideo.volume=1;
+        var vp=remoteVideo.play();if(vp&&vp.then)vp.then(function(){}).catch(function(){});
+    }
+    if(callType==='video'&&localStream&&localStream.getVideoTracks&&localStream.getVideoTracks().length>0){
+        if(!hasAttachedStream(localVideo))attachStreamToElement(localVideo,localStream);
+        var lp=localVideo.play();if(lp&&lp.catch)lp.catch(function(){});
+    }
+    if(hasAttachedStream(remoteAudio)){
+        remoteAudio.muted=false;remoteAudio.volume=1;
+        var ap=remoteAudio.play();if(ap&&ap.then)ap.then(function(){}).catch(function(){});
+    }
 }
 document.body.addEventListener('touchstart',forcePlay,{passive:true});
 document.body.addEventListener('click',forcePlay);
@@ -331,8 +357,18 @@ remoteAudio.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream
 remoteVideo.addEventListener('pause',function(){if(!callEnded&&hasAttachedStream(remoteVideo))setTimeout(forcePlay,50)});
 
 function applyCallView(){
-    if(callType==='video'){$('audio-view').style.display='none';$('video-view').style.display='block';$('vid-btn').style.display='flex'}
-    else{$('audio-view').style.display='flex';$('video-view').style.display='none';$('vid-btn').style.display='none'}
+    if(callType==='video'){
+        $('audio-view').style.display='none';
+        $('video-view').style.display='block';
+        $('vid-btn').style.display='flex';
+        if(localStream&&localStream.getVideoTracks&&localStream.getVideoTracks().length>0){
+            attachStreamToElement(localVideo,localStream);
+        }
+    }else{
+        $('audio-view').style.display='flex';
+        $('video-view').style.display='none';
+        $('vid-btn').style.display='none';
+    }
 }
 applyCallView();
 function updateUI(){$('peer-name').innerText=peerName;$('audio-avatar').innerText=peerName!=='Connecting...'?peerName.charAt(0):'?';updateMediaSessionMetadata()}
@@ -389,17 +425,17 @@ function startStatsTelemetry(){
 
 function runCurrentStepSupervisor(){
     if(callEnded)return;var now=Date.now();
-    if(!peer||peer.destroyed){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=2000&&!_appStarting){_stepEnteredAt=now;startApp()}return}
-    if(peer.disconnected){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;try{peer.reconnect()}catch(e){}}return}
+    if(!peer||peer.destroyed){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=1200&&!_appStarting){_stepEnteredAt=now;startApp()}return}
+    if(peer.disconnected){setStep('STEP1_PREWARM');if(now-_stepEnteredAt>=1200){_stepEnteredAt=now;try{peer.reconnect()}catch(e){}}return}
     if(!peer.open)return;_peerReady=true;
 
-    if(!dataConn||!dataConn.open){if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;openDataChannelBothSides()}}
+    if(!dataConn||!dataConn.open){if(now-_stepEnteredAt>=1200){_stepEnteredAt=now;openDataChannelBothSides()}}
     if(role==='receiver'){
         if(!isCallAcceptedByMe){setStep('STEP2_WAIT_ACCEPT');return}
-        if(!isCallConnected()){setStep('STEP2_WAIT_ACCEPT');if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'CALL_ACCEPTED'})}}
+        if(!isCallConnected()){setStep('STEP2_WAIT_ACCEPT');if(now-_stepEnteredAt>=1200){_stepEnteredAt=now;sendDataSafe({type:'CALL_ACCEPTED'})}}
     }else if(!_receiverHasAccepted){
         setStep('STEP2_WAIT_ACCEPT');
-        if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt})}
+        if(now-_stepEnteredAt>=1200){_stepEnteredAt=now;sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt})}
         return;
     }
 
@@ -409,21 +445,21 @@ function runCurrentStepSupervisor(){
         else{
             setStep('STEP3_MEDIA_JOIN');
             if(!activeCall){_stepEnteredAt=now;initiateSingleCall();return}
-            if(ice==='failed'||ice==='closed'){if(now-_stepEnteredAt>=2000){_stepEnteredAt=now;_step3AttemptCount++;var st=activeCall;activeCall=null;try{st.close()}catch(e){}initiateSingleCall()}return}
-            if(ice==='disconnected'){if(!_disconnectedSince)_disconnectedSince=now;if(now-_disconnectedSince>=2000){_disconnectedSince=now;var sd=activeCall;activeCall=null;try{sd.close()}catch(e){}initiateSingleCall()}return}
-            var waitLimit=_step3AttemptCount===0?4000:6000;
+            if(ice==='failed'||ice==='closed'){if(now-_stepEnteredAt>=1500){_stepEnteredAt=now;_step3AttemptCount++;var st=activeCall;activeCall=null;try{st.close()}catch(e){}initiateSingleCall()}return}
+            if(ice==='disconnected'){if(!_disconnectedSince)_disconnectedSince=now;if(now-_disconnectedSince>=1500){_disconnectedSince=now;var sd=activeCall;activeCall=null;try{sd.close()}catch(e){}initiateSingleCall()}return}
+            var waitLimit=_step3AttemptCount===0?2500:4000;
             if((ice==='new'||ice==='checking')&&(now-_stepEnteredAt>=waitLimit)){_stepEnteredAt=now;_step3AttemptCount++;var sc=activeCall;activeCall=null;try{sc.close()}catch(e){}initiateSingleCall()}
         }
     }else if(role==='receiver'&&isCallAcceptedByMe){
         var rpc=activeCall&&activeCall.peerConnection,rice=rpc?rpc.iceConnectionState:'none';
         if(rice==='connected'||rice==='completed'){setStep('STEP4_CONNECTED');_disconnectedSince=0}
-        else if(rice==='failed'||(rice==='disconnected'&&_disconnectedSince&&(now-_disconnectedSince>=2000))){setStep('STEP3_MEDIA_JOIN');var rs=activeCall;activeCall=null;_gotRemoteStream=false;_disconnectedSince=0;if(rs)try{rs.close()}catch(e){}sendDataSafe({type:'CALL_ACCEPTED'})}
+        else if(rice==='failed'||(rice==='disconnected'&&_disconnectedSince&&(now-_disconnectedSince>=1500))){setStep('STEP3_MEDIA_JOIN');var rs=activeCall;activeCall=null;_gotRemoteStream=false;_disconnectedSince=0;if(rs)try{rs.close()}catch(e){}sendDataSafe({type:'CALL_ACCEPTED'})}
     }
 
     if(isCallConnected()){
         setStep('STEP4_CONNECTED');sendDataSafe({type:'PING',ts:now,qMode:qualityMode,modeTs:_modeUpdatedAt});
         if(callType==='audio'&&hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();
-        if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay();
+        if(callType==='video'&&(hasAttachedStream(remoteVideo)||hasAttachedStream(localVideo)))forcePlay();
     }
 }
 
@@ -495,7 +531,7 @@ function recoverLateMicrophone(s){
 }
 
 function getUserMediaWithTimeout(constraints,ms){
-    var tMs=ms||(isLegacyDevice?12000:4000);
+    var tMs=ms||(isLegacyDevice?12000:3000);
     _micPromptInProgress=true;
     return new Promise(function(resolve,reject){
         var done=false,request;
@@ -564,7 +600,7 @@ function acquireBestSupportedAudio(videoConstraints){
     function tryNext(){
         if(idx>=modes.length)return Promise.reject(new Error('No audio'));
         var mode=modes[idx++],sRef=null;
-        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?15000:3000).then(function(s){
+        return getUserMediaWithTimeout({audio:getAudioConstraints(currentMicId,mode),video:videoConstraints||false},isLegacyDevice?15000:2500).then(function(s){
             sRef=s;var tr=s.getAudioTracks()[0];if(!verifyAudioTrackForMode(tr,mode)){var err=new Error('Inactive');err.name='OverconstrainedError';throw err}
             noiseMode=mode;updateNoiseUI();return s;
         }).catch(function(err){
@@ -580,14 +616,28 @@ function acquireBestSupportedAudio(videoConstraints){
 function finalizeLocalStream(){
     var at=localStream.getAudioTracks();
     for(var i=0;i<at.length;i++){bindAudioTrackHealth(at[i]);at[i].enabled=!isMuted}
-    if(callType==='video'&&localStream.getVideoTracks().length>0){applyCallView();attachStreamToElement(localVideo,localStream)}
+    var vt=localStream.getVideoTracks?localStream.getVideoTracks():[];
+    for(var j=0;j<vt.length;j++){vt[j].enabled=!isVideoOff}
+    if(callType==='video'){
+        applyCallView();
+        if(vt.length>0)attachStreamToElement(localVideo,localStream);
+    }
     refreshDeviceCache();
     return true;
 }
 
 function adoptAudioCapture(s){
     var at=s&&s.getAudioTracks?s.getAudioTracks():[],tr=at[0];
-    if(!tr||tr.readyState!=='live')return Promise.reject(new Error('No live microphone track'));
+    var vt=s&&s.getVideoTracks?s.getVideoTracks():[];
+    if(!tr||tr.readyState!=='live'){
+        if(vt.length>0){
+            if(!localStream)localStream=createSilentFallbackStream();
+            for(var k=0;k<vt.length;k++)localStream.addTrack(vt[k]);
+            _micFallbackActive=true;
+            return finalizeLocalStream();
+        }
+        return Promise.reject(new Error('No live microphone track'));
+    }
     if(_micFallbackActive&&localStream){
         return swapAudioStreamAndSender(s,tr,!isMuted).then(function(){
             _micFallbackActive=false;
@@ -602,6 +652,9 @@ function initMedia(){
     if(localStream&&!_micFallbackActive){
         var curAt=localStream.getAudioTracks();
         for(var k=0;k<curAt.length;k++)curAt[k].enabled=!isMuted;
+        var curVt=localStream.getVideoTracks?localStream.getVideoTracks():[];
+        for(var m=0;m<curVt.length;m++)curVt[m].enabled=!isVideoOff;
+        if(callType==='video'){applyCallView();if(curVt.length>0)attachStreamToElement(localVideo,localStream)}
         return Promise.resolve(true);
     }
     if(_mediaInitPromise)return _mediaInitPromise;
@@ -616,11 +669,11 @@ function initMedia(){
         var vc=isLegacyDevice?true:{facingMode:'user',width:{ideal:q.width},height:{ideal:q.height}};
         p=acquireBestSupportedAudio(vc).then(function(s){return adoptAudioCapture(s)}).catch(function(){
             return acquireBestSupportedAudio(true).then(function(vs){return adoptAudioCapture(vs)}).catch(function(){
-            return getUserMediaWithTimeout({audio:true,video:true},isLegacyDevice?15000:3500).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
-            return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
-                callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
-            });
-            });
+                return getUserMediaWithTimeout({audio:true,video:true},isLegacyDevice?15000:3000).then(function(bs){noiseMode='off';updateNoiseUI();return adoptAudioCapture(bs)}).catch(function(){
+                    return acquireBestSupportedAudio(false).then(function(as){callType='audio';applyCallView();return adoptAudioCapture(as)}).catch(function(){
+                        callType='audio';applyCallView();if(!localStream)localStream=createSilentFallbackStream();return finalizeLocalStream();
+                    });
+                });
             });
         });
     }else{
@@ -665,7 +718,7 @@ function initiateSingleCall(){
     if(role!=='caller'||callEnded||!peer||peer.destroyed||!peer.open||!_receiverHasAccepted||!localStream)return;
     if(activeCall){var pc=activeCall.peerConnection,st=pc?pc.iceConnectionState:'none';if(st==='connected'||st==='completed'||st==='checking'||st==='new')return;try{activeCall.close()}catch(e){}activeCall=null}
     _callSeq++;_stepEnteredAt=Date.now();_disconnectedSince=0;_gotRemoteStream=false;
-    try{var c=peer.call(remotePeerId,localStream,{metadata:{name:myName,qMode:qualityMode,modeTs:_modeUpdatedAt,seq:_callSeq}});if(c){activeCall=c;setupCall(c)}}catch(e){}
+    try{var c=peer.call(remotePeerId,localStream,{metadata:{name:myName,callType:callType,qMode:qualityMode,modeTs:_modeUpdatedAt,seq:_callSeq}});if(c){activeCall=c;setupCall(c)}}catch(e){}
 }
 
 function startApp(){
@@ -683,24 +736,34 @@ function startApp(){
 
     _iceReadyPromise.then(function(ice){
         if(callEnded){_appStarting=false;return}
-        var cfg=isLegacyDevice?{iceServers:ice||FAST_ICE_SERVERS}:{iceServers:ice||FAST_ICE_SERVERS,iceTransportPolicy:'all',continualGatheringPolicy:'gather_continually'};
+        var servers=(ice&&ice.length>0)?ice:FALLBACK_ICE_SERVERS;
+        var cfg=isLegacyDevice?{iceServers:servers}:{iceServers:servers,iceTransportPolicy:'all',iceCandidatePoolSize:6,bundlePolicy:'max-bundle',rtcpMuxPolicy:'require'};
         peer=new Peer(myPeerId,{host:'0.peerjs.com',port:443,path:'/',secure:true,config:cfg});
         peer.on('open',function(){
             _peerReady=true;setStep('STEP2_WAIT_ACCEPT');if(_stepLoopTimer)clearInterval(_stepLoopTimer);openDataChannelBothSides();
-            if(role==='receiver'){if(isCallAcceptedByMe){sendDataSafe({type:'CALL_ACCEPTED'});setStatusMessage('Connecting...','')}else setStatusMessage('Incoming Call...','')}
-            else if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Ringing...','');
+            if(role==='receiver'){
+                if(isCallAcceptedByMe){
+                    _receiverHasAccepted=true;
+                    sendDataSafe({type:'CALL_ACCEPTED'});
+                    setStatusMessage('Connecting...','');
+                    if(localStream&&activeCall&&!activeCall.open){try{activeCall.answer(localStream)}catch(e){}}
+                }else setStatusMessage('Incoming Call...','');
+            }else if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Ringing...','');
             _stepLoopTimer=setInterval(runCurrentStepSupervisor,1000);
         });
         peer.on('connection',function(c){if(dataConn&&dataConn!==c)try{dataConn.close()}catch(e){}dataConn=c;setupDataConn(c)});
         peer.on('call',function(call){
             if(activeCall&&activeCall!==call)try{activeCall.close()}catch(e){}
             activeCall=call;_gotRemoteStream=false;_disconnectedSince=0;
-            if(peerName==='Connecting...'&&call.metadata&&call.metadata.name){peerName=call.metadata.name;updateUI()}
-            if(call.metadata&&call.metadata.qMode)syncQualityFromRemote(call.metadata.qMode,call.metadata.modeTs||0);
+            if(call.metadata){
+                if(peerName==='Connecting...'&&call.metadata.name){peerName=call.metadata.name;updateUI()}
+                if(call.metadata.callType==='video'&&callType!=='video'){callType='video';applyCallView()}
+                if(call.metadata.qMode)syncQualityFromRemote(call.metadata.qMode,call.metadata.modeTs||0);
+            }
             if(role==='receiver'&&!isCallAcceptedByMe){setupCall(call);return}
             setStep('STEP3_MEDIA_JOIN');if(!_callEverConnected&&!callTimerInterval)setStatusMessage('Connecting...','');
             initMedia().then(function(){
-                if(activeCall===call&&!callEnded)try{call.answer(localStream)}catch(e){}
+                if(activeCall===call&&!callEnded&&localStream)try{call.answer(localStream)}catch(e){}
             });
             setupCall(call);
         });
@@ -721,25 +784,48 @@ function _restoreTimerDisplay(){
     callTimerInterval=setInterval(function(){callSeconds++;setStatusMessage(padTwo(Math.floor(callSeconds/60))+':'+padTwo(callSeconds%60),'')},1000);
 }
 function _attachStreamToPlayers(rs){
-    if(!rs)return;var vt=rs.getVideoTracks?rs.getVideoTracks():[];
-    remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;attachStreamToElement(remoteAudio,rs);forcePlay();
-    var at=rs.getAudioTracks?rs.getAudioTracks():[];for(var i=0;i<at.length;i++){at[i].enabled=true;at[i].onunmute=forcePlay;at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()}}
-    if(vt.length>0){
-        callType='video';applyCallView();
-        attachStreamToElement(remoteVideo,rs);remoteVideo.muted=false;remoteVideo.volume=1;
-        var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){});
-    }else if(callType==='video'){
-        applyCallView();
+    if(!rs)return;
+    var vt=rs.getVideoTracks?rs.getVideoTracks():[];
+    var hasLiveVideo=false;
+    for(var v=0;v<vt.length;v++){if(vt[v].readyState==='live'){hasLiveVideo=true;break}}
+
+    remoteAudio.autoplay=true;remoteAudio.playsInline=true;remoteAudio.muted=false;remoteAudio.volume=1;
+    attachStreamToElement(remoteAudio,rs);
+    var at=rs.getAudioTracks?rs.getAudioTracks():[];
+    for(var i=0;i<at.length;i++){
+        at[i].enabled=true;at[i].onunmute=forcePlay;
+        at[i].onended=function(){if(hasAttachedStream(remoteAudio))remoteAudio.pause()};
     }
+
+    if(callType==='video'||hasLiveVideo){
+        callType='video';applyCallView();
+        if(hasLiveVideo){
+            attachStreamToElement(remoteVideo,rs);
+            remoteVideo.muted=false;remoteVideo.volume=1;
+            var vp=remoteVideo.play();if(vp&&vp.catch)vp.catch(function(){});
+        }
+        if(localStream&&localStream.getVideoTracks&&localStream.getVideoTracks().length>0){
+            attachStreamToElement(localVideo,localStream);
+            var lp=localVideo.play();if(lp&&lp.catch)lp.catch(function(){});
+        }
+    }
+    forcePlay();
 }
 function activateAllCallSetups(call,rs){
     if(activeCall!==call||callEnded)return;setStep('STEP4_CONNECTED');_disconnectedSince=0;_step3AttemptCount=0;
-    if(rs){_attachStreamToPlayers(rs);_gotRemoteStream=true}
-    else{var pcRs=getRemoteStreamFromPc(call&&call.peerConnection);if(pcRs){_attachStreamToPlayers(pcRs);_gotRemoteStream=true}}
+    var streamToUse=rs||getRemoteStreamFromPc(call&&call.peerConnection);
+    if(streamToUse){_attachStreamToPlayers(streamToUse);_gotRemoteStream=true}
+    else if(callType==='video'){applyCallView();forcePlay()}
     if(_audioPlayTimer)clearInterval(_audioPlayTimer);
-    _audioPlayTimer=setInterval(function(){if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}if(hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();if(callType==='video'&&hasAttachedStream(remoteVideo)&&remoteVideo.paused)forcePlay()},1000);
+    _audioPlayTimer=setInterval(function(){
+        if(callEnded){clearInterval(_audioPlayTimer);_audioPlayTimer=null;return}
+        var latest=getRemoteStreamFromPc(call&&call.peerConnection);
+        if(latest){_attachStreamToPlayers(latest);_gotRemoteStream=true}
+        if(hasAttachedStream(remoteAudio)&&remoteAudio.paused)forcePlay();
+        if(callType==='video'&&(hasAttachedStream(remoteVideo)||hasAttachedStream(localVideo)))forcePlay();
+    },1000);
     startMediaSession();startBackgroundEngine();startStatsTelemetry();
-    if((rs||_gotRemoteStream)&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
+    if((streamToUse||_gotRemoteStream||isCallConnected())&&!_callEverConnected){_callEverConnected=true;showCallNotification();callSeconds=0;setStatusMessage('00:00','')}
     if(_callEverConnected)_restoreTimerDisplay();
     if(call&&call.peerConnection)applyVideoBitrate(call.peerConnection);
     sendDataSafe({type:'NAME',name:myName});sendDataSafe({type:'QUALITY_MODE',mode:qualityMode,ts:_modeUpdatedAt});
